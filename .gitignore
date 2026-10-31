@@ -37,3 +37,4 @@ backups/*.sql
 
 .env.local
 CODEBASE_SOURCE.md
+dist/
