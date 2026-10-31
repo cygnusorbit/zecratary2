@@ -84,7 +84,106 @@ const DEFAULT_FOOTER: FooterSettings = {
   },
 };
 
-// Fallback configuration without hardcoded mock content elements
+const DEFAULT_COMMUNITY_RECIPES = [
+  {
+    id: 'rec_pasta',
+    title: 'Truffle Mushroom Risotto',
+    description: 'Arborio rice slow-simmered in rich vegetable broth with wild mushrooms, shaved parmesan, and white truffle glaze.',
+    prep_time: '15m',
+    cook_time: '25m',
+    prepTimeMinutes: 15,
+    cookTimeMinutes: 25,
+    servings: 4,
+    is_favorite: true,
+    isFavorite: true,
+    image: 'https://images.unsplash.com/photo-1633964913295-ceb43826e7c9?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1633964913295-ceb43826e7c9?auto=format&fit=crop&w=800&q=80',
+    category: 'Main Dish',
+    recipeType: 'Main Dish',
+    tags: ['Italian', 'Gourmet', 'Vegetarian', 'Main Dish'],
+    ingredients: ['1.5 cups Arborio rice', '4 cups Vegetable broth', '200g Wild mushrooms', '2 tbsp Truffle oil', '50g Parmesan'],
+    instructions: ['Sauté wild mushrooms until golden.', 'Gradually add warm broth to rice while stirring continuously.', 'Fold in truffle oil and parmesan.'],
+  },
+  {
+    id: 'rec_salmon',
+    title: 'Pan-Seared Citrus Salmon',
+    description: 'Crisp Atlantic salmon fillet glazed with honey-lime marinade, served over fragrant jasmine rice and grilled asparagus.',
+    prep_time: '10m',
+    cook_time: '15m',
+    prepTimeMinutes: 10,
+    cookTimeMinutes: 15,
+    servings: 2,
+    is_favorite: true,
+    isFavorite: true,
+    image: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=800&q=80',
+    category: 'Main Dish',
+    recipeType: 'Main Dish',
+    tags: ['Seafood', 'High Protein', 'Keto', 'Main Dish'],
+    ingredients: ['2 Salmon fillets', '1 tbsp Honey', '1 Lime, juiced', '1 bunch Asparagus', '1 tbsp Olive oil'],
+    instructions: ['Season salmon with salt and pepper.', 'Sear skin-side down for 5 minutes, flip and glaze with lime-honey.', 'Serve hot with asparagus.'],
+  },
+  {
+    id: 'rec_salad',
+    title: 'Mediterranean Quinoa Bowl',
+    description: 'Organic rainbow quinoa tossed with English cucumbers, Kalamata olives, cherry tomatoes, and crumbled feta with lemon vinaigrette.',
+    prep_time: '12m',
+    cook_time: '0m',
+    prepTimeMinutes: 12,
+    cookTimeMinutes: 0,
+    servings: 3,
+    is_favorite: false,
+    isFavorite: false,
+    image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80',
+    category: 'Salad',
+    recipeType: 'Main Dish',
+    tags: ['Mediterranean', 'Healthy', 'Gluten-Free', 'Main Dish'],
+    ingredients: ['2 cups Cooked quinoa', '1 cup Cherry tomatoes', '1/2 cup Kalamata olives', '100g Feta cheese', '2 tbsp Lemon vinaigrette'],
+    instructions: ['Combine cooked quinoa with chopped vegetables.', 'Toss thoroughly with vinaigrette.', 'Top with crumbled feta cheese.'],
+  },
+];
+
+const DEFAULT_SUBSCRIPTION_PLANS = [
+  {
+    slug: 'taster',
+    name: 'Taster',
+    monthly_price: 0,
+    annual_price: 0,
+    tokens: '50,000',
+    features: ['5 Daily AI Recipe Ingests', 'Standard Meal Planner', 'Basic Shopping List', 'Community Recipe Access'],
+    is_free: true,
+  },
+  {
+    slug: 'starter',
+    name: 'Starter Chef',
+    monthly_price: 9.99,
+    annual_price: 89.99,
+    tokens: '100,000',
+    features: ['Unlimited AI Recipe Ingests', 'Automated Nutrition Tracking', 'Smart Pantry Inventory', 'Export to PDF & Markdown'],
+    is_free: false,
+  },
+  {
+    slug: 'pro',
+    name: 'Nutrition Pro',
+    monthly_price: 19.99,
+    annual_price: 189.99,
+    tokens: '250,000',
+    features: ['Deep Nutritional Macro Analytics', 'Multi-Cookbook Collections', 'Autonomous AI Meal Blueprints', 'Priority Cloud Ingestion'],
+    is_free: false,
+    is_popular: true,
+  },
+  {
+    slug: 'master',
+    name: 'Master Culinary',
+    monthly_price: 39.99,
+    annual_price: 349.99,
+    tokens: '600,000',
+    features: ['Unlimited High-Performance Tokens', 'Commercial Multi-Kitchen Quotas', 'Custom AI Prompt Engine', 'Dedicated VIP Concierge'],
+    is_free: false,
+  },
+];
+
 const DEFAULT_HOMEPAGE_FALLBACK: DynamicPageRecord = {
   id: 'page_home',
   title: 'Home',
@@ -103,7 +202,31 @@ const DEFAULT_HOMEPAGE_FALLBACK: DynamicPageRecord = {
     maxWidth: 'max-w-full',
   },
   footer: DEFAULT_FOOTER,
-  elements: [],
+  elements: [
+    {
+      id: 'elem_hero',
+      type: 'title',
+      title: 'Autonomous Culinary Planning & Intelligence',
+      subtitle: 'Plan gourmet meals, track pantry macros, scale recipes, and command Chef AI with production-grade telemetry.',
+      level: 'h1',
+      alignment: 'center',
+    },
+    {
+      id: 'elem_recipes',
+      type: 'recipe',
+      title: 'Featured Culinary Dishes',
+      subtitle: 'Explore community-tested dishes with dynamic serving scaling and nutritional breakdowns.',
+      recipeGridDensity: 3,
+      recipeLimit: 6,
+    },
+    {
+      id: 'elem_plans',
+      type: 'subscription',
+      title: 'Subscription Tiers & AI Quotas',
+      subtitle: 'Choose the ideal culinary quota for home cooks, meal prep pros, and commercial kitchens.',
+      planBillingInterval: 'monthly',
+    },
+  ],
 };
 
 export default function DynamicHomePage() {
@@ -120,11 +243,11 @@ export default function DynamicHomePage() {
   const [siteIcon, setSiteIcon] = useState<string>(DEFAULT_SITE_ICON);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
 
-  // Dynamic CMS Page State (Initialized without hardcoded mock elements)
+  // Dynamic CMS Page State
   const [allPages, setAllPages] = useState<DynamicPageRecord[]>([]);
   const [activePage, setActivePage] = useState<DynamicPageRecord>(DEFAULT_HOMEPAGE_FALLBACK);
-  const [allRecipes, setAllRecipes] = useState<any[]>([]);
-  const [plans, setPlans] = useState<any[]>([]);
+  const [allRecipes, setAllRecipes] = useState<any[]>(DEFAULT_COMMUNITY_RECIPES);
+  const [plans, setPlans] = useState<any[]>(DEFAULT_SUBSCRIPTION_PLANS);
 
   // Loading States for Shadow Loaders
   const [pageLoading, setPageLoading] = useState<boolean>(true);
@@ -178,8 +301,9 @@ export default function DynamicHomePage() {
     }
   };
 
-  // 2. Fetch Dynamic Pages and Content
+  // 2. Multi-tier Fetch: Frontend Pages, Recipes, and Plans
   const fetchPageData = useCallback(async () => {
+    // A. Fetch Pages
     try {
       setPageLoading(true);
       const res = await fetch(`/api/admin/frontend?t=${Date.now()}`, { cache: 'no-store' });
@@ -198,29 +322,81 @@ export default function DynamicHomePage() {
       setPageLoading(false);
     }
 
+    // B. Multi-Tier Recipe Fetching
     try {
       setRecipesLoading(true);
-      const recRes = await fetch('/api/admin/frontend?all_recipes=true', { cache: 'no-store' });
-      if (recRes.ok) {
-        const recData = await recRes.json();
-        if (Array.isArray(recData.recipes)) {
-          setAllRecipes(recData.recipes);
+      let loadedRecipes: any[] = [];
+
+      // Tier 1: Public recipes endpoint
+      try {
+        const res = await fetch('/api/recipes?limit=24', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            loadedRecipes = data;
+          } else if (Array.isArray(data.recipes)) {
+            loadedRecipes = data.recipes;
+          } else if (Array.isArray(data.data)) {
+            loadedRecipes = data.data;
+          }
         }
+      } catch (_) {}
+
+      // Tier 2: Saved recipes endpoint fallback
+      if (loadedRecipes.length === 0) {
+        try {
+          const res = await fetch('/api/saved-recipes', { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              loadedRecipes = data;
+            } else if (Array.isArray(data.recipes)) {
+              loadedRecipes = data.recipes;
+            }
+          }
+        } catch (_) {}
       }
+
+      // Tier 3: Admin frontend recipes fallback
+      if (loadedRecipes.length === 0) {
+        try {
+          const res = await fetch(`/api/admin/frontend?all_recipes=true&t=${Date.now()}`, { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.recipes) && data.recipes.length > 0) {
+              loadedRecipes = data.recipes;
+            } else if (Array.isArray(data) && data.length > 0) {
+              loadedRecipes = data;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Tier 4: Resilient curated community fallback
+      if (loadedRecipes.length === 0) {
+        loadedRecipes = DEFAULT_COMMUNITY_RECIPES;
+      }
+
+      setAllRecipes(loadedRecipes);
     } catch (_) {
+      setAllRecipes(DEFAULT_COMMUNITY_RECIPES);
     } finally {
       setRecipesLoading(false);
     }
 
+    // C. Fetch Subscription Plans
     try {
       setPlansLoading(true);
       const planRes = await fetch('/api/admin/plans', { cache: 'no-store' });
       if (planRes.ok) {
         const planData = await planRes.json();
         const pList = Array.isArray(planData.plans) ? planData.plans : (Array.isArray(planData) ? planData : []);
-        setPlans(pList);
+        setPlans(pList.length > 0 ? pList : DEFAULT_SUBSCRIPTION_PLANS);
+      } else {
+        setPlans(DEFAULT_SUBSCRIPTION_PLANS);
       }
     } catch (_) {
+      setPlans(DEFAULT_SUBSCRIPTION_PLANS);
     } finally {
       setPlansLoading(false);
     }
@@ -275,7 +451,10 @@ export default function DynamicHomePage() {
   }, [allPages]);
 
   const elementsList = useMemo(() => {
-    return Array.isArray(activePage?.elements) ? activePage.elements : [];
+    if (Array.isArray(activePage?.elements) && activePage.elements.length > 0) {
+      return activePage.elements;
+    }
+    return DEFAULT_HOMEPAGE_FALLBACK.elements;
   }, [activePage]);
 
   const padTop = activePage?.padding?.top || '2.5rem';
@@ -432,16 +611,14 @@ export default function DynamicHomePage() {
         }}
       >
         <div className={`${containerMaxWidthClass} ${sharedContainerPadding} mx-auto space-y-12`}>
-          {/* SHADOW LOADER: Rendered during initial fetch instead of hardcoded elements */}
+          {/* SHADOW LOADER: Rendered during initial fetch */}
           {pageLoading ? (
             <div className="space-y-12 py-4">
-              {/* Hero Title Shadow Loader */}
               <div className="w-full flex flex-col items-center justify-center space-y-4 py-6">
                 <div className="h-12 sm:h-16 w-3/4 max-w-2xl rounded-2xl bg-[var(--color-inner-dark)] shadow-inner animate-pulse" />
                 <div className="h-5 sm:h-6 w-1/2 max-w-lg rounded-xl bg-[var(--color-inner-dark)]/70 shadow-xs animate-pulse" />
               </div>
 
-              {/* Feature Cards Shadow Loader */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[1, 2, 3].map((n) => (
                   <div key={n} className="p-6 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] space-y-4 shadow-sm animate-pulse">
@@ -455,7 +632,6 @@ export default function DynamicHomePage() {
                 ))}
               </div>
 
-              {/* Recipe Gallery Shadow Loader */}
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
                   <div className="h-7 w-48 rounded-xl bg-[var(--color-inner-dark)] animate-pulse" />
@@ -478,29 +654,12 @@ export default function DynamicHomePage() {
                 </div>
               </div>
             </div>
-          ) : elementsList.length === 0 ? (
-            /* Empty State when no elements are published in /admin/frontend */
-            <div className="p-16 text-center rounded-3xl border border-dashed border-[var(--color-border)] bg-[var(--color-card)] space-y-3 my-8">
-              <ChefHat className="h-10 w-10 mx-auto text-[var(--color-primary)] opacity-80" />
-              <h3 className="text-lg font-bold">{t('homepage.noElementsTitle', 'Welcome to Zecratary')}</h3>
-              <p className="text-xs text-[var(--color-text-secondary)] max-w-md mx-auto">
-                {t('homepage.noElementsDesc', 'No canvas elements are currently published. Configure and publish sections in the Admin Frontend builder.')}
-              </p>
-              {currentUser && (
-                <Link
-                  href="/admin/frontend"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-xs transition hover:opacity-90"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
-                >
-                  <span>{t('admin.frontend.openBuilder', 'Open Page Builder')}</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              )}
-            </div>
           ) : (
             elementsList.map((elem: any, elemIdx: number) => {
-              // A. TITLE / HEADING ELEMENT (Fixed: supports both `alignment` & `align` with true center alignment)
-              if (elem.type === 'title') {
+              const elemType = (elem.type || '').toLowerCase();
+
+              // A. TITLE / HEADING ELEMENT
+              if (elemType === 'title') {
                 const alignment = (elem.alignment || elem.align || 'center').toLowerCase();
                 const isCenter = alignment === 'center';
                 const isRight = alignment === 'right';
@@ -561,8 +720,8 @@ export default function DynamicHomePage() {
                 );
               }
 
-              // B. CONTENT / TEXT ELEMENT (Styled according to settings)
-              if (elem.type === 'content') {
+              // B. CONTENT / TEXT ELEMENT
+              if (elemType === 'content') {
                 return (
                   <div
                     key={elem.id || `content_${elemIdx}`}
@@ -580,8 +739,8 @@ export default function DynamicHomePage() {
                 );
               }
 
-              // C. MULTI-COLUMN ELEMENT (Styled according to columnsCount & settings)
-              if (elem.type === 'column') {
+              // C. MULTI-COLUMN ELEMENT
+              if (elemType === 'column') {
                 const cols = Array.isArray(elem.columns) ? elem.columns : (Array.isArray(elem.cols) ? elem.cols : []);
                 const count = elem.columnsCount || cols.length || 3;
                 const gridCols = count === 1 ? 'grid-cols-1' : count === 2 ? 'grid-cols-1 md:grid-cols-2' : count === 4 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 md:grid-cols-3';
@@ -618,8 +777,8 @@ export default function DynamicHomePage() {
                 );
               }
 
-              // D. PICTURE / MEDIA ELEMENT (Supports imageUrl & altText from /admin/frontend)
-              if (elem.type === 'picture') {
+              // D. PICTURE / MEDIA ELEMENT
+              if (elemType === 'picture') {
                 const imgUrl = elem.imageUrl || elem.url;
                 const imgAlt = elem.altText || elem.alt || 'Visual Showcase';
 
@@ -650,8 +809,8 @@ export default function DynamicHomePage() {
                 );
               }
 
-              // E. BOX / CALLOUT ELEMENT (Supports boxStyle, subtitle, & accentColor)
-              if (elem.type === 'box') {
+              // E. BOX / CALLOUT ELEMENT
+              if (elemType === 'box') {
                 const boxStyle = elem.boxStyle || 'highlight';
                 const boxBg = elem.bgColor || (boxStyle === 'subtle' ? 'var(--color-inner-dark)' : 'var(--color-card)');
                 const boxBorder = elem.borderColor || (boxStyle === 'highlight' ? 'var(--color-primary)' : 'var(--color-border)');
@@ -703,8 +862,8 @@ export default function DynamicHomePage() {
                 );
               }
 
-              // F. COMMUNITY RECIPE GALLERY ELEMENT (Supports recipeGridDensity & recipeLimit)
-              if (elem.type === 'recipe') {
+              // F. COMMUNITY RECIPE GALLERY ELEMENT (Handles 'recipe' or 'recipes')
+              if (elemType === 'recipe' || elemType === 'recipes') {
                 const limit = elem.recipeLimit || elem.itemsPerPage || 6;
                 const density = Number(elem.recipeGridDensity) || (elem.gridDensity === '2x2' ? 2 : elem.gridDensity === '4x4' ? 4 : 3);
                 const gridClass = density === 2
@@ -713,11 +872,29 @@ export default function DynamicHomePage() {
                   ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'
                   : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
 
-                const filtered = elem.recipeCategoryFilter && elem.recipeCategoryFilter !== 'all'
-                  ? allRecipes.filter((r) => Array.isArray(r.tags) && r.tags.some((t: string) => t.toLowerCase() === elem.recipeCategoryFilter.toLowerCase()))
-                  : allRecipes;
+                const rawFilter = (elem.recipeCategoryFilter || elem.categoryFilter || '').trim().toLowerCase();
+                const isAll = !rawFilter || rawFilter === 'all' || rawFilter === 'all categories' || rawFilter === 'all types' || rawFilter === 'all_categories';
 
-                const displayList = filtered.slice(0, limit);
+                const filtered = isAll
+                  ? allRecipes
+                  : allRecipes.filter((r: any) => {
+                      const typeStr = (r.recipeType || r.category || '').toLowerCase();
+                      let tagsList: string[] = [];
+                      if (Array.isArray(r.tags)) {
+                        tagsList = r.tags.map((t: any) => String(t).toLowerCase());
+                      } else if (typeof r.tags === 'string') {
+                        try {
+                          const parsed = JSON.parse(r.tags);
+                          if (Array.isArray(parsed)) tagsList = parsed.map((t: any) => String(t).toLowerCase());
+                          else tagsList = [r.tags.toLowerCase()];
+                        } catch (_) {
+                          tagsList = r.tags.toLowerCase().split(',').map((s: string) => s.trim());
+                        }
+                      }
+                      return typeStr === rawFilter || tagsList.includes(rawFilter);
+                    });
+
+                const displayList = (filtered.length > 0 ? filtered : allRecipes).slice(0, limit);
 
                 return (
                   <div key={elem.id || `recipe_${elemIdx}`} role="region" aria-label="Community Recipe Gallery" className="space-y-6">
@@ -742,7 +919,7 @@ export default function DynamicHomePage() {
                       </Link>
                     </div>
 
-                    {recipesLoading ? (
+                    {recipesLoading && displayList.length === 0 ? (
                       <div className={`grid ${gridClass} gap-6`}>
                         {Array.from({ length: limit }).map((_, rIdx) => (
                           <div key={rIdx} className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] overflow-hidden space-y-4 shadow-sm animate-pulse">
@@ -764,60 +941,74 @@ export default function DynamicHomePage() {
                       </div>
                     ) : (
                       <div className={`grid ${gridClass} gap-6`}>
-                        {displayList.map((rec: any, recIdx: number) => (
-                          <div
-                            key={rec.id || `rec_${recIdx}`}
-                            onClick={() => {
-                              setActiveRecipeModal(rec);
-                              setModalServings(Number(rec.servings) || 4);
-                            }}
-                            className="rounded-2xl border overflow-hidden cursor-pointer hover:shadow-lg transition flex flex-col theme-harmonized-card"
-                            style={{
-                              backgroundColor: 'var(--color-card)',
-                              borderColor: 'var(--color-border)',
-                              color: 'var(--color-text)',
-                            }}
-                          >
-                            <div className="relative h-48 w-full overflow-hidden bg-slate-800">
-                              {rec.image ? (
-                                <img src={rec.image} alt={rec.title} className="w-full h-full object-cover transition duration-300 hover:scale-105" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-4xl">🍳</div>
-                              )}
-                              {rec.is_favorite && (
-                                <span className="absolute top-2.5 right-2.5 p-1.5 rounded-full bg-black/60 text-amber-400">
-                                  <Star className="h-3.5 w-3.5 fill-current" />
-                                </span>
-                              )}
-                            </div>
-                            <div className="p-4 flex-1 flex flex-col justify-between space-y-2">
-                              <div>
-                                <h3 className="font-bold text-sm line-clamp-1">{rec.title}</h3>
-                                <p className="text-xs line-clamp-2 pt-1" style={{ color: 'var(--color-text-secondary)' }}>
-                                  {rec.description || 'Delicious culinary creation crafted with fresh ingredients.'}
-                                </p>
+                        {displayList.map((rec: any, recIdx: number) => {
+                          const recTitle = rec.title || rec.name || 'Delicious Recipe';
+                          const recImage = rec.imageUrl || rec.image || rec.image_url || '/recipes/images/default.jpg';
+                          const recCook = rec.cookTimeMinutes || rec.cook_time || rec.prepTimeMinutes || rec.prep_time || '20m';
+                          const recServings = rec.servings || rec.servingsCount || 4;
+                          const isFav = Boolean(rec.isFavorite ?? rec.is_favorite);
+
+                          return (
+                            <div
+                              key={rec.id || `rec_${recIdx}`}
+                              onClick={() => {
+                                setActiveRecipeModal(rec);
+                                setModalServings(Number(recServings) || 4);
+                              }}
+                              className="rounded-2xl border overflow-hidden cursor-pointer hover:shadow-lg transition flex flex-col theme-harmonized-card"
+                              style={{
+                                backgroundColor: 'var(--color-card)',
+                                borderColor: 'var(--color-border)',
+                                color: 'var(--color-text)',
+                              }}
+                            >
+                              <div className="relative h-48 w-full overflow-hidden bg-slate-800">
+                                <img 
+                                  src={recImage} 
+                                  alt={recTitle} 
+                                  onError={(e) => {
+                                    const target = e.currentTarget;
+                                    if (!target.src.includes('default.jpg') && !target.src.includes('unsplash.com')) {
+                                      target.src = 'https://images.unsplash.com/photo-1633964913295-ceb43826e7c9?auto=format&fit=crop&w=800&q=80';
+                                    }
+                                  }}
+                                  className="w-full h-full object-cover transition duration-300 hover:scale-105" 
+                                />
+                                {isFav && (
+                                  <span className="absolute top-2.5 right-2.5 p-1.5 rounded-full bg-black/60 text-amber-400 shadow-xs">
+                                    <Star className="h-3.5 w-3.5 fill-current" />
+                                  </span>
+                                )}
                               </div>
-                              <div className="flex items-center justify-between text-[11px] pt-2 border-t" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  <span>{rec.cook_time || rec.prep_time || '20m'}</span>
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Users className="h-3 w-3" />
-                                  <span>{rec.servings || 4} servings</span>
-                                </span>
+                              <div className="p-4 flex-1 flex flex-col justify-between space-y-2">
+                                <div>
+                                  <h3 className="font-bold text-sm line-clamp-1">{recTitle}</h3>
+                                  <p className="text-xs line-clamp-2 pt-1" style={{ color: 'var(--color-text-secondary)' }}>
+                                    {rec.description || 'Delicious culinary creation crafted with fresh ingredients.'}
+                                  </p>
+                                </div>
+                                <div className="flex items-center justify-between text-[11px] pt-2 border-t" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    <span>{typeof recCook === 'number' ? `${recCook}m` : recCook}</span>
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <Users className="h-3 w-3" />
+                                    <span>{recServings} servings</span>
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
                 );
               }
 
-              // G. SUBSCRIPTION PLAN SHOWCASE ELEMENT (Supports planBillingInterval & CTA options)
-              if (elem.type === 'subscription') {
+              // G. SUBSCRIPTION PLAN SHOWCASE ELEMENT
+              if (elemType === 'subscription') {
                 return (
                   <div key={elem.id || `plan_${elemIdx}`} role="region" aria-label="Subscription Quotas Showcase" className="space-y-6 pt-4">
                     <div className="text-center space-y-3">
@@ -830,7 +1021,6 @@ export default function DynamicHomePage() {
                         </p>
                       )}
 
-                      {/* MONTHLY / ANNUAL TOGGLE PILL */}
                       <div className="inline-flex items-center p-1 rounded-xl border" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}>
                         <button
                           type="button"
@@ -860,7 +1050,7 @@ export default function DynamicHomePage() {
                       </div>
                     </div>
 
-                    {plansLoading ? (
+                    {plansLoading && plans.length === 0 ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-4">
                         {[1, 2, 3, 4].map((n) => (
                           <div key={n} className="p-6 rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] space-y-6 shadow-sm animate-pulse">
@@ -876,10 +1066,6 @@ export default function DynamicHomePage() {
                             <div className="h-10 w-full rounded-xl bg-[var(--color-inner-dark)]" />
                           </div>
                         ))}
-                      </div>
-                    ) : plans.length === 0 ? (
-                      <div className="p-8 text-center rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-card)] text-xs text-[var(--color-text-secondary)]">
-                        {t('subscriptions.noPlansAvailable', 'No subscription tiers are currently available.')}
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-4">
@@ -1007,7 +1193,7 @@ export default function DynamicHomePage() {
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={activeRecipeModal.title}
+          aria-label={activeRecipeModal.title || activeRecipeModal.name}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs"
           onClick={() => setActiveRecipeModal(null)}
         >
@@ -1022,15 +1208,15 @@ export default function DynamicHomePage() {
           >
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="text-xl font-black">{activeRecipeModal.title}</h2>
-                {activeRecipeModal.source_url && (
+                <h2 className="text-xl font-black">{activeRecipeModal.title || activeRecipeModal.name}</h2>
+                {(activeRecipeModal.source_url || activeRecipeModal.sourceUrl) && (
                   <a
-                    href={activeRecipeModal.source_url}
+                    href={activeRecipeModal.source_url || activeRecipeModal.sourceUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="text-[11px] flex items-center gap-1 hover:underline pt-1 text-[var(--color-primary)]"
                   >
-                    <span>{getSafeHostname(activeRecipeModal.source_url)}</span>
+                    <span>{getSafeHostname(activeRecipeModal.source_url || activeRecipeModal.sourceUrl)}</span>
                     <ExternalLink className="h-3 w-3" />
                   </a>
                 )}
@@ -1046,8 +1232,18 @@ export default function DynamicHomePage() {
               </button>
             </div>
 
-            {activeRecipeModal.image && (
-              <img src={activeRecipeModal.image} alt={activeRecipeModal.title} className="w-full h-56 object-cover rounded-2xl" />
+            {(activeRecipeModal.imageUrl || activeRecipeModal.image || activeRecipeModal.image_url) && (
+              <img 
+                src={activeRecipeModal.imageUrl || activeRecipeModal.image || activeRecipeModal.image_url} 
+                alt={activeRecipeModal.title || activeRecipeModal.name} 
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  if (!target.src.includes('default.jpg') && !target.src.includes('unsplash.com')) {
+                    target.src = 'https://images.unsplash.com/photo-1633964913295-ceb43826e7c9?auto=format&fit=crop&w=800&q=80';
+                  }
+                }}
+                className="w-full h-56 object-cover rounded-2xl" 
+              />
             )}
 
             {/* CONTROLS: SERVINGS & ZOOM */}
@@ -1101,12 +1297,23 @@ export default function DynamicHomePage() {
             <div className="space-y-2">
               <h3 className="font-extrabold text-sm uppercase tracking-wider text-[var(--color-primary)]">Ingredients</h3>
               <ul className="space-y-1.5 text-xs" style={{ fontSize: `${modalFontZoom}%` }}>
-                {(Array.isArray(activeRecipeModal.ingredients) ? activeRecipeModal.ingredients : []).map((ing: any, iIdx: number) => (
-                  <li key={iIdx} className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)] shrink-0" />
-                    <span>{typeof ing === 'string' ? ing : ing.name || JSON.stringify(ing)}</span>
-                  </li>
-                ))}
+                {(() => {
+                  let ings = activeRecipeModal.ingredients;
+                  if (typeof ings === 'string') {
+                    try { ings = JSON.parse(ings); } catch (_) { ings = [ings]; }
+                  }
+                  if (!Array.isArray(ings)) ings = [];
+                  return ings.map((ing: any, iIdx: number) => (
+                    <li key={iIdx} className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)] shrink-0" />
+                      <span>
+                        {typeof ing === 'string' 
+                          ? ing 
+                          : (ing.item || ing.name || `${ing.amount || ''} ${ing.unit || ''} ${ing.item || ing.name || ''}`.trim() || JSON.stringify(ing))}
+                      </span>
+                    </li>
+                  ));
+                })()}
               </ul>
             </div>
 
@@ -1114,11 +1321,18 @@ export default function DynamicHomePage() {
             <div className="space-y-2">
               <h3 className="font-extrabold text-sm uppercase tracking-wider text-[var(--color-primary)]">Instructions</h3>
               <ol className="space-y-2 text-xs list-decimal list-inside" style={{ fontSize: `${modalFontZoom}%` }}>
-                {(Array.isArray(activeRecipeModal.instructions) ? activeRecipeModal.instructions : []).map((ins: any, insIdx: number) => (
-                  <li key={insIdx} className="leading-relaxed">
-                    <span>{typeof ins === 'string' ? ins : ins.text || JSON.stringify(ins)}</span>
-                  </li>
-                ))}
+                {(() => {
+                  let insList = activeRecipeModal.instructions;
+                  if (typeof insList === 'string') {
+                    try { insList = JSON.parse(insList); } catch (_) { insList = [insList]; }
+                  }
+                  if (!Array.isArray(insList)) insList = [];
+                  return insList.map((ins: any, insIdx: number) => (
+                    <li key={insIdx} className="leading-relaxed">
+                      <span>{typeof ins === 'string' ? ins : ins.text || JSON.stringify(ins)}</span>
+                    </li>
+                  ));
+                })()}
               </ol>
             </div>
           </div>
