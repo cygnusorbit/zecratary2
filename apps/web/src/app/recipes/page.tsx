@@ -2512,7 +2512,7 @@ export default function RecipesPage() {
                           <select
                             value={editForm.recipeType}
                             onChange={(e) => setEditForm({ ...editForm, recipeType: e.target.value })}
-                            className="w-full border rounded-xl p-3 text-xs outline-none cursor-pointer"
+                            className="w-full appearance-none pl-3.5 pr-10 py-2.5 rounded-xl border text-xs outline-none cursor-pointer"
                             style={{
                               backgroundColor: 'var(--color-inner-dark)',
                               borderColor: 'var(--color-border)',
