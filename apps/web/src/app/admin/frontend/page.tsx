@@ -14,8 +14,10 @@ import {
   Layers,
   CheckCircle2,
   AlertCircle,
-  ExternalLink,
-  RefreshCw,
+  ChevronRight,
+  ChevronDown,
+  Shield,
+  Star,
   Type,
   FileText,
   Columns,
@@ -23,9 +25,12 @@ import {
   Box,
   UtensilsCrossed,
   CreditCard,
-  Globe,
+  ExternalLink,
+  RefreshCw,
   Sliders,
-  Check,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
 } from 'lucide-react';
 import { useTranslation } from '@/components/LanguageProvider';
 
@@ -203,7 +208,6 @@ export default function AdminFrontendBuilder() {
           return;
         }
       }
-      // Failover to client fallback page if database returns empty
       setPages([FALLBACK_DEFAULT_PAGE]);
       setActivePageId(FALLBACK_DEFAULT_PAGE.id);
     } catch (err: any) {
@@ -322,6 +326,7 @@ export default function AdminFrontendBuilder() {
       subtitle: type === 'title' ? 'Add an informative subtitle here.' : undefined,
       level: 'h2',
       alignment: 'center',
+      boxStyle: 'highlight',
       recipeGridDensity: 3,
       recipeLimit: 6,
       recipeCategoryFilter: 'all',
@@ -662,7 +667,7 @@ export default function AdminFrontendBuilder() {
                                   elements: prev.elements.map((el) => (el.id === elem.id ? { ...el, title: val } : el)),
                                 }));
                               }}
-                              className="w-full mt-1 px-3 py-1.5 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
+                              className="w-full mt-1 px-3 py-2 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
                             />
                           </div>
 
@@ -670,22 +675,48 @@ export default function AdminFrontendBuilder() {
                             <>
                               <div>
                                 <label className="text-[10px] font-semibold opacity-60">{t('admin.frontend.headingLevel', 'Heading Level')}</label>
-                                <select
-                                  value={elem.level || 'h1'}
-                                  onChange={(e) => {
-                                    const val = e.target.value as any;
-                                    updateActivePage((prev) => ({
-                                      ...prev,
-                                      elements: prev.elements.map((el) => (el.id === elem.id ? { ...el, level: val } : el)),
-                                    }));
-                                  }}
-                                  className="w-full mt-1 px-3 py-1.5 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
-                                >
-                                  <option value="h1">H1 (Hero Heading)</option>
-                                  <option value="h2">H2 (Standard Heading)</option>
-                                  <option value="h3">H3 (Sub-heading)</option>
-                                </select>
+                                <div className="relative mt-1">
+                                  <select
+                                    value={elem.level || 'h1'}
+                                    onChange={(e) => {
+                                      const val = e.target.value as any;
+                                      updateActivePage((prev) => ({
+                                        ...prev,
+                                        elements: prev.elements.map((el) => (el.id === elem.id ? { ...el, level: val } : el)),
+                                      }));
+                                    }}
+                                    className="w-full appearance-none pl-3.5 pr-10 py-2 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)] text-xs font-bold text-[var(--color-text,#f1f5f9)] outline-none cursor-pointer focus:border-[var(--color-primary,#E05638)] transition-colors duration-200"
+                                  >
+                                    <option value="h1" className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">H1 ({t('admin.frontend.heroHeading', 'Hero Heading')})</option>
+                                    <option value="h2" className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">H2 ({t('admin.frontend.standardHeading', 'Standard Heading')})</option>
+                                    <option value="h3" className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">H3 ({t('admin.frontend.subHeading', 'Sub-heading')})</option>
+                                  </select>
+                                  <ChevronDown className="h-4 w-4 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-60 text-[var(--color-text-secondary,#94a3b8)]" />
+                                </div>
                               </div>
+
+                              <div>
+                                <label className="text-[10px] font-semibold opacity-60">{t('admin.frontend.alignment', 'Text Alignment')}</label>
+                                <div className="relative mt-1">
+                                  <select
+                                    value={elem.alignment || 'center'}
+                                    onChange={(e) => {
+                                      const val = e.target.value as any;
+                                      updateActivePage((prev) => ({
+                                        ...prev,
+                                        elements: prev.elements.map((el) => (el.id === elem.id ? { ...el, alignment: val } : el)),
+                                      }));
+                                    }}
+                                    className="w-full appearance-none pl-3.5 pr-10 py-2 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)] text-xs font-bold text-[var(--color-text,#f1f5f9)] outline-none cursor-pointer focus:border-[var(--color-primary,#E05638)] transition-colors duration-200"
+                                  >
+                                    <option value="left" className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">{t('admin.frontend.alignLeft', 'Left Aligned')}</option>
+                                    <option value="center" className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">{t('admin.frontend.alignCenter', 'Center Aligned')}</option>
+                                    <option value="right" className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">{t('admin.frontend.alignRight', 'Right Aligned')}</option>
+                                  </select>
+                                  <ChevronDown className="h-4 w-4 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-60 text-[var(--color-text-secondary,#94a3b8)]" />
+                                </div>
+                              </div>
+
                               <div className="sm:col-span-2">
                                 <label className="text-[10px] font-semibold opacity-60">{t('admin.frontend.subtitleLabel', 'Subtitle / Tagline')}</label>
                                 <input
@@ -701,7 +732,7 @@ export default function AdminFrontendBuilder() {
                                       elements: prev.elements.map((el) => (el.id === elem.id ? { ...el, subtitle: val } : el)),
                                     }));
                                   }}
-                                  className="w-full mt-1 px-3 py-1.5 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
+                                  className="w-full mt-1 px-3 py-2 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
                                 />
                               </div>
                             </>
@@ -723,7 +754,7 @@ export default function AdminFrontendBuilder() {
                                     elements: prev.elements.map((el) => (el.id === elem.id ? { ...el, content: val } : el)),
                                   }));
                                 }}
-                                className="w-full mt-1 px-3 py-1.5 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
+                                className="w-full mt-1 px-3 py-2 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
                               />
                             </div>
                           )}
@@ -732,21 +763,24 @@ export default function AdminFrontendBuilder() {
                             <>
                               <div>
                                 <label className="text-[10px] font-semibold opacity-60">{t('admin.frontend.gridDensity', 'Grid Columns')}</label>
-                                <select
-                                  value={elem.recipeGridDensity || 3}
-                                  onChange={(e) => {
-                                    const val = Number(e.target.value);
-                                    updateActivePage((prev) => ({
-                                      ...prev,
-                                      elements: prev.elements.map((el) => (el.id === elem.id ? { ...el, recipeGridDensity: val } : el)),
-                                    }));
-                                  }}
-                                  className="w-full mt-1 px-3 py-1.5 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
-                                >
-                                  <option value={2}>2 Columns</option>
-                                  <option value={3}>3 Columns (Recommended)</option>
-                                  <option value={4}>4 Columns</option>
-                                </select>
+                                <div className="relative mt-1">
+                                  <select
+                                    value={elem.recipeGridDensity || 3}
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value);
+                                      updateActivePage((prev) => ({
+                                        ...prev,
+                                        elements: prev.elements.map((el) => (el.id === elem.id ? { ...el, recipeGridDensity: val } : el)),
+                                      }));
+                                    }}
+                                    className="w-full appearance-none pl-3.5 pr-10 py-2 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)] text-xs font-bold text-[var(--color-text,#f1f5f9)] outline-none cursor-pointer focus:border-[var(--color-primary,#E05638)] transition-colors duration-200"
+                                  >
+                                    <option value={2} className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">2 {t('admin.frontend.columns', 'Columns')}</option>
+                                    <option value={3} className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">3 {t('admin.frontend.columnsRecommended', 'Columns (Recommended)')}</option>
+                                    <option value={4} className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">4 {t('admin.frontend.columns', 'Columns')}</option>
+                                  </select>
+                                  <ChevronDown className="h-4 w-4 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-60 text-[var(--color-text-secondary,#94a3b8)]" />
+                                </div>
                               </div>
                               <div>
                                 <label className="text-[10px] font-semibold opacity-60">{t('admin.frontend.recipesPerPage', 'Recipes To Display')}</label>
@@ -763,7 +797,7 @@ export default function AdminFrontendBuilder() {
                                       elements: prev.elements.map((el) => (el.id === elem.id ? { ...el, recipeLimit: val } : el)),
                                     }));
                                   }}
-                                  className="w-full mt-1 px-3 py-1.5 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
+                                  className="w-full mt-1 px-3 py-2 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
                                 />
                               </div>
                             </>
@@ -771,6 +805,27 @@ export default function AdminFrontendBuilder() {
 
                           {elem.type === 'box' && (
                             <>
+                              <div>
+                                <label className="text-[10px] font-semibold opacity-60">{t('admin.frontend.boxStyle', 'Box Style')}</label>
+                                <div className="relative mt-1">
+                                  <select
+                                    value={elem.boxStyle || 'highlight'}
+                                    onChange={(e) => {
+                                      const val = e.target.value as any;
+                                      updateActivePage((prev) => ({
+                                        ...prev,
+                                        elements: prev.elements.map((el) => (el.id === elem.id ? { ...el, boxStyle: val } : el)),
+                                      }));
+                                    }}
+                                    className="w-full appearance-none pl-3.5 pr-10 py-2 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)] text-xs font-bold text-[var(--color-text,#f1f5f9)] outline-none cursor-pointer focus:border-[var(--color-primary,#E05638)] transition-colors duration-200"
+                                  >
+                                    <option value="highlight" className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">{t('admin.frontend.boxHighlight', 'Highlight (Primary Accent)')}</option>
+                                    <option value="border" className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">{t('admin.frontend.boxBorder', 'Outlined Border')}</option>
+                                    <option value="subtle" className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">{t('admin.frontend.boxSubtle', 'Subtle Background')}</option>
+                                  </select>
+                                  <ChevronDown className="h-4 w-4 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-60 text-[var(--color-text-secondary,#94a3b8)]" />
+                                </div>
+                              </div>
                               <div>
                                 <label className="text-[10px] font-semibold opacity-60">{t('admin.frontend.badgeLabel', 'Badge Text')}</label>
                                 <input
@@ -786,10 +841,10 @@ export default function AdminFrontendBuilder() {
                                       elements: prev.elements.map((el) => (el.id === elem.id ? { ...el, badge: val } : el)),
                                     }));
                                   }}
-                                  className="w-full mt-1 px-3 py-1.5 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
+                                  className="w-full mt-1 px-3 py-2 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
                                 />
                               </div>
-                              <div>
+                              <div className="sm:col-span-2">
                                 <label className="text-[10px] font-semibold opacity-60">{t('admin.frontend.btnLabel', 'Button Text')}</label>
                                 <input
                                   type="text"
@@ -804,10 +859,33 @@ export default function AdminFrontendBuilder() {
                                       elements: prev.elements.map((el) => (el.id === elem.id ? { ...el, buttonText: val } : el)),
                                     }));
                                   }}
-                                  className="w-full mt-1 px-3 py-1.5 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
+                                  className="w-full mt-1 px-3 py-2 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
                                 />
                               </div>
                             </>
+                          )}
+
+                          {elem.type === 'subscription' && (
+                            <div>
+                              <label className="text-[10px] font-semibold opacity-60">{t('admin.frontend.billingInterval', 'Billing Interval')}</label>
+                              <div className="relative mt-1">
+                                <select
+                                  value={elem.planBillingInterval || 'MONTH'}
+                                  onChange={(e) => {
+                                    const val = e.target.value as any;
+                                    updateActivePage((prev) => ({
+                                      ...prev,
+                                      elements: prev.elements.map((el) => (el.id === elem.id ? { ...el, planBillingInterval: val } : el)),
+                                    }));
+                                  }}
+                                  className="w-full appearance-none pl-3.5 pr-10 py-2 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)] text-xs font-bold text-[var(--color-text,#f1f5f9)] outline-none cursor-pointer focus:border-[var(--color-primary,#E05638)] transition-colors duration-200"
+                                >
+                                  <option value="MONTH" className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">{t('admin.frontend.monthly', 'Monthly')}</option>
+                                  <option value="YEAR" className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">{t('admin.frontend.yearly', 'Yearly / Annual')}</option>
+                                </select>
+                                <ChevronDown className="h-4 w-4 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-60 text-[var(--color-text-secondary,#94a3b8)]" />
+                              </div>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -837,7 +915,7 @@ export default function AdminFrontendBuilder() {
                         const val = e.target.value;
                         updateActivePage((prev) => ({ ...prev, padding: { ...prev.padding, top: val } }));
                       }}
-                      className="w-full mt-1 px-3 py-2 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
+                      className="w-full mt-1 px-3 py-2.5 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
                     />
                   </div>
                   <div>
@@ -852,7 +930,7 @@ export default function AdminFrontendBuilder() {
                         const val = e.target.value;
                         updateActivePage((prev) => ({ ...prev, padding: { ...prev.padding, bottom: val } }));
                       }}
-                      className="w-full mt-1 px-3 py-2 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
+                      className="w-full mt-1 px-3 py-2.5 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
                     />
                   </div>
                   <div>
@@ -867,24 +945,27 @@ export default function AdminFrontendBuilder() {
                         const val = e.target.value;
                         updateActivePage((prev) => ({ ...prev, padding: { ...prev.padding, left: val, right: val } }));
                       }}
-                      className="w-full mt-1 px-3 py-2 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
+                      className="w-full mt-1 px-3 py-2.5 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
                     />
                   </div>
                   <div>
                     <label className="text-[11px] font-semibold opacity-70">{t('admin.frontend.maxWidth', 'Container Max Width')}</label>
-                    <select
-                      value={activePage.padding?.maxWidth || 'max-w-7xl'}
-                      onChange={(e) => {
-                        const val = e.target.value as any;
-                        updateActivePage((prev) => ({ ...prev, padding: { ...prev.padding, maxWidth: val } }));
-                      }}
-                      className="w-full mt-1 px-3 py-2 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)]"
-                    >
-                      <option value="max-w-5xl">5XL Container (1024px)</option>
-                      <option value="max-w-6xl">6XL Container (1152px)</option>
-                      <option value="max-w-7xl">7XL Container (1280px - Default)</option>
-                      <option value="max-w-full">Full Edge-to-Edge Width</option>
-                    </select>
+                    <div className="relative mt-1">
+                      <select
+                        value={activePage.padding?.maxWidth || 'max-w-7xl'}
+                        onChange={(e) => {
+                          const val = e.target.value as any;
+                          updateActivePage((prev) => ({ ...prev, padding: { ...prev.padding, maxWidth: val } }));
+                        }}
+                        className="w-full appearance-none pl-3.5 pr-10 py-2.5 rounded-xl border border-[var(--color-border,#1e293b)] bg-[var(--color-inner-dark,#0e1422)] text-xs font-bold text-[var(--color-text,#f1f5f9)] outline-none cursor-pointer focus:border-[var(--color-primary,#E05638)] transition-colors duration-200"
+                      >
+                        <option value="max-w-5xl" className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">5XL Container (1024px)</option>
+                        <option value="max-w-6xl" className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">6XL Container (1152px)</option>
+                        <option value="max-w-7xl" className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">7XL Container (1280px - {t('admin.frontend.default', 'Default')})</option>
+                        <option value="max-w-full" className="bg-[var(--color-card,#0b0f17)] text-[var(--color-text,#f1f5f9)]">{t('admin.frontend.fullWidth', 'Full Edge-to-Edge Width')}</option>
+                      </select>
+                      <ChevronDown className="h-4 w-4 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-60 text-[var(--color-text-secondary,#94a3b8)]" />
+                    </div>
                   </div>
                 </div>
               </div>

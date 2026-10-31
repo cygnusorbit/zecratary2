@@ -281,3 +281,14 @@ html:not(.theme-preloading) body {
 .text-security-disc {
   -webkit-text-security: disc !important;
 }
+
+/* --- Harmonized Custom Dropdown & Select Styling --- */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+select::-ms-expand {
+  display: none;
+}
