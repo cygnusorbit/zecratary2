@@ -1,6 +1,6 @@
 // @ts-nocheck
 'use client';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -10,7 +10,7 @@ import {
   Trash2, Save, Plus, ImagePlus, Users, Calendar,
   GripVertical, CheckSquare, CheckCircle2, Type, ExternalLink,
   Carrot, Hourglass, ChevronLeft, ChevronRight, LayoutGrid,
-  Grid3X3, Rows3
+  Grid3X3, Rows3, Play, Pause, RotateCcw, Volume2, Bell
 } from 'lucide-react';
 import { getCurrentUser, User, initAuthStorage } from '@/lib/auth';
 import { syncUserSavedRecipes, persistSavedRecipe, deleteSavedRecipe } from '@/lib/recipeSync';
@@ -130,11 +130,106 @@ export default function RecipesPage() {
   const [isShoppingModalOpen, setIsShoppingModalOpen] = useState(false);
   const [shoppingModalIngredients, setShoppingModalIngredients] = useState<any[]>([]);
 
+  // KITCHEN TIMER FUNCTIONALITY
+  const [activeTimerRecipe, setActiveTimerRecipe] = useState<any | null>(null);
+  const [timerSecondsLeft, setTimerSecondsLeft] = useState<number>(0);
+  const [timerTotalSeconds, setTimerTotalSeconds] = useState<number>(0);
+  const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
+  const [showTimerModal, setShowTimerModal] = useState<boolean>(false);
+  const [isTimerMinimized, setIsTimerMinimized] = useState<boolean>(false);
+  const timerIntervalRef = useRef<any>(null);
+
   const defaultBooks = [
     { id: 'book_1', title: 'Family Favorites & Weeknight Dinners', description: 'Quick and easy meals.' },
     { id: 'book_2', title: 'Authentic Asian Cuisine', description: 'Traditional recipes & stir-fries.' },
     { id: 'book_3', title: 'Baking & Desserts', description: 'Sweet treats & pastries.' }
   ];
+
+  // Web Audio API Chime for Timer Completion (Zero External Asset Dependency)
+  const playTimerChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+
+      // Two-tone chime (587Hz -> 880Hz)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, now);
+      osc.frequency.setValueAtTime(880, now + 0.18);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(now + 0.9);
+    } catch (_) {}
+  };
+
+  // Timer Tick Engine
+  useEffect(() => {
+    if (isTimerRunning && timerSecondsLeft > 0) {
+      timerIntervalRef.current = setInterval(() => {
+        setTimerSecondsLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerIntervalRef.current);
+            setIsTimerRunning(false);
+            playTimerChime();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    }
+    return () => {
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    };
+  }, [isTimerRunning, timerSecondsLeft]);
+
+  // Launch Timer for a Recipe (from Card or Modal)
+  const handleOpenTimer = (e: React.MouseEvent, recipe: any) => {
+    e.stopPropagation();
+    const durationMinutes = Number(recipe.cookTimeMinutes || recipe.cookTime || 15);
+    const totalSecs = Math.max(60, durationMinutes * 60);
+
+    // If starting a fresh recipe timer
+    if (activeTimerRecipe?.id !== recipe.id) {
+      setActiveTimerRecipe(recipe);
+      setTimerTotalSeconds(totalSecs);
+      setTimerSecondsLeft(totalSecs);
+      setIsTimerRunning(true);
+    }
+
+    setIsTimerMinimized(false);
+    setShowTimerModal(true);
+  };
+
+  const handleAdjustTimer = (deltaMinutes: number) => {
+    const deltaSecs = deltaMinutes * 60;
+    setTimerSecondsLeft((prev) => Math.max(0, prev + deltaSecs));
+    setTimerTotalSeconds((prev) => Math.max(60, prev + deltaSecs));
+  };
+
+  const handleResetTimer = () => {
+    setIsTimerRunning(false);
+    if (activeTimerRecipe) {
+      const durationMinutes = Number(activeTimerRecipe.cookTimeMinutes || activeTimerRecipe.cookTime || 15);
+      const totalSecs = Math.max(60, durationMinutes * 60);
+      setTimerTotalSeconds(totalSecs);
+      setTimerSecondsLeft(totalSecs);
+    }
+  };
+
+  const formatTimerTime = (secs: number) => {
+    const mins = Math.floor(secs / 60);
+    const remainingSecs = secs % 60;
+    return `${String(mins).padStart(2, '0')}:${String(remainingSecs).padStart(2, '0')}`;
+  };
 
   const applyGlobalTheme = useCallback(() => {
     try {
@@ -917,7 +1012,7 @@ export default function RecipesPage() {
 
   return (
     <div 
-      className="max-w-6xl mx-auto space-y-6 pb-16 px-4 font-sans transition-colors duration-200" 
+      className="max-w-6xl mx-auto space-y-6 pb-24 px-4 font-sans transition-colors duration-200" 
       style={{ color: 'var(--color-text)' }}
       onClick={() => setOpenDropdown(null)}
       data-lpignore="true"
@@ -1366,6 +1461,7 @@ export default function RecipesPage() {
             const cardBook = books.find(b => b.id === (r.bookId || r.book_id));
             const cardTypeBadge = getCleanRecipeType(r);
             const cfg = GRID_CONFIG[gridMode];
+            const isRecipeTimerRunning = activeTimerRecipe?.id === r.id && isTimerRunning;
 
             return (
               <div
@@ -1381,7 +1477,7 @@ export default function RecipesPage() {
                 className="border rounded-2xl overflow-hidden transition cursor-pointer group shadow-sm hover:shadow-md relative flex flex-col justify-between"
                 style={{
                   backgroundColor: 'var(--color-card)',
-                  borderColor: 'var(--color-border)'
+                  borderColor: isRecipeTimerRunning ? 'var(--color-primary)' : 'var(--color-border)'
                 }}
               >
                 <div>
@@ -1398,8 +1494,28 @@ export default function RecipesPage() {
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                     />
                     
-                    {/* Card Action Buttons */}
+                    {/* Card Action Buttons (Cooked, Favorite, and KITCHEN TIMER) */}
                     <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 z-10" onClick={(e) => e.stopPropagation()}>
+                      {/* Kitchen Timer Action Button on Card */}
+                      <button
+                        type="button"
+                        onClick={(e) => handleOpenTimer(e, r)}
+                        className="p-1.5 rounded-full backdrop-blur-md transition shadow-md cursor-pointer border"
+                        style={isRecipeTimerRunning ? {
+                          backgroundColor: 'var(--color-primary)',
+                          borderColor: 'var(--color-primary)',
+                          color: '#ffffff'
+                        } : {
+                          backgroundColor: 'var(--color-card)',
+                          borderColor: 'var(--color-border)',
+                          color: 'var(--color-primary)'
+                        }}
+                        title={isRecipeTimerRunning ? `Timer: ${formatTimerTime(timerSecondsLeft)}` : (t('startTimer') || 'Start Kitchen Timer')}
+                      >
+                        <Timer className={`h-3.5 w-3.5 ${isRecipeTimerRunning ? 'animate-pulse' : ''}`}/>
+                      </button>
+
+                      {/* Cooked Toggle Button */}
                       <button
                         type="button"
                         onClick={(e) => toggleCooked(e, r.id)}
@@ -1418,6 +1534,7 @@ export default function RecipesPage() {
                         <CheckCircle2 className="h-3.5 w-3.5"/>
                       </button>
 
+                      {/* Favorite Button */}
                       <button
                         type="button"
                         onClick={(e) => toggleFavorite(e, r.id)}
@@ -1473,9 +1590,16 @@ export default function RecipesPage() {
                     ) : null}
                   </div>
 
-                  <span className="text-[11px] flex items-center gap-1 shrink-0 font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                  {/* Clickable Cooking Time with Timer Shortcut */}
+                  <button
+                    type="button"
+                    onClick={(e) => handleOpenTimer(e, r)}
+                    className="text-[11px] flex items-center gap-1 shrink-0 font-medium hover:opacity-80 transition cursor-pointer"
+                    style={{ color: isRecipeTimerRunning ? 'var(--color-primary)' : 'var(--color-text-secondary)' }}
+                    title={t('startTimer') || 'Start Kitchen Timer'}
+                  >
                     <Clock className="h-3 w-3"/> {(r.prepTimeMinutes || 15) + (r.cookTimeMinutes || 10)}m
-                  </span>
+                  </button>
                 </div>
               </div>
             );
@@ -1743,7 +1867,7 @@ export default function RecipesPage() {
 
                   <div className="border-t mx-5" style={{ borderColor: 'var(--color-border)' }} />
 
-                  {/* Servings Stepper */}
+                  {/* Servings Stepper & Action Tools (WITH TIMER) */}
                   <div className="px-5 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <span 
@@ -1780,17 +1904,20 @@ export default function RecipesPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {/* Kitchen Timer Action Button inside Modal */}
                       <button
-                        onClick={() => alert(t('timerSetAlert') || 'Kitchen Timer set for 15 minutes!')}
+                        onClick={(e) => handleOpenTimer(e, selectedRecipe)}
                         className="border font-bold text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm"
                         style={{
-                          backgroundColor: 'var(--color-card)',
+                          backgroundColor: activeTimerRecipe?.id === selectedRecipe.id && isTimerRunning ? 'var(--color-primary)' : 'var(--color-card)',
                           borderColor: 'var(--color-primary)',
-                          color: 'var(--color-primary)'
+                          color: activeTimerRecipe?.id === selectedRecipe.id && isTimerRunning ? '#ffffff' : 'var(--color-primary)'
                         }}
                       >
-                        <Timer className="h-3.5 w-3.5"/> {t('timerBtn') || 'Timer'}
+                        <Timer className={`h-3.5 w-3.5 ${activeTimerRecipe?.id === selectedRecipe.id && isTimerRunning ? 'animate-pulse' : ''}`}/> 
+                        <span>{activeTimerRecipe?.id === selectedRecipe.id && isTimerRunning ? formatTimerTime(timerSecondsLeft) : (t('timerBtn') || 'Timer')}</span>
                       </button>
+
                       <button
                         onClick={handleOpenEdit}
                         className="border font-bold text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm"
@@ -1802,6 +1929,7 @@ export default function RecipesPage() {
                       >
                         <Edit3 className="h-3.5 w-3.5"/> {t('editBtn') || 'Edit'}
                       </button>
+
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(window.location.href);
@@ -2995,6 +3123,191 @@ export default function RecipesPage() {
                 <ShoppingCart className="h-3.5 w-3.5"/> {t('addSelectedToList') || 'Add Selected to List'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* FULL KITCHEN TIMER MODAL */}
+      {showTimerModal && activeTimerRecipe && (
+        <div 
+          onClick={() => setShowTimerModal(false)}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md z-[80] flex items-center justify-center p-4 cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="border rounded-3xl max-w-sm w-full p-6 space-y-6 shadow-2xl relative text-center animate-in fade-in cursor-default transition-colors duration-200"
+            style={{
+              backgroundColor: 'var(--color-card)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-text)'
+            }}
+          >
+            <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--color-border)' }}>
+              <div className="flex items-center gap-2 font-bold text-xs" style={{ color: 'var(--color-primary)' }}>
+                <Timer className="h-4 w-4" />
+                <span>{t('kitchenTimerHeading') || 'Kitchen Timer'}</span>
+              </div>
+              <button
+                onClick={() => setShowTimerModal(false)}
+                className="p-1 rounded-lg transition opacity-60 hover:opacity-100 cursor-pointer"
+                style={{ color: 'var(--color-text)' }}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-bold truncate px-2" style={{ color: 'var(--color-text)' }}>
+                {activeTimerRecipe.title || activeTimerRecipe.name}
+              </h3>
+              <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
+                Cook Time: {activeTimerRecipe.cookTimeMinutes || 15} minutes
+              </p>
+            </div>
+
+            {/* Countdown Large Display */}
+            <div 
+              className="py-6 px-4 rounded-3xl border flex flex-col items-center justify-center shadow-inner"
+              style={{
+                backgroundColor: 'var(--color-inner-dark)',
+                borderColor: timerSecondsLeft === 0 ? 'var(--color-emerald)' : 'var(--color-border)'
+              }}
+            >
+              <span 
+                className="text-5xl font-black font-mono tracking-tight"
+                style={{ color: timerSecondsLeft === 0 ? 'var(--color-emerald)' : 'var(--color-primary)' }}
+              >
+                {formatTimerTime(timerSecondsLeft)}
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-wider mt-1 opacity-60">
+                {timerSecondsLeft === 0 ? 'Time is up! Dish is ready.' : isTimerRunning ? 'Cooking in progress...' : 'Timer Paused'}
+              </span>
+            </div>
+
+            {/* Quick Adjustment Chips */}
+            <div className="flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleAdjustTimer(-1)}
+                disabled={timerSecondsLeft < 60}
+                className="px-2.5 py-1 rounded-xl border text-[11px] font-bold transition hover:opacity-80 disabled:opacity-30 cursor-pointer"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
+              >
+                -1m
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAdjustTimer(1)}
+                className="px-2.5 py-1 rounded-xl border text-[11px] font-bold transition hover:opacity-80 cursor-pointer"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
+              >
+                +1m
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAdjustTimer(5)}
+                className="px-2.5 py-1 rounded-xl border text-[11px] font-bold transition hover:opacity-80 cursor-pointer"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
+              >
+                +5m
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAdjustTimer(10)}
+                className="px-2.5 py-1 rounded-xl border text-[11px] font-bold transition hover:opacity-80 cursor-pointer"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
+              >
+                +10m
+              </button>
+            </div>
+
+            {/* Main Timer Controls */}
+            <div className="flex items-center justify-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={handleResetTimer}
+                className="p-3 rounded-2xl border transition hover:opacity-80 cursor-pointer"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                title="Reset Timer"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsTimerRunning(!isTimerRunning)}
+                className="px-6 py-3 rounded-2xl text-white font-bold text-xs flex items-center gap-2 shadow-lg transition hover:opacity-90 cursor-pointer"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
+                {isTimerRunning ? <Pause className="h-4 w-4 fill-white" /> : <Play className="h-4 w-4 fill-white" />}
+                <span>{isTimerRunning ? 'Pause Timer' : 'Start Timer'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTimerModal(false);
+                  setIsTimerMinimized(true);
+                }}
+                className="p-3 rounded-2xl border transition hover:opacity-80 cursor-pointer"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-primary)' }}
+                title="Minimize Timer Dock"
+              >
+                <Bell className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FLOATING MINIMIZED TIMER DOCK */}
+      {isTimerMinimized && activeTimerRecipe && (
+        <div 
+          onClick={() => {
+            setIsTimerMinimized(false);
+            setShowTimerModal(true);
+          }}
+          className="fixed bottom-6 right-6 z-[90] p-3 rounded-2xl border shadow-2xl flex items-center gap-3 cursor-pointer animate-in fade-in transition duration-200 hover:scale-105"
+          style={{
+            backgroundColor: 'var(--color-card)',
+            borderColor: 'var(--color-primary)',
+            color: 'var(--color-text)'
+          }}
+        >
+          <div className="p-2 rounded-xl" style={{ backgroundColor: 'var(--color-inner-dark)', color: 'var(--color-primary)' }}>
+            <Timer className={`h-4 w-4 ${isTimerRunning ? 'animate-spin' : ''}`} />
+          </div>
+
+          <div className="text-left">
+            <div className="text-[10px] font-bold truncate max-w-[120px]" style={{ color: 'var(--color-text-secondary)' }}>
+              {activeTimerRecipe.title || activeTimerRecipe.name}
+            </div>
+            <div className="text-sm font-black font-mono" style={{ color: 'var(--color-primary)' }}>
+              {formatTimerTime(timerSecondsLeft)}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setIsTimerRunning(!isTimerRunning)}
+              className="p-1.5 rounded-lg border cursor-pointer transition hover:opacity-80"
+              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-primary)' }}
+            >
+              {isTimerRunning ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsTimerRunning(false);
+                setIsTimerMinimized(false);
+                setActiveTimerRecipe(null);
+              }}
+              className="p-1.5 rounded-lg border cursor-pointer transition hover:opacity-80"
+              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
       )}
