@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack && npm run postbuild",
-    "postbuild": "mkdir -p .next/standalone/apps/web/.next && mkdir -p .next/standalone/apps/web/public/recipes/images && mkdir -p .next/standalone/public/recipes/images && cp -rn public/. .next/standalone/apps/web/public/ 2>/dev/null || true && cp -rn public/. .next/standalone/public/ 2>/dev/null || true && cp -rn .next/static .next/standalone/apps/web/.next/static 2>/dev/null || true && cp -rn .next/static .next/standalone/.next/static 2>/dev/null || true && cp ../../server.js .next/standalone/server.js 2>/dev/null || true",
+    "postbuild": "mkdir -p .next/standalone/apps/web/.next .next/standalone/apps/web/data .next/standalone/data && cp -rn data/* .next/standalone/apps/web/data/ 2>/dev/null || true && cp -rn data/* .next/standalone/data/ 2>/dev/null || true && cp -rn public .next/standalone/apps/web/public 2>/dev/null || true && cp -rn .next/static .next/standalone/apps/web/.next/static 2>/dev/null || true && cp -rn public .next/standalone/public 2>/dev/null || true && cp -rn .next/static .next/standalone/.next/static 2>/dev/null || true && cp ../../server.js .next/standalone/server.js 2>/dev/null || true",
     "start": "node server.js",
     "lint": "next lint"
   },
