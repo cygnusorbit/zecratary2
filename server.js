@@ -1,6 +1,6 @@
 /**
  * Authoritative Production Standalone Server Entry Point for Hostinger LiteSpeed FCGI (lsnode)
- * Resolves Next.js standalone build, manages port binding dynamically, and handles graceful shutdown.
+ * Resolves Next.js standalone build directly without top-level require('next')
  */
 const path = require('path');
 const fs = require('fs');
@@ -9,16 +9,11 @@ const net = require('net');
 process.env.NODE_ENV = 'production';
 process.env.HOSTNAME = process.env.HOSTNAME || '0.0.0.0';
 
-// Check if a specific TCP port is available
 function checkPortAvailable(port, host) {
   return new Promise((resolve) => {
     const tester = net.createServer();
     tester.once('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        resolve(false);
-      } else {
-        resolve(true);
-      }
+      resolve(err.code !== 'EADDRINUSE');
     });
     tester.once('listening', () => {
       tester.close(() => resolve(true));
@@ -27,7 +22,6 @@ function checkPortAvailable(port, host) {
   });
 }
 
-// Find first available port starting from startPort
 async function getAvailablePort(startPort, host) {
   let port = startPort;
   while (port < startPort + 50) {
@@ -38,7 +32,6 @@ async function getAvailablePort(startPort, host) {
   return startPort;
 }
 
-// Register clean shutdown handlers so Ctrl+C releases the port immediately
 function registerGracefulShutdown() {
   const shutdown = (sig) => {
     console.log(`\n[Hostinger LSNode] Caught ${sig}. Shutting down cleanly...`);
@@ -55,17 +48,14 @@ async function startServer() {
   let finalPort;
 
   if (specifiedPort) {
-    // If explicitly assigned (Hostinger runtime environment), honor it directly
     finalPort = specifiedPort;
   } else {
-    // Local development/testing: check port 3000 or pick next available
     finalPort = await getAvailablePort(3000, process.env.HOSTNAME);
   }
 
   process.env.PORT = String(finalPort);
   console.log(`[Hostinger LSNode] Bootstrapping production runner on port ${finalPort}...`);
 
-  // Candidate standalone server entry points built by Next.js
   const standaloneCandidates = [
     path.join(__dirname, 'apps/web/.next/standalone/apps/web/server.js'),
     path.join(__dirname, 'apps/web/.next/standalone/server.js'),
@@ -83,7 +73,6 @@ async function startServer() {
 
   if (standaloneEntry) {
     console.log(`[Hostinger LSNode] Found standalone entry point at: ${standaloneEntry}`);
-    // Change working directory to standalone root so internal node_modules and chunks resolve
     process.chdir(path.dirname(standaloneEntry));
     try {
       require(standaloneEntry);
