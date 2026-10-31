@@ -15,7 +15,7 @@
       "bottom": "4rem",
       "left": "1.5rem",
       "right": "1.5rem",
-      "maxWidth": "max-w-7xl"
+      "maxWidth": "max-w-full"
     },
     "footer": {
       "enabled": true,

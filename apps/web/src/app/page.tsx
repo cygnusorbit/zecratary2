@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {useParams, useRouter, usePathname} from 'next/navigation';
+import { useParams, useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { 
   Sun, Moon, Globe, Shield, Zap, Sparkles, ChefHat, BookOpen, 
@@ -53,7 +53,6 @@ interface DynamicPageRecord {
   footer?: FooterSettings;
 }
 
-
 const DEFAULT_FOOTER: FooterSettings = {
   enabled: true,
   aboutText: 'Zecratary is an autonomous culinary intelligence platform designed for intelligent recipe management, meal planning, and nutrition telemetry.',
@@ -100,7 +99,7 @@ const DEFAULT_HOMEPAGE_FALLBACK: DynamicPageRecord = {
     bottom: '4rem',
     left: '1.5rem',
     right: '1.5rem',
-    maxWidth: 'max-w-7xl',
+    maxWidth: 'max-w-full',
   },
   footer: {
     enabled: true,
@@ -329,7 +328,6 @@ export default function DynamicHomePage() {
     syncThemeState();
     fetchPageData();
 
-    // Bind homepage layout classes to document body
     if (typeof document !== 'undefined' && document.body) {
       document.body.classList.add('is-homepage-view');
     }
@@ -378,14 +376,18 @@ export default function DynamicHomePage() {
 
   const padTop = activePage?.padding?.top || '2.5rem';
   const padBottom = activePage?.padding?.bottom || '4rem';
-  const padLeft = activePage?.padding?.left || activePage?.padding?.x || '1.5rem';
-  const padRight = activePage?.padding?.right || activePage?.padding?.x || '1.5rem';
-  const maxWidthClass = activePage?.padding?.maxWidth || 'max-w-7xl';
+
+  // Fluid canvas boundary: defaults to 100% fluid full width unless explicitly constrained
+  const containerMaxWidthClass = activePage?.padding?.maxWidth && activePage.padding.maxWidth !== 'max-w-full'
+    ? activePage.padding.maxWidth
+    : 'w-full max-w-full';
 
   return (
     <div
       id="zecratary-homepage-root"
-      className="min-h-screen flex flex-col font-sans antialiased theme-harmonized-card"
+      role="region"
+      aria-label="Zecratary Public Homepage Canvas"
+      className="min-h-screen flex flex-col font-sans antialiased theme-harmonized-card transition-colors duration-200"
       style={{
         backgroundColor: 'var(--color-bg)',
         color: 'var(--color-text)',
@@ -426,14 +428,15 @@ export default function DynamicHomePage() {
 
       {/* 1. PUBLIC HOMEPAGE HEADER NAVIGATION */}
       <header
-        className="sticky top-0 z-40 border-b backdrop-blur-md theme-harmonized-card"
+        role="banner"
+        className="sticky top-0 z-40 border-b backdrop-blur-md theme-harmonized-card transition-colors duration-200"
         style={{
           backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.9)',
           borderColor: 'var(--color-border)',
           color: 'var(--color-text)',
         }}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div className="w-full max-w-full px-4 sm:px-6 lg:px-8 xl:px-10 h-16 flex items-center justify-between">
           {/* BRAND */}
           <Link href="/" className="flex items-center gap-2.5 font-black text-xl text-[var(--color-primary)]">
             <span className="text-2xl">{siteIcon || '🍳'}</span>
@@ -441,7 +444,7 @@ export default function DynamicHomePage() {
           </Link>
 
           {/* DYNAMIC CMS NAVIGATION TABS */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1" aria-label="Main Navigation">
             {navPages.map((page: DynamicPageRecord) => {
               const isActive = (currentSlug === 'home' && page.is_default) || currentSlug === page.slug;
               return (
@@ -467,13 +470,14 @@ export default function DynamicHomePage() {
             <button
               type="button"
               onClick={toggleTheme}
-              className="p-2 rounded-xl border transition cursor-pointer shadow-xs"
+              className="p-2 rounded-xl border transition cursor-pointer shadow-xs hover:opacity-90"
               style={{
                 backgroundColor: 'var(--color-inner-dark)',
                 borderColor: 'var(--color-border)',
                 color: 'var(--color-text)',
               }}
               title={isDarkMode ? t('switchToDayMode', 'Switch to Day Mode') : t('switchToDarkMode', 'Switch to Dark Mode')}
+              aria-label={isDarkMode ? 'Switch to Day Mode' : 'Switch to Dark Mode'}
             >
               {isDarkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-slate-700" />}
             </button>
@@ -482,7 +486,7 @@ export default function DynamicHomePage() {
             {currentUser ? (
               <Link
                 href="/dashboard"
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-xs transition cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-xs transition cursor-pointer hover:opacity-90"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
                 <span>{t('dashboard', 'Dashboard')}</span>
@@ -492,7 +496,7 @@ export default function DynamicHomePage() {
               <div className="flex items-center gap-2">
                 <Link
                   href="/login"
-                  className="px-3.5 py-2 rounded-xl border text-xs font-bold transition shadow-xs"
+                  className="px-3.5 py-2 rounded-xl border text-xs font-bold transition shadow-xs hover:bg-white/5"
                   style={{
                     backgroundColor: 'var(--color-inner-dark)',
                     borderColor: 'var(--color-border)',
@@ -503,7 +507,7 @@ export default function DynamicHomePage() {
                 </Link>
                 <Link
                   href="/register"
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-xs transition"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-xs transition hover:opacity-90"
                   style={{ backgroundColor: 'var(--color-primary)' }}
                 >
                   {t('getStarted', 'Get Started')}
@@ -514,21 +518,19 @@ export default function DynamicHomePage() {
         </div>
       </header>
 
-      {/* 2. DYNAMIC CONTENT CANVAS */}
-            
-
+      {/* 2. DYNAMIC FULL-WIDTH FLUID CONTENT CANVAS */}
       <main
         id="zecratary-homepage-canvas"
-        className="flex-1 w-full mx-auto"
+        role="main"
+        aria-label="Homepage Main Content"
+        className="flex-1 w-full max-w-full px-4 sm:px-6 lg:px-8 xl:px-10 mx-auto transition-colors duration-200"
         style={{
           paddingTop: padTop,
           paddingBottom: padBottom,
-          paddingLeft: padLeft,
-          paddingRight: padRight,
           boxSizing: 'border-box',
         }}
       >
-        <div className={`w-full mx-auto ${maxWidthClass} space-y-12`}>
+        <div className={`${containerMaxWidthClass} mx-auto space-y-12`}>
           {elementsList.map((elem: any, elemIdx: number) => {
             // A. TITLE / HEADING ELEMENT
             if (elem.type === 'title') {
@@ -549,7 +551,7 @@ export default function DynamicHomePage() {
                     </h2>
                   )}
                   {elem.subtitle && (
-                    <p className="text-sm sm:text-base max-w-3xl mx-auto leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+                    <p className="text-sm sm:text-base max-w-4xl mx-auto leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
                       {elem.subtitle}
                     </p>
                   )}
@@ -562,6 +564,8 @@ export default function DynamicHomePage() {
               return (
                 <div
                   key={elem.id || `content_${elemIdx}`}
+                  role="region"
+                  aria-label="Content Block"
                   className="p-6 rounded-2xl border leading-relaxed text-sm sm:text-base theme-harmonized-card"
                   style={{
                     backgroundColor: 'var(--color-card)',
@@ -583,6 +587,8 @@ export default function DynamicHomePage() {
                   {cols.map((col: any, colIdx: number) => (
                     <div
                       key={col.id || `col_item_${colIdx}`}
+                      role="region"
+                      aria-label={col.title || 'Feature'}
                       className="p-6 rounded-2xl border space-y-3 theme-harmonized-card shadow-xs"
                       style={{
                         backgroundColor: 'var(--color-card)',
@@ -606,6 +612,8 @@ export default function DynamicHomePage() {
               return (
                 <div
                   key={elem.id || `pic_${elemIdx}`}
+                  role="region"
+                  aria-label="Media Showcase"
                   className="rounded-3xl border overflow-hidden p-2 theme-harmonized-card shadow-xs"
                   style={{
                     backgroundColor: 'var(--color-card)',
@@ -633,6 +641,8 @@ export default function DynamicHomePage() {
               return (
                 <div
                   key={elem.id || `box_${elemIdx}`}
+                  role="region"
+                  aria-label="Callout Workspace"
                   className="p-8 rounded-3xl border text-center space-y-4 theme-harmonized-card shadow-md"
                   style={{
                     backgroundColor: 'var(--color-card)',
@@ -649,14 +659,14 @@ export default function DynamicHomePage() {
                     </span>
                   )}
                   <h3 className="text-2xl font-black">{elem.title || 'Gourmet Culinary Workspace'}</h3>
-                  <p className="text-sm max-w-2xl mx-auto leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+                  <p className="text-sm max-w-3xl mx-auto leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
                     {elem.description || elem.content || ''}
                   </p>
                   {elem.buttonText && (
                     <div className="pt-2">
                       <Link
                         href={elem.buttonUrl || '/chef'}
-                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-xs text-white shadow-xs transition"
+                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-xs text-white shadow-xs transition hover:opacity-90"
                         style={{ backgroundColor: 'var(--color-primary)' }}
                       >
                         <span>{elem.buttonText}</span>
@@ -672,7 +682,7 @@ export default function DynamicHomePage() {
             if (elem.type === 'recipe') {
               const displayList = allRecipes.slice(0, elem.itemsPerPage || 6);
               return (
-                <div key={elem.id || `recipe_${elemIdx}`} className="space-y-6">
+                <div key={elem.id || `recipe_${elemIdx}`} role="region" aria-label="Community Recipe Gallery" className="space-y-6">
                   <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
                     <div>
                       <h2 className="text-2xl font-black tracking-tight" style={{ color: 'var(--color-text)' }}>
@@ -709,7 +719,7 @@ export default function DynamicHomePage() {
                           color: 'var(--color-text)',
                         }}
                       >
-                        <div className="relative h-44 w-full overflow-hidden bg-slate-800">
+                        <div className="relative h-48 w-full overflow-hidden bg-slate-800">
                           {rec.image ? (
                             <img src={rec.image} alt={rec.title} className="w-full h-full object-cover transition duration-300 hover:scale-105" />
                           ) : (
@@ -749,7 +759,7 @@ export default function DynamicHomePage() {
             // G. SUBSCRIPTION PLAN SHOWCASE ELEMENT
             if (elem.type === 'subscription') {
               return (
-                <div key={elem.id || `plan_${elemIdx}`} className="space-y-6 pt-4">
+                <div key={elem.id || `plan_${elemIdx}`} role="region" aria-label="Subscription Quotas Showcase" className="space-y-6 pt-4">
                   <div className="text-center space-y-3">
                     <h2 className="text-3xl font-black tracking-tight" style={{ color: 'var(--color-text)' }}>
                       {elem.title || 'Subscription Tiers & AI Quotas'}
@@ -836,7 +846,7 @@ export default function DynamicHomePage() {
 
                           <Link
                             href="/subscriptions"
-                            className="w-full py-2.5 text-center rounded-xl font-bold text-xs text-white shadow-xs transition"
+                            className="w-full py-2.5 text-center rounded-xl font-bold text-xs text-white shadow-xs transition hover:opacity-90"
                             style={{ backgroundColor: 'var(--color-primary)' }}
                           >
                             {p.is_free ? t('getStartedFree', 'Get Started Free') : t('upgradeToPlan', 'Select Tier')}
@@ -857,14 +867,15 @@ export default function DynamicHomePage() {
       {/* 3. DYNAMIC MULTI-COLUMN FOOTER */}
       {activePage?.footer?.enabled !== false && (
         <footer
-          className="border-t theme-harmonized-card"
+          role="contentinfo"
+          className="border-t theme-harmonized-card transition-colors duration-200"
           style={{
             backgroundColor: activePage?.footer?.bgColor || 'var(--color-card)',
             borderColor: activePage?.footer?.borderColor || 'var(--color-border)',
             color: activePage?.footer?.textColor || 'var(--color-text)',
           }}
         >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-8">
+          <div className="w-full max-w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-12 space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
               {/* BRAND MISSION */}
               <div className="space-y-3 md:col-span-2">
@@ -910,6 +921,9 @@ export default function DynamicHomePage() {
       {/* 4. FULL RECIPE MODAL POPUP */}
       {activeRecipeModal && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={activeRecipeModal.title}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs"
           onClick={() => setActiveRecipeModal(null)}
         >
@@ -942,6 +956,7 @@ export default function DynamicHomePage() {
                 onClick={() => setActiveRecipeModal(null)}
                 className="p-1.5 rounded-lg border hover:bg-slate-800/20 cursor-pointer"
                 style={{ borderColor: 'var(--color-border)' }}
+                aria-label="Close modal"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -959,8 +974,9 @@ export default function DynamicHomePage() {
                 <button
                   type="button"
                   onClick={() => setModalServings(Math.max(1, modalServings - 1))}
-                  className="p-1 rounded-md border"
+                  className="p-1 rounded-md border hover:bg-white/5 cursor-pointer"
                   style={{ borderColor: 'var(--color-border)' }}
+                  aria-label="Decrease servings"
                 >
                   <Minus className="h-3 w-3" />
                 </button>
@@ -968,8 +984,9 @@ export default function DynamicHomePage() {
                 <button
                   type="button"
                   onClick={() => setModalServings(modalServings + 1)}
-                  className="p-1 rounded-md border"
+                  className="p-1 rounded-md border hover:bg-white/5 cursor-pointer"
                   style={{ borderColor: 'var(--color-border)' }}
+                  aria-label="Increase servings"
                 >
                   <Plus className="h-3 w-3" />
                 </button>
@@ -980,7 +997,7 @@ export default function DynamicHomePage() {
                 <button
                   type="button"
                   onClick={() => setModalFontZoom(Math.max(80, modalFontZoom - 10))}
-                  className="px-2 py-0.5 rounded border"
+                  className="px-2 py-0.5 rounded border hover:bg-white/5 cursor-pointer"
                   style={{ borderColor: 'var(--color-border)' }}
                 >
                   A-
@@ -988,7 +1005,7 @@ export default function DynamicHomePage() {
                 <button
                   type="button"
                   onClick={() => setModalFontZoom(Math.min(150, modalFontZoom + 10))}
-                  className="px-2 py-0.5 rounded border"
+                  className="px-2 py-0.5 rounded border hover:bg-white/5 cursor-pointer"
                   style={{ borderColor: 'var(--color-border)' }}
                 >
                   A+
