@@ -12,7 +12,8 @@
     "lint": "turbo run lint",
     "start": "node server.js",
     "version:bump": "python update_version.py",
-    "postinstall": "ln -sfn apps/web/.next .next 2>/dev/null || true"
+    "postinstall": "npm run prisma:generate 2>/dev/null || true",
+    "prisma:generate": "npx prisma generate --schema=packages/database/prisma/schema.prisma 2>/dev/null || npx prisma generate 2>/dev/null || true"
   },
   "packageManager": "npm@10.8.2",
   "dependencies": {
@@ -40,5 +41,15 @@
   "overrides": {
     "react": "$react",
     "react-dom": "$react-dom"
+  },
+  "allowScripts": {
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "prisma@5.22.0": true,
+    "fsevents@2.3.3": true,
+    "@prisma/client": true,
+    "@prisma/engines": true,
+    "prisma": true,
+    "fsevents": true
   }
 }

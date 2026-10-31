@@ -1,69 +1,60 @@
 /**
- * Authoritative Production Server Runner for Hostinger LiteSpeed FCGI & Cloud VPS
- * Handles dynamic module resolution and Next.js standalone / workspace fallback
+ * Production Standalone Runner for Hostinger LiteSpeed FCGI (lsnode)
+ * Executes Next.js standalone bundle directly without top-level require('next')
  */
 const path = require('path');
 const fs = require('fs');
-const http = require('http');
-const Module = require('module');
 
-// 1. Configure production environment and network bindings
 process.env.NODE_ENV = 'production';
 process.env.HOSTNAME = process.env.HOSTNAME || '0.0.0.0';
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
-console.log(`[Hostinger Runner] Bootstrapping on http://${process.env.HOSTNAME}:${PORT}...`);
+console.log(`[Hostinger LSNode] Bootstrapping production runner on port ${PORT}...`);
 
-// 2. Register all workspace and standalone node_modules into Node's search paths
-// Prevents "Cannot find module 'next'" under LiteSpeed FCGI (lsnode.js)
-const candidateModulePaths = [
-  path.join(__dirname, 'node_modules'),
-  path.join(__dirname, 'apps/web/node_modules'),
-  path.join(__dirname, 'apps/web/.next/standalone/node_modules'),
-  path.join(__dirname, 'apps/web/.next/standalone/apps/web/node_modules'),
-  path.join(__dirname, '.next/standalone/node_modules')
-];
-
-candidateModulePaths.forEach((p) => {
-  if (fs.existsSync(p)) {
-    if (!module.paths.includes(p)) {
-      module.paths.unshift(p);
-    }
-    if (Module.globalPaths && !Module.globalPaths.includes(p)) {
-      Module.globalPaths.unshift(p);
-    }
-  }
-});
-
-// 3. Search for Next.js standalone entry points
-const candidateStandalonePaths = [
+// Search candidate standalone server entry points built by Next.js
+const standaloneCandidates = [
   path.join(__dirname, 'apps/web/.next/standalone/apps/web/server.js'),
   path.join(__dirname, 'apps/web/.next/standalone/server.js'),
   path.join(__dirname, '.next/standalone/apps/web/server.js'),
   path.join(__dirname, '.next/standalone/server.js')
 ];
 
-let standaloneServer = null;
-for (const p of candidateStandalonePaths) {
-  if (fs.existsSync(p)) {
-    standaloneServer = p;
+let standaloneEntry = null;
+for (const cand of standaloneCandidates) {
+  if (fs.existsSync(cand)) {
+    standaloneEntry = cand;
     break;
   }
 }
 
-// 4. Execution mode routing
-if (standaloneServer) {
-  console.log(`[Hostinger Runner] Launching Next.js standalone bundle: ${standaloneServer}`);
-  process.chdir(path.dirname(standaloneServer));
+if (standaloneEntry) {
+  console.log(`[Hostinger LSNode] Found standalone entry point at: ${standaloneEntry}`);
+  // Change working directory to standalone root so its internal node_modules resolve
+  process.chdir(path.dirname(standaloneEntry));
   try {
-    require(standaloneServer);
+    require(standaloneEntry);
   } catch (err) {
-    console.error('[FATAL] Failed to start standalone server:', err);
+    console.error('[FATAL] Failed to execute standalone server:', err);
     process.exit(1);
   }
 } else {
-  console.log('[Hostinger Runner] Standalone bundle not found. Starting standard Next.js instance...');
+  console.log('[Hostinger LSNode] Standalone bundle not found at root. Checking workspace fallback...');
+  
+  // Register fallback module paths
+  const moduleDirs = [
+    path.join(__dirname, 'node_modules'),
+    path.join(__dirname, 'apps/web/node_modules'),
+    path.join(__dirname, 'apps/web/.next/standalone/node_modules')
+  ];
+
+  moduleDirs.forEach((dir) => {
+    if (fs.existsSync(dir) && !module.paths.includes(dir)) {
+      module.paths.unshift(dir);
+    }
+  });
+
   try {
+    const http = require('http');
     const next = require('next');
     const app = next({
       dev: false,
@@ -74,19 +65,16 @@ if (standaloneServer) {
     const handle = app.getRequestHandler();
 
     app.prepare().then(() => {
-      const server = http.createServer((req, res) => {
-        handle(req, res);
-      });
-
+      const server = http.createServer((req, res) => handle(req, res));
       server.listen(PORT, process.env.HOSTNAME, () => {
-        console.log(`[Hostinger Runner] Server ready and listening on http://${process.env.HOSTNAME}:${PORT}`);
+        console.log(`[Hostinger LSNode] Server ready on http://${process.env.HOSTNAME}:${PORT}`);
       });
     }).catch((err) => {
       console.error('[FATAL] Next.js app.prepare() failed:', err);
       process.exit(1);
     });
   } catch (err) {
-    console.error('[FATAL] Could not initialize Next.js server:', err);
+    console.error('[FATAL] Unable to initialize Next.js runtime:', err);
     process.exit(1);
   }
 }
