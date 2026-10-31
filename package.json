@@ -7,14 +7,11 @@
     "packages/*"
   ],
   "scripts": {
+    "build": "turbo run build",
     "dev": "turbo run dev",
-    "build": "npx turbo run build",
+    "lint": "turbo run lint",
     "start": "node server.js",
-    "db:generate": "turbo run db:generate",
-    "db:push": "turbo run db:push",
-    "worker:dev": "turbo run worker:dev",
-    "postbuild": "node -e \"const fs=require('fs'),path=require('path');const src=path.join('apps','web','.next');if(fs.existsSync(src)){  const sa=path.join(src,'standalone');  const rootServer=path.join(process.cwd(),'server.js');  if(fs.existsSync(sa)&&fs.existsSync(rootServer)){    try{fs.cpSync(rootServer,path.join(sa,'server.js'));}catch(_){}    try{fs.cpSync(rootServer,path.join(sa,'apps','web','server_launcher.js'));}catch(_){}  }  const saStatic=path.join(sa,'apps','web','.next','static');  const srcStatic=path.join(src,'static');  if(fs.existsSync(srcStatic)){    try{fs.mkdirSync(path.dirname(saStatic),{recursive:true});fs.cpSync(srcStatic,saStatic,{recursive:true});}catch(_){}    try{const rStatic=path.join(sa,'.next','static');fs.mkdirSync(path.dirname(rStatic),{recursive:true});fs.cpSync(srcStatic,rStatic,{recursive:true});}catch(_){}  }  const saPublic=path.join(sa,'apps','web','public');  const srcPublic=path.join('apps','web','public');  if(fs.existsSync(srcPublic)){    try{fs.mkdirSync(path.dirname(saPublic),{recursive:true});fs.cpSync(srcPublic,saPublic,{recursive:true});}catch(_){}    try{const rPublic=path.join(sa,'public');fs.mkdirSync(path.dirname(rPublic),{recursive:true});fs.cpSync(srcPublic,rPublic,{recursive:true});}catch(_){}  }  ['.next','dist','build'].forEach(d=>{    try{      if(fs.existsSync(d)||fs.lstatSync?.(d,{throwIfNoEntry:false})){        if(fs.lstatSync(d).isSymbolicLink()){fs.unlinkSync(d);}else{fs.rmSync(d,{recursive:true,force:true});}      }      fs.cpSync(src,d,{recursive:true,dereference:true});      if(fs.existsSync(rootServer)){        try{fs.cpSync(rootServer,path.join(d,'standalone','server.js'));}catch(_){}      }    }catch(err){console.warn('Artifact copy notice for '+d+':',err.message);}  });  console.log('\u2713 Hostinger production standalone artifacts physically bridged with root server.js.');}\"",
-    "start:web": "npm run start --workspace=web"
+    "version:bump": "python update_version.py"
   },
   "packageManager": "npm@10.8.2",
   "dependencies": {

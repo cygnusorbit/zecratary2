@@ -34,3 +34,6 @@ apps/web/.env
 !scripts/schema.mysql.sql
 !scripts/*.sql
 backups/*.sql
+
+.env.local
+CODEBASE_SOURCE.md
