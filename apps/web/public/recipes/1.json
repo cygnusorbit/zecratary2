@@ -1,0 +1,78 @@
+{
+  "id": "1",
+  "name": "Mediterranean Quinoa Power Bowl",
+  "title": "Mediterranean Quinoa Power Bowl",
+  "category": "Lunch",
+  "recipeType": "Lunch",
+  "cuisine": "Mediterranean",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 20,
+  "servings": 2,
+  "calories": 420,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/recipes/images/default.jpg",
+  "image": "/recipes/images/default.jpg",
+  "isFavorite": true,
+  "isCooked": true,
+  "description": "Vibrant Mediterranean bowl packed with crisp cucumbers, cherry tomatoes, kalamata olives, protein-rich quinoa, and a tangy lemon oregano vinaigrette.",
+  "ingredients": [
+    {
+      "amount": "1",
+      "unit": "cup",
+      "item": "Cooked quinoa",
+      "category": "Pantry"
+    },
+    {
+      "amount": "1",
+      "unit": "cup",
+      "item": "Cherry tomatoes, halved",
+      "category": "Produce"
+    },
+    {
+      "amount": "1/2",
+      "unit": "cup",
+      "item": "Kalamata olives, pitted",
+      "category": "Pantry"
+    },
+    {
+      "amount": "1",
+      "unit": "unit",
+      "item": "English cucumber, diced",
+      "category": "Produce"
+    },
+    {
+      "amount": "1/4",
+      "unit": "cup",
+      "item": "Crumbled feta cheese",
+      "category": "Dairy"
+    },
+    {
+      "amount": "2",
+      "unit": "tbsp",
+      "item": "Extra virgin olive oil",
+      "category": "Pantry"
+    },
+    {
+      "amount": "1",
+      "unit": "tbsp",
+      "item": "Fresh lemon juice",
+      "category": "Produce"
+    }
+  ],
+  "instructions": [
+    "Rinse quinoa thoroughly and simmer in water for 15 minutes until fluffy.",
+    "Dice the cucumber, halve cherry tomatoes, and drain kalamata olives.",
+    "Whisk extra virgin olive oil, fresh lemon juice, sea salt, and black pepper in a small bowl.",
+    "Divide warm quinoa into shallow serving bowls.",
+    "Top with prepared vegetables, olives, and crumbled feta cheese.",
+    "Drizzle citrus dressing over top immediately before serving."
+  ],
+  "tags": [
+    "Lunch",
+    "Mediterranean",
+    "Vegetarian",
+    "Gluten-Free"
+  ],
+  "createdAt": "2026-10-31T00:00:00.000Z"
+}

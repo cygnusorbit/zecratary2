@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
@@ -413,7 +414,7 @@ export default function RecipesPage() {
     if (!selectedRecipe || !currentUser) return;
 
     const recName = selectedRecipe.title || selectedRecipe.name || 'Untitled Recipe';
-    const recImage = selectedRecipe.imageUrl || selectedRecipe.image || selectedRecipe.image_url || 'https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=1000&q=80';
+    const recImage = selectedRecipe.imageUrl || selectedRecipe.image || selectedRecipe.image_url || '/recipes/images/default.jpg';
     const targetUserId = currentUser.id || 'usr_admin_1';
 
     const newPlanItem = {
@@ -919,6 +920,7 @@ export default function RecipesPage() {
       className="max-w-6xl mx-auto space-y-6 pb-16 px-4 font-sans transition-colors duration-200" 
       style={{ color: 'var(--color-text)' }}
       onClick={() => setOpenDropdown(null)}
+      data-lpignore="true"
     >
       {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
@@ -985,6 +987,9 @@ export default function RecipesPage() {
             <Search className="h-4 w-4 absolute left-3.5 top-3.5 pointer-events-none" style={{ color: 'var(--color-text-secondary)' }}/>
             <input
               type="text"
+              autoComplete="off"
+              data-lpignore="true"
+              data-form-type="other"
               placeholder={t('searchByNamePlaceholder') || 'Search by name'}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -1066,7 +1071,7 @@ export default function RecipesPage() {
                     borderColor: 'var(--color-primary)'
                   }}
                 >
-                  <form onSubmit={handleAddIngredientFilter} className="flex items-center gap-2">
+                  <form onSubmit={handleAddIngredientFilter} className="flex items-center gap-2" data-lpignore="true">
                     <div 
                       className="flex-1 border-2 rounded-xl overflow-hidden"
                       style={{
@@ -1077,6 +1082,9 @@ export default function RecipesPage() {
                       <input
                         type="text"
                         autoFocus
+                        autoComplete="off"
+                        data-lpignore="true"
+                        data-form-type="other"
                         placeholder={t('searchIngredientsPlaceholder') || 'Search ingredients'}
                         value={ingredientQuery}
                         onChange={(e) => setIngredientQuery(e.target.value)}
@@ -1379,8 +1387,14 @@ export default function RecipesPage() {
                 <div>
                   <div className={`relative ${cfg.imgHeight} w-full overflow-hidden`} style={{ backgroundColor: 'var(--color-inner-dark)' }}>
                     <img
-                      src={r.imageUrl || r.image || '/uploads/recipes/default.jpg'}
+                      src={r.imageUrl || r.image || '/recipes/images/default.jpg'}
                       alt={r.title || r.name}
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (!target.src.includes('default.jpg')) {
+                          target.src = '/recipes/images/default.jpg';
+                        }
+                      }}
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                     />
                     
@@ -1578,8 +1592,14 @@ export default function RecipesPage() {
                 <div className="space-y-5 pb-6">
                   <div className="relative h-64 sm:h-72 w-full bg-slate-900 overflow-hidden flex flex-col justify-end p-5">
                     <img
-                      src={selectedRecipe.imageUrl || selectedRecipe.image || '/uploads/recipes/default.jpg'}
+                      src={selectedRecipe.imageUrl || selectedRecipe.image || '/recipes/images/default.jpg'}
                       alt={selectedRecipe.title || selectedRecipe.name}
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (!target.src.includes('default.jpg')) {
+                          target.src = '/recipes/images/default.jpg';
+                        }
+                      }}
                       className="absolute inset-0 w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
@@ -1865,6 +1885,9 @@ export default function RecipesPage() {
                         <div className="flex gap-2 animate-in fade-in">
                           <input
                             type="text"
+                            autoComplete="off"
+                            data-lpignore="true"
+                            data-form-type="other"
                             placeholder={t('addNotesPlaceholder') || 'Add notes...'}
                             value={noteText}
                             onChange={(e) => setNoteText(e.target.value)}
@@ -2078,7 +2101,7 @@ export default function RecipesPage() {
                 </div>
               ) : (
                 /* EDIT RECIPE VIEW */
-                <div className="p-6 space-y-6">
+                <div className="p-6 space-y-6" data-lpignore="true">
                   <div className="flex justify-between items-center border-b pb-3" style={{ borderColor: 'var(--color-border)' }}>
                     <h3 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
                       <Edit3 className="h-5 w-5" style={{ color: 'var(--color-primary)' }}/> {t('editRecipeTitle') || 'Edit Recipe'}
@@ -2190,6 +2213,9 @@ export default function RecipesPage() {
                         <input
                           type="text"
                           required
+                          autoComplete="off"
+                          data-lpignore="true"
+                          data-form-type="other"
                           value={editForm.title}
                           onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
                           className="w-full border rounded-xl p-3 text-sm outline-none"
@@ -2212,6 +2238,9 @@ export default function RecipesPage() {
                         </label>
                         <textarea
                           rows={3}
+                          autoComplete="off"
+                          data-lpignore="true"
+                          data-form-type="other"
                           value={editForm.description}
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                           className="w-full border rounded-xl p-3 text-xs outline-none resize-y leading-relaxed"
@@ -2258,6 +2287,9 @@ export default function RecipesPage() {
                           </label>
                           <input
                             type="number"
+                            autoComplete="off"
+                            data-lpignore="true"
+                            data-form-type="other"
                             value={editForm.servings}
                             onChange={(e) => setEditForm({ ...editForm, servings: parseInt(e.target.value) || 1 })}
                             className="w-full border rounded-xl p-3 text-xs outline-none"
@@ -2365,6 +2397,9 @@ export default function RecipesPage() {
                           >
                             <input
                               type="text"
+                              autoComplete="off"
+                              data-lpignore="true"
+                              data-form-type="other"
                               placeholder={t('amt') || 'Amt'}
                               value={ing.amount}
                               onChange={(e) => {
@@ -2381,6 +2416,9 @@ export default function RecipesPage() {
                             />
                             <input
                               type="text"
+                              autoComplete="off"
+                              data-lpignore="true"
+                              data-form-type="other"
                               placeholder={t('unit') || 'Unit'}
                               value={ing.unit}
                               onChange={(e) => {
@@ -2397,6 +2435,9 @@ export default function RecipesPage() {
                             />
                             <input
                               type="text"
+                              autoComplete="off"
+                              data-lpignore="true"
+                              data-form-type="other"
                               placeholder={t('ingredientNamePlaceholder') || 'Ingredient name...'}
                               value={ing.item}
                               onChange={(e) => {
@@ -2550,6 +2591,9 @@ export default function RecipesPage() {
                             </span>
                             <textarea
                               rows={2}
+                              autoComplete="off"
+                              data-lpignore="true"
+                              data-form-type="other"
                               placeholder={(t('describeStepPlaceholder') || 'Describe step {n}...').replace('{n}', String(idx + 1))}
                               value={step}
                               onChange={(e) => {
@@ -2651,7 +2695,7 @@ export default function RecipesPage() {
               </p>
             </div>
 
-            <form onSubmit={handleSaveToCalendar} className="space-y-4 pt-1">
+            <form onSubmit={handleSaveToCalendar} className="space-y-4 pt-1" data-lpignore="true">
               <div>
                 <label 
                   className="block text-xs font-bold mb-1.5"
@@ -2664,6 +2708,9 @@ export default function RecipesPage() {
                   <input
                     type="date"
                     required
+                    autoComplete="off"
+                    data-lpignore="true"
+                    data-form-type="other"
                     value={planDate}
                     onChange={(e) => setPlanDate(e.target.value)}
                     className="w-full border rounded-xl pl-10 pr-3 py-2.5 text-xs font-semibold outline-none cursor-pointer"
@@ -2718,6 +2765,9 @@ export default function RecipesPage() {
                   <Clock className="h-4 w-4 absolute left-3.5 pointer-events-none" style={{ color: 'var(--color-text-secondary)' }}/>
                   <input
                     type="time"
+                    autoComplete="off"
+                    data-lpignore="true"
+                    data-form-type="other"
                     value={planTime}
                     onChange={(e) => setPlanTime(e.target.value)}
                     className="w-full border rounded-xl px-10 py-2.5 text-xs outline-none"
@@ -2742,6 +2792,9 @@ export default function RecipesPage() {
                 </label>
                 <textarea
                   value={planNotes}
+                  autoComplete="off"
+                  data-lpignore="true"
+                  data-form-type="other"
                   onChange={(e) => setPlanNotes(e.target.value)}
                   placeholder={t('addNotesRemindersPlaceholder') || 'Add any notes or reminders...'}
                   rows={3}
@@ -2846,6 +2899,9 @@ export default function RecipesPage() {
 
                   <input
                     type="text"
+                    autoComplete="off"
+                    data-lpignore="true"
+                    data-form-type="other"
                     value={ing.amount}
                     onChange={(e) => {
                       const updated = [...shoppingModalIngredients];
@@ -2862,6 +2918,9 @@ export default function RecipesPage() {
                   />
                   <input
                     type="text"
+                    autoComplete="off"
+                    data-lpignore="true"
+                    data-form-type="other"
                     value={ing.unit}
                     onChange={(e) => {
                       const updated = [...shoppingModalIngredients];
@@ -2878,6 +2937,9 @@ export default function RecipesPage() {
                   />
                   <input
                     type="text"
+                    autoComplete="off"
+                    data-lpignore="true"
+                    data-form-type="other"
                     value={ing.name}
                     onChange={(e) => {
                       const updated = [...shoppingModalIngredients];

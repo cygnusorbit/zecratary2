@@ -1,293 +1,368 @@
-// Centralized Recipe Flat-File & Image Ingestion Bridge
-// GitHub: cygnusorbit/zecratary
-
 import fs from 'fs';
 import path from 'path';
-import { 
-  getStorageSettings, 
-  uploadToSupabaseS3, 
-  getCanonicalImagesDir, 
-  getCanonicalRecipesDir 
-} from '@/lib/storageService';
 
-export interface RecipeOwnership {
-  userId: string;
-  createdBy: string;
-  creatorName: string;
-  creatorEmail: string;
-}
-
-export interface FullRecipeRecord {
+export interface RecipeItem {
   id: string;
-  ownership: RecipeOwnership;
-  owner: { id: string; name: string; email: string };
-  ownerId: string;
-  ownerName: string;
-  ownerEmail: string;
-  userId: string;
-  createdBy: string;
-  creatorName: string;
-  creatorEmail: string;
-  isPublic: boolean;
-  visibility: 'public' | 'private';
-  title: string;
-  description?: string;
+  name: string;
+  title?: string;
+  category: string;
   recipeType?: string;
-  category?: string;
   cuisine?: string;
-  servings?: number;
+  prepTime?: number;
   prepTimeMinutes?: number;
+  cookTime?: number;
   cookTimeMinutes?: number;
-  ingredients: any[];
-  instructions: any[];
-  directions?: any[];
-  nutrition?: any;
-  imageUrl?: string;
+  totalTime?: number;
+  servings?: number;
+  calories?: number;
+  rating?: number;
+  difficulty?: string;
   image?: string;
-  sourceUrl?: string;
+  imageUrl?: string;
+  ingredients?: any[];
+  instructions?: string[];
+  tags?: string[];
   isFavorite?: boolean;
   isCooked?: boolean;
-  rating?: number;
-  note?: string;
   bookId?: string | null;
-  tags?: string[];
-  createdAt: string;
-  updatedAt: string;
+  book_id?: string | null;
+  note?: string;
+  sourceUrl?: string;
+  source_url?: string;
+  createdAt?: string;
 }
 
-// Canonical export for route handlers and consumer endpoints
-export function getRecipeJsonDir(): string {
-  return getCanonicalRecipesDir();
-}
+export type Recipe = RecipeItem;
 
-export const getRecipesDir = getRecipeJsonDir;
-export const getRecipeDir = getRecipeJsonDir;
-
-export function getRecipeFilePath(idOrFilename: string): string {
-  const safe = path.basename(idOrFilename).replace(/[^a-zA-Z0-9_.-]/g, '_');
-  const filename = safe.endsWith('.json') ? safe : `${safe}.json`;
-  return path.join(getCanonicalRecipesDir(), filename);
-}
-
-export function getRecipeById(id: string): FullRecipeRecord | null {
-  const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const targetDir = getCanonicalRecipesDir();
-  const candidates = [
-    path.join(targetDir, `${safeId}.json`),
-    path.join(targetDir, safeId),
+export function getRecipeDirectoryCandidates(): string[] {
+  const cwd = process.cwd();
+  return [
+    path.join(cwd, 'apps/web/public/recipes'),
+    path.join(cwd, 'public/recipes'),
+    path.join(cwd, '.next/standalone/apps/web/public/recipes'),
+    path.join(cwd, '.next/standalone/public/recipes'),
+    path.resolve(__dirname, '../../public/recipes'),
+    path.resolve(__dirname, '../../../public/recipes'),
+    path.resolve(__dirname, '../../../../public/recipes')
   ];
-  for (const fp of candidates) {
-    if (fs.existsSync(fp)) {
-      try {
-        const raw = fs.readFileSync(fp, 'utf-8');
-        return JSON.parse(raw);
-      } catch (_) {}
+}
+
+export function getRecipeJsonDir(): string {
+  const candidates = getRecipeDirectoryCandidates();
+  for (const cand of candidates) {
+    if (fs.existsSync(cand)) {
+      return cand;
     }
+  }
+  const fallback = path.join(process.cwd(), 'apps/web/public/recipes');
+  try {
+    fs.mkdirSync(fallback, { recursive: true });
+  } catch (_) {}
+  return fallback;
+}
+
+export const getPublicRecipesDir = getRecipeJsonDir;
+
+export function getRecipeImagesDir(): string {
+  const jsonDir = getRecipeJsonDir();
+  const imagesDir = path.join(jsonDir, 'images');
+  try {
+    fs.mkdirSync(imagesDir, { recursive: true });
+  } catch (_) {}
+  return imagesDir;
+}
+
+export const getRecipeImageDir = getRecipeImagesDir;
+
+export async function saveRecipeImageLocally(
+  imageUrlOrData: string,
+  preferredFileName?: string
+): Promise<any> {
+  const imagesDir = getRecipeImagesDir();
+  const defaultUrl = '/recipes/images/default.jpg';
+
+  if (!imageUrlOrData) {
+    const res = new String(defaultUrl);
+    (res as any).fileName = 'default.jpg';
+    (res as any).localPath = defaultUrl;
+    (res as any).url = defaultUrl;
+    (res as any).filePath = path.join(imagesDir, 'default.jpg');
+    return res;
+  }
+
+  if (imageUrlOrData.startsWith('/recipes/images/') || imageUrlOrData.startsWith('/images/')) {
+    const fileName = path.basename(imageUrlOrData);
+    const res = new String(imageUrlOrData);
+    (res as any).fileName = fileName;
+    (res as any).localPath = imageUrlOrData;
+    (res as any).url = imageUrlOrData;
+    (res as any).filePath = path.join(imagesDir, fileName);
+    return res;
+  }
+
+  const safeName = preferredFileName
+    ? preferredFileName.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase()
+    : `recipe_${Date.now()}`;
+
+  const ext = imageUrlOrData.includes('.png') ? '.png' : imageUrlOrData.includes('.webp') ? '.webp' : '.jpg';
+  const targetFileName = safeName.endsWith('.jpg') || safeName.endsWith('.png') || safeName.endsWith('.webp')
+    ? safeName
+    : `${safeName}${ext}`;
+
+  const targetDiskPath = path.join(imagesDir, targetFileName);
+  const publicUrl = `/recipes/images/${targetFileName}`;
+
+  try {
+    if (imageUrlOrData.startsWith('data:image/')) {
+      const base64Data = imageUrlOrData.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      fs.writeFileSync(targetDiskPath, buffer);
+    } else if (imageUrlOrData.startsWith('http://') || imageUrlOrData.startsWith('https://')) {
+      const fetchRes = await fetch(imageUrlOrData, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      if (fetchRes.ok) {
+        const arrayBuf = await fetchRes.arrayBuffer();
+        fs.writeFileSync(targetDiskPath, Buffer.from(arrayBuf));
+      } else {
+        const fallback = new String(defaultUrl);
+        (fallback as any).fileName = 'default.jpg';
+        (fallback as any).localPath = defaultUrl;
+        (fallback as any).url = defaultUrl;
+        (fallback as any).filePath = path.join(imagesDir, 'default.jpg');
+        return fallback;
+      }
+    } else {
+      const fallback = new String(defaultUrl);
+      (fallback as any).fileName = 'default.jpg';
+      (fallback as any).localPath = defaultUrl;
+      (fallback as any).url = defaultUrl;
+      (fallback as any).filePath = path.join(imagesDir, 'default.jpg');
+      return fallback;
+    }
+
+    const res = new String(publicUrl);
+    (res as any).fileName = targetFileName;
+    (res as any).localPath = publicUrl;
+    (res as any).url = publicUrl;
+    (res as any).filePath = targetDiskPath;
+    return res;
+  } catch (err) {
+    console.warn('[RecipeFiles] Notice in saveRecipeImageLocally:', err);
+    const fallback = new String(defaultUrl);
+    (fallback as any).fileName = 'default.jpg';
+    (fallback as any).localPath = defaultUrl;
+    (fallback as any).url = defaultUrl;
+    (fallback as any).filePath = path.join(imagesDir, 'default.jpg');
+    return fallback;
+  }
+}
+
+export async function getAllIndividualRecipes(): Promise<RecipeItem[]> {
+  const recipesDir = getRecipeJsonDir();
+  const recipes: RecipeItem[] = [];
+
+  try {
+    if (fs.existsSync(recipesDir)) {
+      const files = fs.readdirSync(recipesDir);
+      for (const file of files) {
+        if (file.endsWith('.json') && file !== 'index.json') {
+          const filePath = path.join(recipesDir, file);
+          try {
+            const raw = fs.readFileSync(filePath, 'utf-8');
+            const item = JSON.parse(raw);
+            if (item && (item.id || item.name || item.title)) {
+              recipes.push({
+                id: String(item.id || path.basename(file, '.json')),
+                name: item.name || item.title || 'Untitled Recipe',
+                title: item.title || item.name || 'Untitled Recipe',
+                category: item.category || item.recipeType || 'Main Dish',
+                recipeType: item.recipeType || item.category || 'Main Dish',
+                cuisine: item.cuisine || 'International',
+                prepTime: Number(item.prepTime || item.prepTimeMinutes || item.prep_time) || 15,
+                prepTimeMinutes: Number(item.prepTimeMinutes || item.prepTime || item.prep_time) || 15,
+                cookTime: Number(item.cookTime || item.cookTimeMinutes || item.cook_time) || 10,
+                cookTimeMinutes: Number(item.cookTimeMinutes || item.cookTime || item.cook_time) || 10,
+                totalTime: Number(item.totalTime || item.total_time) || 25,
+                servings: Number(item.servings) || 4,
+                calories: Number(item.calories) || 450,
+                rating: Number(item.rating) || 0,
+                difficulty: item.difficulty || 'Easy',
+                image: item.image || item.imageUrl || '/recipes/images/default.jpg',
+                imageUrl: item.imageUrl || item.image || '/recipes/images/default.jpg',
+                ingredients: Array.isArray(item.ingredients) ? item.ingredients : [],
+                instructions: Array.isArray(item.instructions) ? item.instructions : [],
+                tags: Array.isArray(item.tags) ? item.tags : ['Main Dish'],
+                isFavorite: Boolean(item.isFavorite || item.is_favorite),
+                isCooked: Boolean(item.isCooked || item.is_cooked),
+                bookId: item.bookId || item.book_id || null,
+                book_id: item.book_id || item.bookId || null,
+                note: item.note || '',
+                sourceUrl: item.sourceUrl || item.source_url || '',
+                source_url: item.source_url || item.sourceUrl || '',
+                createdAt: item.createdAt || item.created_at || new Date().toISOString()
+              });
+            }
+          } catch (err) {
+            console.warn(`[RecipeFiles] Notice parsing ${file}:`, err);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[RecipeFiles] Notice reading recipes directory:', err);
+  }
+
+  recipes.sort((a, b) => {
+    const numA = parseInt(a.id, 10);
+    const numB = parseInt(b.id, 10);
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  return recipes;
+}
+
+export const getAllRecipes = getAllIndividualRecipes;
+
+export async function getRecipeByFilename(filename: string): Promise<RecipeItem | null> {
+  const recipesDir = getRecipeJsonDir();
+  const cleanName = filename.endsWith('.json') ? filename : `${filename}.json`;
+  const filePath = path.join(recipesDir, cleanName);
+
+  if (fs.existsSync(filePath)) {
+    try {
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      const item = JSON.parse(raw);
+      return {
+        id: String(item.id || path.basename(cleanName, '.json')),
+        name: item.name || item.title || 'Untitled Recipe',
+        title: item.title || item.name || 'Untitled Recipe',
+        category: item.category || item.recipeType || 'Main Dish',
+        recipeType: item.recipeType || item.category || 'Main Dish',
+        cuisine: item.cuisine || 'International',
+        prepTimeMinutes: Number(item.prepTimeMinutes || item.prepTime) || 15,
+        cookTimeMinutes: Number(item.cookTimeMinutes || item.cookTime) || 10,
+        servings: Number(item.servings) || 4,
+        calories: Number(item.calories) || 450,
+        rating: Number(item.rating) || 0,
+        difficulty: item.difficulty || 'Easy',
+        imageUrl: item.imageUrl || item.image || '/recipes/images/default.jpg',
+        image: item.image || item.imageUrl || '/recipes/images/default.jpg',
+        ingredients: Array.isArray(item.ingredients) ? item.ingredients : [],
+        instructions: Array.isArray(item.instructions) ? item.instructions : [],
+        tags: Array.isArray(item.tags) ? item.tags : ['Main Dish'],
+        isFavorite: Boolean(item.isFavorite || item.is_favorite),
+        isCooked: Boolean(item.isCooked || item.is_cooked),
+        bookId: item.bookId || item.book_id || null,
+        book_id: item.book_id || item.bookId || null,
+        note: item.note || '',
+        sourceUrl: item.sourceUrl || item.source_url || '',
+        source_url: item.source_url || item.sourceUrl || '',
+        createdAt: item.createdAt || item.created_at || new Date().toISOString()
+      };
+    } catch (_) {}
   }
   return null;
 }
 
-export async function saveRecipeImageLocally(recipeId: string, imageInput?: string): Promise<string> {
-  if (!imageInput || typeof imageInput !== 'string') return '/recipes/images/default.jpg';
-  
-  // If already hosted on Supabase or local /recipes/images
-  if (imageInput.includes('.supabase.co/storage/v1/object/public/')) return imageInput;
-  if (imageInput.startsWith('/recipes/images/')) return imageInput;
+export const getRecipeById = getRecipeByFilename;
 
-  const safeId = recipeId.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const settings = await getStorageSettings();
+export async function saveIndividualRecipe(recipe: Partial<RecipeItem>): Promise<RecipeItem> {
+  const recipesDir = getRecipeJsonDir();
+  const id = String(recipe.id || `rec_${Date.now()}`);
 
-  // Mode 1: Supabase S3 Cloud Storage
-  if (settings.provider === 'supabase' && settings.supabase.enabled && settings.supabase.secretAccessKey) {
-    try {
-      let buffer: Buffer | null = null;
-      let contentType = 'image/jpeg';
-      let ext = 'jpg';
-
-      if (imageInput.startsWith('data:image/')) {
-        const match = imageInput.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
-        if (match) {
-          ext = match[1] === 'jpeg' ? 'jpg' : match[1];
-          contentType = `image/${ext}`;
-          buffer = Buffer.from(match[2], 'base64');
-        }
-      } else if (imageInput.startsWith('http://') || imageInput.startsWith('https://')) {
-        const res = await fetch(imageInput, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
-          }
-        });
-        if (res.ok) {
-          contentType = res.headers.get('content-type') || 'image/jpeg';
-          if (contentType.includes('png')) ext = 'png';
-          else if (contentType.includes('webp')) ext = 'webp';
-          buffer = Buffer.from(await res.arrayBuffer());
-        }
-      }
-
-      if (buffer) {
-        const cloudFilename = `${safeId}_${Date.now()}.${ext}`;
-        return await uploadToSupabaseS3(buffer, cloudFilename, contentType, settings.supabase);
-      }
-    } catch (err: any) {
-      console.warn('[recipeFiles] Supabase upload failed, falling back to disk:', err.message);
-    }
-  }
-
-  // Mode 2: Localhost Disk (apps/web/public/recipes/images/)
-  const targetDir = getCanonicalImagesDir();
-
-  if (imageInput.startsWith('data:image/')) {
-    try {
-      const match = imageInput.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
-      if (match) {
-        const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
-        const filename = `${safeId}_${Date.now()}.${ext}`;
-        const buffer = Buffer.from(match[2], 'base64');
-        fs.writeFileSync(path.join(targetDir, filename), buffer);
-        return `/recipes/images/${filename}`;
-      }
-    } catch (_) {}
-  }
-
-  if (imageInput.startsWith('http://') || imageInput.startsWith('https://')) {
-    try {
-      const res = await fetch(imageInput, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
-        }
-      });
-      if (res.ok) {
-        const contentType = res.headers.get('content-type') || '';
-        let ext = 'jpg';
-        if (contentType.includes('png')) ext = 'png';
-        else if (contentType.includes('webp')) ext = 'webp';
-
-        const filename = `${safeId}_${Date.now()}.${ext}`;
-        const buffer = Buffer.from(await res.arrayBuffer());
-        fs.writeFileSync(path.join(targetDir, filename), buffer);
-        return `/recipes/images/${filename}`;
-      }
-    } catch (_) {}
-  }
-
-  return imageInput;
-}
-
-export function saveRecipeJsonFile(recipe: any, ownerInfo?: Partial<RecipeOwnership>): FullRecipeRecord {
-  const id = recipe.id || `rcp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-  const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '_');
-
-  const userId = recipe.userId || recipe.user_id || recipe.ownerId || ownerInfo?.userId || 'usr_admin_1';
-  const createdBy = recipe.createdBy || recipe.created_by || recipe.ownerEmail || ownerInfo?.createdBy || `${userId}@zecratary.local`;
-  const creatorName = recipe.creatorName || recipe.creator_name || recipe.ownerName || ownerInfo?.creatorName || 'Chef';
-  const creatorEmail = recipe.creatorEmail || recipe.creator_email || ownerInfo?.creatorEmail || createdBy;
-  const isPublic = Boolean(recipe.isPublic ?? recipe.is_public ?? false);
-
-  let rawIngredients = recipe.ingredients;
-  if (typeof rawIngredients === 'string') {
-    try { rawIngredients = JSON.parse(rawIngredients); } catch (_) { rawIngredients = [rawIngredients]; }
-  }
-  if (!Array.isArray(rawIngredients)) rawIngredients = [];
-
-  let rawInstructions = recipe.instructions || recipe.directions || recipe.steps;
-  if (typeof rawInstructions === 'string') {
-    try { rawInstructions = JSON.parse(rawInstructions); } catch (_) { rawInstructions = [rawInstructions]; }
-  }
-  if (!Array.isArray(rawInstructions)) rawInstructions = [];
-
-  const record: FullRecipeRecord = {
+  const fullRecipe: RecipeItem = {
     id,
-    ownership: { userId, createdBy, creatorName, creatorEmail },
-    owner: { id: userId, name: creatorName, email: creatorEmail },
-    ownerId: userId,
-    ownerName: creatorName,
-    ownerEmail: creatorEmail,
-    userId,
-    createdBy,
-    creatorName,
-    creatorEmail,
-    isPublic,
-    visibility: isPublic ? 'public' : 'private',
-    title: recipe.title || recipe.name || 'Untitled Recipe',
-    description: recipe.description || '',
-    recipeType: recipe.recipeType || recipe.category || 'Main Dish',
+    name: recipe.name || recipe.title || 'Custom Recipe',
+    title: recipe.title || recipe.name || 'Custom Recipe',
     category: recipe.category || recipe.recipeType || 'Main Dish',
-    cuisine: recipe.cuisine || '',
+    recipeType: recipe.recipeType || recipe.category || 'Main Dish',
+    cuisine: recipe.cuisine || 'Modern',
+    prepTimeMinutes: Number(recipe.prepTimeMinutes || recipe.prepTime) || 15,
+    cookTimeMinutes: Number(recipe.cookTimeMinutes || recipe.cookTime) || 10,
     servings: Number(recipe.servings) || 4,
-    prepTimeMinutes: Number(recipe.prepTimeMinutes || recipe.prepMinutes || recipe.prep_time) || 15,
-    cookTimeMinutes: Number(recipe.cookTimeMinutes || recipe.cookMinutes || recipe.cook_time) || 25,
-    ingredients: rawIngredients,
-    instructions: rawInstructions,
-    directions: rawInstructions,
-    nutrition: recipe.nutrition || {},
-    imageUrl: recipe.imageUrl || recipe.image || recipe.image_url || '/recipes/images/default.jpg',
-    image: recipe.image || recipe.imageUrl || recipe.image_url || '/recipes/images/default.jpg',
-    sourceUrl: recipe.sourceUrl || recipe.source_url || '',
-    isFavorite: Boolean(recipe.isFavorite ?? recipe.is_favorite),
-    isCooked: Boolean(recipe.isCooked ?? recipe.is_cooked),
+    calories: Number(recipe.calories) || 450,
     rating: Number(recipe.rating) || 0,
-    note: recipe.note || '',
+    difficulty: recipe.difficulty || 'Easy',
+    imageUrl: recipe.imageUrl || recipe.image || '/recipes/images/default.jpg',
+    image: recipe.image || recipe.imageUrl || '/recipes/images/default.jpg',
+    ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [],
+    instructions: Array.isArray(recipe.instructions) ? recipe.instructions : [],
+    tags: Array.isArray(recipe.tags) ? recipe.tags : [recipe.category || 'Main Dish'],
+    isFavorite: Boolean(recipe.isFavorite),
+    isCooked: Boolean(recipe.isCooked),
     bookId: recipe.bookId || recipe.book_id || null,
-    tags: Array.isArray(recipe.tags) ? recipe.tags : [recipe.recipeType || 'Main Dish'],
-    createdAt: recipe.createdAt || recipe.created_at || new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    book_id: recipe.book_id || recipe.bookId || null,
+    note: recipe.note || '',
+    sourceUrl: recipe.sourceUrl || recipe.source_url || '',
+    source_url: recipe.source_url || recipe.sourceUrl || '',
+    createdAt: recipe.createdAt || new Date().toISOString()
   };
 
-  const jsonStr = JSON.stringify(record, null, 2);
-  const targetDir = getCanonicalRecipesDir();
-  fs.writeFileSync(path.join(targetDir, `${safeId}.json`), jsonStr, 'utf-8');
-
-  return record;
-}
-
-export function loadAllRecipeJsonFiles(): FullRecipeRecord[] {
-  const map = new Map<string, FullRecipeRecord>();
-  const targetDir = getCanonicalRecipesDir();
-
-  if (fs.existsSync(targetDir)) {
-    const files = fs.readdirSync(targetDir).filter(f => f.endsWith('.json') && !f.includes('index.json'));
-    files.forEach(f => {
-      try {
-        const raw = fs.readFileSync(path.join(targetDir, f), 'utf-8');
-        const data = JSON.parse(raw);
-        if (data && (data.id || data.title)) {
-          const id = data.id || f.replace('.json', '');
-          map.set(id, { ...data, id });
-        }
-      } catch (_) {}
-    });
+  try {
+    const targetFile = path.join(recipesDir, `${id}.json`);
+    fs.writeFileSync(targetFile, JSON.stringify(fullRecipe, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[RecipeFiles] Notice writing individual JSON file:', err);
   }
 
-  return Array.from(map.values());
-}
-
-export const getAllRecipes = loadAllRecipeJsonFiles;
-export const getRecipes = loadAllRecipeJsonFiles;
-
-export function updateRecipePublicVisibility(id: string, isPublic: boolean): boolean {
-  const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const targetDir = getCanonicalRecipesDir();
-  const fp = path.join(targetDir, `${safeId}.json`);
-
-  if (fs.existsSync(fp)) {
+  // Synchronize to PostgreSQL / Supabase if configured
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (supabaseUrl && supabaseKey) {
     try {
-      const data = JSON.parse(fs.readFileSync(fp, 'utf-8'));
-      data.isPublic = isPublic;
-      data.visibility = isPublic ? 'public' : 'private';
-      data.updatedAt = new Date().toISOString();
-      fs.writeFileSync(fp, JSON.stringify(data, null, 2), 'utf-8');
-      return true;
+      const cleanUrl = supabaseUrl.replace(/\/$/, '');
+      await fetch(`${cleanUrl}/rest/v1/saved_recipes`, {
+        method: 'POST',
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify(fullRecipe)
+      });
     } catch (_) {}
   }
-  return false;
+
+  return fullRecipe;
 }
 
-export function deleteRecipeJsonFile(id: string): void {
-  const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const targetDir = getCanonicalRecipesDir();
-  const fp = path.join(targetDir, `${safeId}.json`);
-  if (fs.existsSync(fp)) fs.unlinkSync(fp);
+export const saveRecipe = saveIndividualRecipe;
+export const saveRecipeItem = saveIndividualRecipe;
+
+export async function deleteIndividualRecipe(id: string): Promise<boolean> {
+  const recipesDir = getRecipeJsonDir();
+  const targetFile = path.join(recipesDir, `${id}.json`);
+  let success = false;
+
+  if (fs.existsSync(targetFile)) {
+    try {
+      fs.unlinkSync(targetFile);
+      success = true;
+    } catch (_) {}
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (supabaseUrl && supabaseKey) {
+    try {
+      const cleanUrl = supabaseUrl.replace(/\/$/, '');
+      await fetch(`${cleanUrl}/rest/v1/saved_recipes?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+    } catch (_) {}
+  }
+
+  return success;
 }
+
+export const deleteRecipe = deleteIndividualRecipe;

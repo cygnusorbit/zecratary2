@@ -1,0 +1,990 @@
+[
+  {
+    "id": "rec_1789469734772_0nky",
+    "userId": "usr_admin_1",
+    "createdBy": "admin@foodieprep.com",
+    "creatorName": "Administrator",
+    "title": "Sweet tartlet shells (individual tart crusts)",
+    "name": "Sweet tartlet shells (individual tart crusts)",
+    "imageUrl": "/uploads/recipes/import-1789469734757-4n14sq.jpg",
+    "image": "/uploads/recipes/import-1789469734757-4n14sq.jpg",
+    "category": "Main Dish",
+    "recipeType": "Main Dish",
+    "tags": [
+      "Main Dish"
+    ],
+    "servings": 6,
+    "prepTimeMinutes": 20,
+    "cookTimeMinutes": 25,
+    "prepTime": "20 mins",
+    "cookTime": "25 mins",
+    "ingredients": [
+      {
+        "id": "ing_1789469734764_0",
+        "amount": "1 1/2",
+        "quantity": "1 1/2",
+        "unit": "cups",
+        "item": "plain flour (all-purpose flour)",
+        "name": "plain flour (all-purpose flour)",
+        "category": "Grains and Pasta"
+      },
+      {
+        "id": "ing_1789469734765_1",
+        "amount": "1/2",
+        "quantity": "1/2",
+        "unit": "cup",
+        "item": "soft icing sugar (powdered sugar) (, sifted (Note 1))",
+        "name": "soft icing sugar (powdered sugar) (, sifted (Note 1))",
+        "category": "Pantry Staples"
+      },
+      {
+        "id": "ing_1789469734765_2",
+        "amount": "2 1/2",
+        "quantity": "2 1/2",
+        "unit": "tbsp",
+        "item": "almond meal (ground almonds) (, not almond flour (Note 2))",
+        "name": "almond meal (ground almonds) (, not almond flour (Note 2))",
+        "category": "Grains and Pasta"
+      },
+      {
+        "id": "ing_1789469734765_3",
+        "amount": "1/4",
+        "quantity": "1/4",
+        "unit": "tsp",
+        "item": "cooking salt / kosher salt",
+        "name": "cooking salt / kosher salt",
+        "category": "Pantry Staples"
+      },
+      {
+        "id": "ing_1789469734765_4",
+        "amount": "100",
+        "quantity": "100",
+        "unit": "g",
+        "item": "/ 7 tbsp  unsalted butter (, unsalted, softened, cut into 1cm / 0.4\" cubes)",
+        "name": "/ 7 tbsp  unsalted butter (, unsalted, softened, cut into 1cm / 0.4\" cubes)",
+        "category": "Dairy"
+      },
+      {
+        "id": "ing_1789469734765_5",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "large",
+        "item": "egg (, at room temperature (~50 - 55g/2 oz) (Note 3))",
+        "name": "egg (, at room temperature (~50 - 55g/2 oz) (Note 3))",
+        "category": "Meat and Seafood"
+      }
+    ],
+    "instructions": [
+      "Mix dry ingredients, rub in butter then egg (or use food processor). Form disc, fridge 30 min. Portion into 6 balls*, roll out 15 cm / 6.5\" round (~3mm / 1/8\" thick), line 6 tartlet tins, trim excess. Fridge 30 min. Blind bake 12 min at 200\u00b0C / 390\u00b0F (180\u00b0C fan) with weights + 5 min uncovered for par-baked. * For mini tins or muffin tin, roll out single large one and press out circles. Gather scraps and repeat.",
+      "By hand option - Mix together flour, icing sugar, salt and almond meal in a bowl. Add butter and use your fingertips to rub it in until it resembles breadcrumbs. Add egg, mix with a rubber spatula until it becomes too hard to stir anymore, then use your hands to bring it together into a dough.",
+      "Food processor (30 sec) - Using the standard metal S blade, pulse the flour, icing sugar, salt and almond meal once just to combine. Add butter and pulse 3 to 4 times until it resembles breadcrumbs. Add egg and blitz for 15 to 20 seconds until it comes together into a dough.",
+      "Fridge 30 min - Turn dough out from the bowl or food processor onto a work surface. Knead lightly just to bring together into a smooth ball. Flatten into a 2cm / 0.8\" thick disc. Wrap with cling wrap and refrigerate for 30 minutes.",
+      "Divide dough (for larger tartlet tins) - Cut the disc into 6 equal portions, or however many tartlet tins you are using, then roll into balls. (If using a muffin tin or lots of mini tart tins, don't portion, roll out one big sheet, press circles out and press into tin. See Note 4)",
+      "Roll each ball out into a 15 cm / 6.5\" round (~3mm / 1/8\" thick).",
+      "Line and trim - Press pastry into 6 tartlet tins (12cm / 4.7\"), taking care not to stretch the dough as this causes shrinkage during baking. Roll the rolling pin over the tartlet tin to trim excess dough. (No need to grease the tins even if they are not non-stick ones, the butter in the pastry essentially self-greases the tins - as reader Ali so succinctly explained!).",
+      "Prick the base of the pastry 10 times with a fork. Not all the way through - just make a light prick on the surface. (Do less pricks for smaller tarts).",
+      "Refrigerate 30 minutes - Put the pastry in the tart tin for 30 minutes. (Extra insurance policy to avoid shrinkage and walls sliding down).",
+      "Preheat oven to 200\u00b0C / 390\u00b0F (180\u00b0C fan-forced).",
+      "Baking beads - Cut or tear baking paper into pieces about 50% larger than the tart shells. Scrunch the paper in your fist then unravel, smooth out and fit into the tartlet tins (scrunching makes it fit in more easily into the corners). Fill with baking beads (or dry raw rice or beans).",
+      "Park-bake or fully baked? Par-bake if the tartlet shell will be baked again after filling (eg. almond cream / frangipane like Raspberry Tartlets). Fully bake if they will not be baked again (eg filling with pastry cream or whipped cream).",
+      "Par-baked (12 + 5 min) - Bake 12 minutes. Use paper overhang to remove the beads, then bake uncovered for 5 minutes. Pastry should pale golden on the base and light golden on the edges. It will go golden when the filled pastry is baked.",
+      "Fully baked (14 + 5 min) - Bake 15 minutes, remove beads, then bake 5 minutes uncovered. The base should be light golden and the edges should be golden.",
+      "Cool and fill - Fully cool in the tart tins before filling and baking again if filling needs to be cooked (like Raspberry Tartlets).",
+      "Storage - Or keep unfilled in an airtight container for up to 3 days."
+    ],
+    "steps": [
+      "Mix dry ingredients, rub in butter then egg (or use food processor). Form disc, fridge 30 min. Portion into 6 balls*, roll out 15 cm / 6.5\" round (~3mm / 1/8\" thick), line 6 tartlet tins, trim excess. Fridge 30 min. Blind bake 12 min at 200\u00b0C / 390\u00b0F (180\u00b0C fan) with weights + 5 min uncovered for par-baked. * For mini tins or muffin tin, roll out single large one and press out circles. Gather scraps and repeat.",
+      "By hand option - Mix together flour, icing sugar, salt and almond meal in a bowl. Add butter and use your fingertips to rub it in until it resembles breadcrumbs. Add egg, mix with a rubber spatula until it becomes too hard to stir anymore, then use your hands to bring it together into a dough.",
+      "Food processor (30 sec) - Using the standard metal S blade, pulse the flour, icing sugar, salt and almond meal once just to combine. Add butter and pulse 3 to 4 times until it resembles breadcrumbs. Add egg and blitz for 15 to 20 seconds until it comes together into a dough.",
+      "Fridge 30 min - Turn dough out from the bowl or food processor onto a work surface. Knead lightly just to bring together into a smooth ball. Flatten into a 2cm / 0.8\" thick disc. Wrap with cling wrap and refrigerate for 30 minutes.",
+      "Divide dough (for larger tartlet tins) - Cut the disc into 6 equal portions, or however many tartlet tins you are using, then roll into balls. (If using a muffin tin or lots of mini tart tins, don't portion, roll out one big sheet, press circles out and press into tin. See Note 4)",
+      "Roll each ball out into a 15 cm / 6.5\" round (~3mm / 1/8\" thick).",
+      "Line and trim - Press pastry into 6 tartlet tins (12cm / 4.7\"), taking care not to stretch the dough as this causes shrinkage during baking. Roll the rolling pin over the tartlet tin to trim excess dough. (No need to grease the tins even if they are not non-stick ones, the butter in the pastry essentially self-greases the tins - as reader Ali so succinctly explained!).",
+      "Prick the base of the pastry 10 times with a fork. Not all the way through - just make a light prick on the surface. (Do less pricks for smaller tarts).",
+      "Refrigerate 30 minutes - Put the pastry in the tart tin for 30 minutes. (Extra insurance policy to avoid shrinkage and walls sliding down).",
+      "Preheat oven to 200\u00b0C / 390\u00b0F (180\u00b0C fan-forced).",
+      "Baking beads - Cut or tear baking paper into pieces about 50% larger than the tart shells. Scrunch the paper in your fist then unravel, smooth out and fit into the tartlet tins (scrunching makes it fit in more easily into the corners). Fill with baking beads (or dry raw rice or beans).",
+      "Park-bake or fully baked? Par-bake if the tartlet shell will be baked again after filling (eg. almond cream / frangipane like Raspberry Tartlets). Fully bake if they will not be baked again (eg filling with pastry cream or whipped cream).",
+      "Par-baked (12 + 5 min) - Bake 12 minutes. Use paper overhang to remove the beads, then bake uncovered for 5 minutes. Pastry should pale golden on the base and light golden on the edges. It will go golden when the filled pastry is baked.",
+      "Fully baked (14 + 5 min) - Bake 15 minutes, remove beads, then bake 5 minutes uncovered. The base should be light golden and the edges should be golden.",
+      "Cool and fill - Fully cool in the tart tins before filling and baking again if filling needs to be cooked (like Raspberry Tartlets).",
+      "Storage - Or keep unfilled in an airtight container for up to 3 days."
+    ],
+    "sourceUrl": "https://www.recipetineats.com/sweet-tartlet-shells-individual-tart-crusts/",
+    "isFavorite": false,
+    "isCooked": false,
+    "rating": 0,
+    "createdAt": "2026-09-15T10:55:34.772Z"
+  },
+  {
+    "id": "rec_1789469789000_1zfh",
+    "userId": "usr_admin_1",
+    "createdBy": "admin@foodieprep.com",
+    "creatorName": "Administrator",
+    "title": "Beef Rice Noodles",
+    "name": "Beef Rice Noodles",
+    "imageUrl": "/uploads/recipes/import-1789469788962-pfxtvk.jpg",
+    "image": "/uploads/recipes/import-1789469788962-pfxtvk.jpg",
+    "category": "Main Dish",
+    "recipeType": "Main Dish",
+    "tags": [
+      "Main Dish"
+    ],
+    "servings": 2,
+    "prepTimeMinutes": 20,
+    "cookTimeMinutes": 25,
+    "prepTime": "20 mins",
+    "cookTime": "25 mins",
+    "ingredients": [
+      {
+        "id": "ing_1789469788989_0",
+        "amount": "200",
+        "quantity": "200",
+        "unit": "g",
+        "item": "/ 7oz   rump steak / top sirloin (, cut into 3 - 4mm / 1/8\" slices, or other steak - see Note 1)",
+        "name": "/ 7oz   rump steak / top sirloin (, cut into 3 - 4mm / 1/8\" slices, or other steak - see Note 1)",
+        "category": "Meat and Seafood"
+      },
+      {
+        "id": "ing_1789469788989_1",
+        "amount": "1/2",
+        "quantity": "1/2",
+        "unit": "tsp",
+        "item": "baking soda ((bi-carbonate) - NOT baking powder, won't work)",
+        "name": "baking soda ((bi-carbonate) - NOT baking powder, won't work)",
+        "category": "Beverages"
+      },
+      {
+        "id": "ing_1789469788989_2",
+        "amount": "2",
+        "quantity": "2",
+        "unit": "tsp",
+        "item": "light soy sauce ((Note 2))",
+        "name": "light soy sauce ((Note 2))",
+        "category": "Condiments and Sauces"
+      },
+      {
+        "id": "ing_1789469788989_3",
+        "amount": "2",
+        "quantity": "2",
+        "unit": "tbsp",
+        "item": "peanut oil (, canola or other neutral flavoured oil)",
+        "name": "peanut oil (, canola or other neutral flavoured oil)",
+        "category": "Condiments and Sauces"
+      },
+      {
+        "id": "ing_1789469788989_4",
+        "amount": "200",
+        "quantity": "200",
+        "unit": "g",
+        "item": "/ 7 oz   Pad Thai-thickness flat rice noodles (~3-4mm (1/8\" wide), or any other - see Note 3 for quantities)",
+        "name": "/ 7 oz   Pad Thai-thickness flat rice noodles (~3-4mm (1/8\" wide), or any other - see Note 3 for quantities)",
+        "category": "Grains and Pasta"
+      },
+      {
+        "id": "ing_1789469788989_5",
+        "amount": "3",
+        "quantity": "3",
+        "unit": "unit",
+        "item": "garlic cloves (, finely minced with a knife)",
+        "name": "garlic cloves (, finely minced with a knife)",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789469788989_6",
+        "amount": "1/2",
+        "quantity": "1/2",
+        "unit": "unit",
+        "item": "onion (, sliced)",
+        "name": "onion (, sliced)",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789469788989_7",
+        "amount": "6 - 8",
+        "quantity": "6 - 8",
+        "unit": "unit",
+        "item": "baby bok choy, choi sum stems, Chinese broccoli",
+        "name": "baby bok choy, choi sum stems, Chinese broccoli",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789469788989_8",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "tbsp",
+        "item": "light soy sauce (, or all-purpose soy or tamari for gluten-free (Note 2))",
+        "name": "light soy sauce (, or all-purpose soy or tamari for gluten-free (Note 2))",
+        "category": "Condiments and Sauces"
+      },
+      {
+        "id": "ing_1789469788989_9",
+        "amount": "1 1/2",
+        "quantity": "1 1/2",
+        "unit": "tbsp",
+        "item": "dark soy sauce ((Note 2))",
+        "name": "dark soy sauce ((Note 2))",
+        "category": "Condiments and Sauces"
+      },
+      {
+        "id": "ing_1789469788989_10",
+        "amount": "3",
+        "quantity": "3",
+        "unit": "tbsp",
+        "item": "oyster sauce ((can substitute with vegetarian oyster sauce))",
+        "name": "oyster sauce ((can substitute with vegetarian oyster sauce))",
+        "category": "Condiments and Sauces"
+      },
+      {
+        "id": "ing_1789469788989_11",
+        "amount": "2",
+        "quantity": "2",
+        "unit": "tsp",
+        "item": "white sugar ((or honey, maple))",
+        "name": "white sugar ((or honey, maple))",
+        "category": "Pantry Staples"
+      },
+      {
+        "id": "ing_1789469788989_12",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "tbsp",
+        "item": "water",
+        "name": "water",
+        "category": "Beverages"
+      },
+      {
+        "id": "ing_1789469788989_13",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "unit",
+        "item": "Pinch white pepper ((or black pepper, or chilli flakes))",
+        "name": "Pinch white pepper ((or black pepper, or chilli flakes))",
+        "category": "Produce"
+      }
+    ],
+    "instructions": [
+      "Tenderise beef - toss with baking soda, leave 20 min, rinse, season with soy sauce.",
+      "Stir fry - Saut\u00e9 onion first, then beef, then garlic, then stems. Add leafy greens, prepared noodles, and sauce. Toss well then serve.",
+      "Tenderise - Sprinkle the beef with baking soda in a small bowl. Toss with your fingertips to coat, separating the beef slices. Leave for 20 minutes to tenderise.",
+      "Rinse, dry, season - Rinse in a colander, shake and pat off excess water with a paper towel (no need to be thorough). Place in a bowl and toss with the soy sauce. Set aside. (It doesn't need marinating time).",
+      "Sauce - Mix ingredients in a small bowl.",
+      "Soak and rinse noodles - Prepare the noodles according to packet directions (usually soaking in boiling water for 5 - 10 minutes). Drain, then rinse under tap water to remove excess starch so it doesn't go gluey when cooked.",
+      "Cook onion, beef then garlic - Heat the oil over high heat in a large wok or large deep fry pan / skillet (~30cm/12\"). Add the onion for 30 seconds. Add beef and cook until the red is almost gone (~1 minute), then add the garlic and cook for 30 seconds.",
+      "Stems then everything else - Add the stem part of the Asian greens, toss for 1 minute. Add the leafy part, noodles then sauce (in that order). Toss for 1 1/2 to 2 minutes until the sauce has stained all the noodles and there is no sauce left in the base of the pan.  Serve immediately!"
+    ],
+    "steps": [
+      "Tenderise beef - toss with baking soda, leave 20 min, rinse, season with soy sauce.",
+      "Stir fry - Saut\u00e9 onion first, then beef, then garlic, then stems. Add leafy greens, prepared noodles, and sauce. Toss well then serve.",
+      "Tenderise - Sprinkle the beef with baking soda in a small bowl. Toss with your fingertips to coat, separating the beef slices. Leave for 20 minutes to tenderise.",
+      "Rinse, dry, season - Rinse in a colander, shake and pat off excess water with a paper towel (no need to be thorough). Place in a bowl and toss with the soy sauce. Set aside. (It doesn't need marinating time).",
+      "Sauce - Mix ingredients in a small bowl.",
+      "Soak and rinse noodles - Prepare the noodles according to packet directions (usually soaking in boiling water for 5 - 10 minutes). Drain, then rinse under tap water to remove excess starch so it doesn't go gluey when cooked.",
+      "Cook onion, beef then garlic - Heat the oil over high heat in a large wok or large deep fry pan / skillet (~30cm/12\"). Add the onion for 30 seconds. Add beef and cook until the red is almost gone (~1 minute), then add the garlic and cook for 30 seconds.",
+      "Stems then everything else - Add the stem part of the Asian greens, toss for 1 minute. Add the leafy part, noodles then sauce (in that order). Toss for 1 1/2 to 2 minutes until the sauce has stained all the noodles and there is no sauce left in the base of the pan.  Serve immediately!"
+    ],
+    "sourceUrl": "https://www.recipetineats.com/beef-rice-noodles/",
+    "isFavorite": false,
+    "isCooked": false,
+    "rating": 0,
+    "createdAt": "2026-09-15T10:56:29.000Z",
+    "bookId": "book_1789053656064_zyyz"
+  },
+  {
+    "id": "rec_1789469927915_a3j1",
+    "userId": "usr_admin_1",
+    "createdBy": "admin@foodieprep.com",
+    "creatorName": "Administrator",
+    "title": "Fish en Papillote (Fish in a Bag)",
+    "name": "Fish en Papillote (Fish in a Bag)",
+    "imageUrl": "/uploads/recipes/import-1789469927898-l9fiwm.jpg",
+    "image": "/uploads/recipes/import-1789469927898-l9fiwm.jpg",
+    "category": "Main Dish",
+    "recipeType": "Main Dish",
+    "tags": [
+      "Main Dish",
+      "Imported"
+    ],
+    "servings": 2,
+    "prepTimeMinutes": 20,
+    "cookTimeMinutes": 25,
+    "prepTime": "20 mins",
+    "cookTime": "25 mins",
+    "ingredients": [
+      {
+        "id": "ing_1789469927909_0",
+        "amount": "160",
+        "quantity": "160",
+        "unit": "g",
+        "item": "/ 5.6oz x 2   snapper fillets (, skin off, pin boned (or other fish fillets, see Note 1))",
+        "name": "/ 5.6oz x 2   snapper fillets (, skin off, pin boned (or other fish fillets, see Note 1))",
+        "category": "Meat and Seafood"
+      },
+      {
+        "id": "ing_1789469927910_1",
+        "amount": "3",
+        "quantity": "3",
+        "unit": "tbsp",
+        "item": "extra virgin olive oil (, separated)",
+        "name": "extra virgin olive oil (, separated)",
+        "category": "Condiments and Sauces"
+      },
+      {
+        "id": "ing_1789469927910_2",
+        "amount": "200",
+        "quantity": "200",
+        "unit": "g",
+        "item": "/ 7oz  kipfler potatoes (fingerling potatoes) (, peeled and sliced 0.5cm / 0.2\" thick - 2 medium (or baby potatoes))",
+        "name": "/ 7oz  kipfler potatoes (fingerling potatoes) (, peeled and sliced 0.5cm / 0.2\" thick - 2 medium (or baby potatoes))",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789469927910_3",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "unit",
+        "item": "zucchini (, sliced 0.5cm / 0.2\" thick)",
+        "name": "zucchini (, sliced 0.5cm / 0.2\" thick)",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789469927910_4",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "unit",
+        "item": "red capsicum (bell pepper) (, cut in half, cored then sliced 0.5cm / 0.2\" thick)",
+        "name": "red capsicum (bell pepper) (, cut in half, cored then sliced 0.5cm / 0.2\" thick)",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789469927910_5",
+        "amount": "1/2",
+        "quantity": "1/2",
+        "unit": "unit",
+        "item": "red onion (, cut into wedges 0.3cm / 0.1\" thick)",
+        "name": "red onion (, cut into wedges 0.3cm / 0.1\" thick)",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789469927910_6",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "unit",
+        "item": "garlic clove (, finely minced)",
+        "name": "garlic clove (, finely minced)",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789469927910_7",
+        "amount": "3/4",
+        "quantity": "3/4",
+        "unit": "tsp",
+        "item": "cooking salt / kosher salt (, separated (half for table salt, 50% extra for flakes))",
+        "name": "cooking salt / kosher salt (, separated (half for table salt, 50% extra for flakes))",
+        "category": "Pantry Staples"
+      },
+      {
+        "id": "ing_1789469927910_8",
+        "amount": "1/4",
+        "quantity": "1/4",
+        "unit": "tsp",
+        "item": "black pepper (, separated)",
+        "name": "black pepper (, separated)",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789469927910_9",
+        "amount": "6",
+        "quantity": "6",
+        "unit": "unit",
+        "item": "dill sprigs ((Note 2))",
+        "name": "dill sprigs ((Note 2))",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789469927910_10",
+        "amount": "2",
+        "quantity": "2",
+        "unit": "tbsp",
+        "item": "chardonnay or other dry white wine (, (sub low-sodium vegetable stock/broth) (Note 3))",
+        "name": "chardonnay or other dry white wine (, (sub low-sodium vegetable stock/broth) (Note 3))",
+        "category": "Beverages"
+      },
+      {
+        "id": "ing_1789469927910_11",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "unit",
+        "item": "Lemon wedges",
+        "name": "Lemon wedges",
+        "category": "Produce"
+      }
+    ],
+    "instructions": [
+      "Pre-heat oven to 190\u00b0C / 375\u00b0F (170\u00b0C fan). Saut\u00e9 potatoes for 4 min, then add remaining vegetables, salt, pepper and toss briefly. Divide vegetables between parcels, top with seasoned fish, dill, oil and wine. Seal the parcels and bake 18 min, then rest 3 min before opening.",
+      "Preheat oven to 190\u00b0C / 375\u00b0F (170\u00b0C fan-forced).",
+      "Cook potato - Heat 2 tablespoons of the oil in a non-stick skillet over medium-high heat. Add the potatoes and cook for 4 minutes, stirring regularly (use 2 wooden spoons if needed). They should pick up a little colour but not too much.",
+      "Cook the rest of vegetables - Add the zucchini, capsicum, red onion, garlic and half of the salt and pepper. Toss everything together for about 1 minute, then set aside.",
+      "Place two pieces of foil on your work surface (50cm / 20\" long x 30cm / 12\" wide), then top with a sheet of baking paper/parchment paper (40cm / 16\" x 30cm / 12\"). Divide the vegetables between the two, placing them in the middle. (Note 4)",
+      "Fish - Pat the snapper fillets dry, season both side with the remaining salt and pepper, then place on top of the vegetables.",
+      "Place 3 dill sprigs on top of each fish. Drizzle with the remaining olive oil and pour 1 tbsp of white wine over each.",
+      "Build the parcels (video is helpful here) - Bring the short edges of the foil and baking paper together and fold over twice to seal that side. Press down gently along the fold to flatten it. Then, working on one end, fold each corner in to form a triangle, then fold that triangle over twice more to lock in the seal. Repeat on the other end so both ends are sealed the same way. Redo the same with the other parcel.",
+      "Bake & rest - Place the parcels on a baking tray and cook for 18 minutes. Remove and let rest for 3 minutes. (Once cooked, the core fish temperature should read at least 55\u00b0C / 130\u00b0F.)",
+      "Serving - Grand opening time! Open the parcels, watch the steam escape, squeeze some lemon juice over and eat while hot with some crusty bread on the side."
+    ],
+    "steps": [
+      "Pre-heat oven to 190\u00b0C / 375\u00b0F (170\u00b0C fan). Saut\u00e9 potatoes for 4 min, then add remaining vegetables, salt, pepper and toss briefly. Divide vegetables between parcels, top with seasoned fish, dill, oil and wine. Seal the parcels and bake 18 min, then rest 3 min before opening.",
+      "Preheat oven to 190\u00b0C / 375\u00b0F (170\u00b0C fan-forced).",
+      "Cook potato - Heat 2 tablespoons of the oil in a non-stick skillet over medium-high heat. Add the potatoes and cook for 4 minutes, stirring regularly (use 2 wooden spoons if needed). They should pick up a little colour but not too much.",
+      "Cook the rest of vegetables - Add the zucchini, capsicum, red onion, garlic and half of the salt and pepper. Toss everything together for about 1 minute, then set aside.",
+      "Place two pieces of foil on your work surface (50cm / 20\" long x 30cm / 12\" wide), then top with a sheet of baking paper/parchment paper (40cm / 16\" x 30cm / 12\"). Divide the vegetables between the two, placing them in the middle. (Note 4)",
+      "Fish - Pat the snapper fillets dry, season both side with the remaining salt and pepper, then place on top of the vegetables.",
+      "Place 3 dill sprigs on top of each fish. Drizzle with the remaining olive oil and pour 1 tbsp of white wine over each.",
+      "Build the parcels (video is helpful here) - Bring the short edges of the foil and baking paper together and fold over twice to seal that side. Press down gently along the fold to flatten it. Then, working on one end, fold each corner in to form a triangle, then fold that triangle over twice more to lock in the seal. Repeat on the other end so both ends are sealed the same way. Redo the same with the other parcel.",
+      "Bake & rest - Place the parcels on a baking tray and cook for 18 minutes. Remove and let rest for 3 minutes. (Once cooked, the core fish temperature should read at least 55\u00b0C / 130\u00b0F.)",
+      "Serving - Grand opening time! Open the parcels, watch the steam escape, squeeze some lemon juice over and eat while hot with some crusty bread on the side."
+    ],
+    "sourceUrl": "https://www.recipetineats.com/fish-en-papillote-recipe/",
+    "isFavorite": false,
+    "isCooked": false,
+    "rating": 0,
+    "createdAt": "2026-09-15T10:58:47.915Z"
+  },
+  {
+    "id": "rec_1789470047708_puf3",
+    "userId": "usr_admin_1",
+    "createdBy": "admin@foodieprep.com",
+    "creatorName": "Administrator",
+    "title": "Cheesy Zucchini Muffins",
+    "name": "Cheesy Zucchini Muffins",
+    "imageUrl": "/uploads/recipes/import-1789470047686-v4uf2v.jpg",
+    "image": "/uploads/recipes/import-1789470047686-v4uf2v.jpg",
+    "category": "Main Dish",
+    "recipeType": "Main Dish",
+    "tags": [
+      "Main Dish",
+      "Imported"
+    ],
+    "servings": 12,
+    "prepTimeMinutes": 20,
+    "cookTimeMinutes": 25,
+    "prepTime": "20 mins",
+    "cookTime": "25 mins",
+    "ingredients": [
+      {
+        "id": "ing_1789470047704_0",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "unit",
+        "item": "Olive oil spray (, for greasing the muffin tins well)",
+        "name": "Olive oil spray (, for greasing the muffin tins well)",
+        "category": "Condiments and Sauces"
+      },
+      {
+        "id": "ing_1789470047704_1",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "unit",
+        "item": "zucchini (, larg-ish, about 180g / 6 oz each, shredded using a box grater, excess liquid squeezed out using hands (Note 1))",
+        "name": "zucchini (, larg-ish, about 180g / 6 oz each, shredded using a box grater, excess liquid squeezed out using hands (Note 1))",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789470047705_2",
+        "amount": "2",
+        "quantity": "2",
+        "unit": "cups",
+        "item": "cheddar cheese (, shredded (or tasty, Colby  or other melting cheese except mozzarella - Note 2))",
+        "name": "cheddar cheese (, shredded (or tasty, Colby  or other melting cheese except mozzarella - Note 2))",
+        "category": "Dairy"
+      },
+      {
+        "id": "ing_1789470047705_3",
+        "amount": "2",
+        "quantity": "2",
+        "unit": "cups",
+        "item": "plain flour / all-purpose flour",
+        "name": "plain flour / all-purpose flour",
+        "category": "Grains and Pasta"
+      },
+      {
+        "id": "ing_1789470047705_4",
+        "amount": "1 1/2",
+        "quantity": "1 1/2",
+        "unit": "tsp",
+        "item": "baking powder",
+        "name": "baking powder",
+        "category": "Pantry Staples"
+      },
+      {
+        "id": "ing_1789470047705_5",
+        "amount": "1/2",
+        "quantity": "1/2",
+        "unit": "tsp",
+        "item": "baking soda  (/ bi-carb soda (sub 1 1/2 tsp baking powder))",
+        "name": "baking soda  (/ bi-carb soda (sub 1 1/2 tsp baking powder))",
+        "category": "Beverages"
+      },
+      {
+        "id": "ing_1789470047705_6",
+        "amount": "1/2",
+        "quantity": "1/2",
+        "unit": "tsp",
+        "item": "cooking salt / kosher salt",
+        "name": "cooking salt / kosher salt",
+        "category": "Pantry Staples"
+      },
+      {
+        "id": "ing_1789470047705_7",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "large",
+        "item": "egg ((~50 - 55g/2 oz each))",
+        "name": "egg ((~50 - 55g/2 oz each))",
+        "category": "Meat and Seafood"
+      },
+      {
+        "id": "ing_1789470047705_8",
+        "amount": "3/4",
+        "quantity": "3/4",
+        "unit": "cup",
+        "item": "milk ((full or low fat))",
+        "name": "milk ((full or low fat))",
+        "category": "Dairy"
+      },
+      {
+        "id": "ing_1789470047705_9",
+        "amount": "1/4",
+        "quantity": "1/4",
+        "unit": "cup",
+        "item": "plain yoghurt (or sour cream, full fat best but low-fat works as well)",
+        "name": "plain yoghurt (or sour cream, full fat best but low-fat works as well)",
+        "category": "Dairy"
+      },
+      {
+        "id": "ing_1789470047705_10",
+        "amount": "1/4",
+        "quantity": "1/4",
+        "unit": "cup",
+        "item": "olive oil ( (or any plain flavoured oil))",
+        "name": "olive oil ( (or any plain flavoured oil))",
+        "category": "Condiments and Sauces"
+      },
+      {
+        "id": "ing_1789470047705_11",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "unit",
+        "item": "garlic clove (, grated or crushed using a garlic press)",
+        "name": "garlic clove (, grated or crushed using a garlic press)",
+        "category": "Produce"
+      }
+    ],
+    "instructions": [
+      "Whisk wet and dry in separate bowls, combine, stir in cheese and grated zucchini (excess water squeezed out). Bake 25 min in flour dusted or paper lined muffin tin (cheese gets stuck!) at 200\u00b0C/390\u00b0F (180\u00b0C fan).",
+      "Preheat oven to 200\u00b0C/390\u00b0F (180\u00b0C fan-forced).",
+      "Prepare muffin tin - Spray a 12 hole standard muffin tin generously with oil. If your non-stick coating isn't in great shape (like mine), either use liners instead or lightly dust with flour - I prefer this, for golden muffin sides and base. (Note 3 for how to flour dust pans). Cheese is a strong glue!!",
+      "Grate the zucchini with a standard box grater. Grab handfuls and squeeze out excess water (no need to go to extremes with a tea towel).",
+      "Dry ingredients - Whisk Dry ingredients in a large bowl.",
+      "Wet ingredients - Whisk Wet ingredients in a separate bowl.",
+      "Combine wet and dry - Pour Wet into the Dry ingredients bowl. Mix 8 times or until flour is almost mixed in but you can still see some.",
+      "Add zucchini and cheese then mix as few times as possible just to incorporate remaining bits of flour - no more than 7 big stirs (secret to soft muffs).",
+      "The batter will be quite thick - don't worry, the zucchini releases moisture as it bakes.",
+      "Bake 25 min - Divide between 12 holes in muffin in (I use an ice cream scooper). Bake for 25 minutes or until the muffins are golden and crusty, and a toothpick inserted into the centre comes out clean.",
+      "Cool for 10 minutes, then transfer to cooling rack. If they are a bit stuck (cheese!), run a knife around the rim then invert and bang the pan on the counter so they tumble out. Serve warm for optimum experience!"
+    ],
+    "steps": [
+      "Whisk wet and dry in separate bowls, combine, stir in cheese and grated zucchini (excess water squeezed out). Bake 25 min in flour dusted or paper lined muffin tin (cheese gets stuck!) at 200\u00b0C/390\u00b0F (180\u00b0C fan).",
+      "Preheat oven to 200\u00b0C/390\u00b0F (180\u00b0C fan-forced).",
+      "Prepare muffin tin - Spray a 12 hole standard muffin tin generously with oil. If your non-stick coating isn't in great shape (like mine), either use liners instead or lightly dust with flour - I prefer this, for golden muffin sides and base. (Note 3 for how to flour dust pans). Cheese is a strong glue!!",
+      "Grate the zucchini with a standard box grater. Grab handfuls and squeeze out excess water (no need to go to extremes with a tea towel).",
+      "Dry ingredients - Whisk Dry ingredients in a large bowl.",
+      "Wet ingredients - Whisk Wet ingredients in a separate bowl.",
+      "Combine wet and dry - Pour Wet into the Dry ingredients bowl. Mix 8 times or until flour is almost mixed in but you can still see some.",
+      "Add zucchini and cheese then mix as few times as possible just to incorporate remaining bits of flour - no more than 7 big stirs (secret to soft muffs).",
+      "The batter will be quite thick - don't worry, the zucchini releases moisture as it bakes.",
+      "Bake 25 min - Divide between 12 holes in muffin in (I use an ice cream scooper). Bake for 25 minutes or until the muffins are golden and crusty, and a toothpick inserted into the centre comes out clean.",
+      "Cool for 10 minutes, then transfer to cooling rack. If they are a bit stuck (cheese!), run a knife around the rim then invert and bang the pan on the counter so they tumble out. Serve warm for optimum experience!"
+    ],
+    "sourceUrl": "https://www.recipetineats.com/cheesy-zucchini-muffins/",
+    "isFavorite": false,
+    "isCooked": false,
+    "rating": 0,
+    "createdAt": "2026-09-15T11:00:47.708Z"
+  },
+  {
+    "id": "rec_1789470064836_7vyj",
+    "userId": "usr_admin_1",
+    "createdBy": "admin@foodieprep.com",
+    "creatorName": "Administrator",
+    "title": "Broccoli Wedge Salad",
+    "name": "Broccoli Wedge Salad",
+    "imageUrl": "/uploads/recipes/import-1789470064782-6j7yei.jpg",
+    "image": "/uploads/recipes/import-1789470064782-6j7yei.jpg",
+    "category": "Main Dish",
+    "recipeType": "Main Dish",
+    "tags": [
+      "Main Dish",
+      "Imported"
+    ],
+    "servings": 4,
+    "prepTimeMinutes": 20,
+    "cookTimeMinutes": 25,
+    "prepTime": "20 mins",
+    "cookTime": "25 mins",
+    "ingredients": [
+      {
+        "id": "ing_1789470064832_0",
+        "amount": "750",
+        "quantity": "750",
+        "unit": "g",
+        "item": "/ 1.5 lb  broccoli heads ((1 1/2 large or 2 medium))",
+        "name": "/ 1.5 lb  broccoli heads ((1 1/2 large or 2 medium))",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789470064832_1",
+        "amount": "1/2",
+        "quantity": "1/2",
+        "unit": "tsp",
+        "item": "cooking salt / kosher salt (, half for table salt)",
+        "name": "cooking salt / kosher salt (, half for table salt)",
+        "category": "Pantry Staples"
+      },
+      {
+        "id": "ing_1789470064832_2",
+        "amount": "2",
+        "quantity": "2",
+        "unit": "tbsp",
+        "item": "extra virgin olive oil",
+        "name": "extra virgin olive oil",
+        "category": "Condiments and Sauces"
+      },
+      {
+        "id": "ing_1789470064832_3",
+        "amount": "150",
+        "quantity": "150",
+        "unit": "g",
+        "item": "/ 5oz  streaky bacon (, cut into 5cm x 0.5cm / 1\" x 0.2\" batons (Note 1))",
+        "name": "/ 5oz  streaky bacon (, cut into 5cm x 0.5cm / 1\" x 0.2\" batons (Note 1))",
+        "category": "Meat and Seafood"
+      },
+      {
+        "id": "ing_1789470064832_4",
+        "amount": "3",
+        "quantity": "3",
+        "unit": "tbsp",
+        "item": "parmesan cheese (, finely grated)",
+        "name": "parmesan cheese (, finely grated)",
+        "category": "Dairy"
+      },
+      {
+        "id": "ing_1789470064832_5",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "unit",
+        "item": "Extra small basil leaves (, optional garnish)",
+        "name": "Extra small basil leaves (, optional garnish)",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789470064832_6",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "unit",
+        "item": "tightly packed cup basil leaves",
+        "name": "tightly packed cup basil leaves",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789470064832_7",
+        "amount": "1/2",
+        "quantity": "1/2",
+        "unit": "tsp",
+        "item": "finely grated garlic",
+        "name": "finely grated garlic",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789470064832_8",
+        "amount": "1/2",
+        "quantity": "1/2",
+        "unit": "tsp",
+        "item": "Dijon mustard",
+        "name": "Dijon mustard",
+        "category": "Condiments and Sauces"
+      },
+      {
+        "id": "ing_1789470064832_9",
+        "amount": "1/2",
+        "quantity": "1/2",
+        "unit": "tsp",
+        "item": "cooking salt / kosher salt (, half for table salt)",
+        "name": "cooking salt / kosher salt (, half for table salt)",
+        "category": "Pantry Staples"
+      },
+      {
+        "id": "ing_1789470064832_10",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "pinch",
+        "item": "ground white pepper",
+        "name": "ground white pepper",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789470064832_11",
+        "amount": "2",
+        "quantity": "2",
+        "unit": "tsp",
+        "item": "apple cider vinegar ((Note 2))",
+        "name": "apple cider vinegar ((Note 2))",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789470064832_12",
+        "amount": "1/4",
+        "quantity": "1/4",
+        "unit": "cup",
+        "item": "extra virgin olive oil",
+        "name": "extra virgin olive oil",
+        "category": "Condiments and Sauces"
+      },
+      {
+        "id": "ing_1789470064832_13",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "unit",
+        "item": "ice cube (~1 tbsp in size) (, or 1 tbsp ice cold water (Note 3))",
+        "name": "ice cube (~1 tbsp in size) (, or 1 tbsp ice cold water (Note 3))",
+        "category": "Beverages"
+      }
+    ],
+    "instructions": [
+      "Roast broccoli wedges at 160\u00b0C / 320\u00b0F (140\u00b0C fan-forced) for 20-25 min, let cool on tray for 10 min. Cook bacon 5 minutes until crispy, drain. Blitz vinaigrette ingredients until smooth. Layer broccoli, dressing, bacon and parmesan in two rounds on a serving plate. Finish with basil leaves.",
+      "Preheat oven to 160\u00b0C / 320\u00b0F (140\u00b0C fan-forced).",
+      "Broccoli wedges - Trim off the base of the broccoli, keeping as much of the stem as you can. Use a small knife to cut off the tough outer skin of the stem. Cut the broccoli in half then each half into 4 wedges, being sure to cut through the thick centre stem so each wedge holds together.",
+      "Roast broccoli - Place the wedges onto a large baking tray. Season each wedge with salt, olive oil and bake for 20 to 25 minutes, until just cooked - it will soften more as it cools on the tray. Let cool on the tray for 10 minutes. (Note 4)",
+      "Cook bacon - Heat a non-stick pan over medium-high heat. Add the bacon and cook for 5 minutes, stirring regularly until crispy. Strain the fat and set aside.",
+      "Basil vinaigrette - Place all the vinaigrette ingredients in a tall, narrow container the blender stick fits into all the way to the base. Blitz until combined.",
+      "Plate - Arrange half the broccoli on a large serving plate, then scatter over half the dressing, bacon and parmesan. Repeat with remaining ingredients. Sprinkle over basil leaves and serve."
+    ],
+    "steps": [
+      "Roast broccoli wedges at 160\u00b0C / 320\u00b0F (140\u00b0C fan-forced) for 20-25 min, let cool on tray for 10 min. Cook bacon 5 minutes until crispy, drain. Blitz vinaigrette ingredients until smooth. Layer broccoli, dressing, bacon and parmesan in two rounds on a serving plate. Finish with basil leaves.",
+      "Preheat oven to 160\u00b0C / 320\u00b0F (140\u00b0C fan-forced).",
+      "Broccoli wedges - Trim off the base of the broccoli, keeping as much of the stem as you can. Use a small knife to cut off the tough outer skin of the stem. Cut the broccoli in half then each half into 4 wedges, being sure to cut through the thick centre stem so each wedge holds together.",
+      "Roast broccoli - Place the wedges onto a large baking tray. Season each wedge with salt, olive oil and bake for 20 to 25 minutes, until just cooked - it will soften more as it cools on the tray. Let cool on the tray for 10 minutes. (Note 4)",
+      "Cook bacon - Heat a non-stick pan over medium-high heat. Add the bacon and cook for 5 minutes, stirring regularly until crispy. Strain the fat and set aside.",
+      "Basil vinaigrette - Place all the vinaigrette ingredients in a tall, narrow container the blender stick fits into all the way to the base. Blitz until combined.",
+      "Plate - Arrange half the broccoli on a large serving plate, then scatter over half the dressing, bacon and parmesan. Repeat with remaining ingredients. Sprinkle over basil leaves and serve."
+    ],
+    "sourceUrl": "https://www.recipetineats.com/broccoli-wedge-salad/",
+    "isFavorite": false,
+    "isCooked": false,
+    "rating": 0,
+    "createdAt": "2026-09-15T11:01:04.836Z"
+  },
+  {
+    "id": "rec_1789470093164_nvix",
+    "userId": "usr_admin_1",
+    "createdBy": "admin@foodieprep.com",
+    "creatorName": "Administrator",
+    "title": "Satay Chicken Legs with Peanut Sauce",
+    "name": "Satay Chicken Legs with Peanut Sauce",
+    "imageUrl": "/uploads/recipes/import-1789470093153-sn73gk.jpg",
+    "image": "/uploads/recipes/import-1789470093153-sn73gk.jpg",
+    "category": "Main Dish",
+    "recipeType": "Main Dish",
+    "tags": [
+      "Main Dish",
+      "Imported"
+    ],
+    "servings": 4,
+    "prepTimeMinutes": 20,
+    "cookTimeMinutes": 25,
+    "prepTime": "20 mins",
+    "cookTime": "25 mins",
+    "ingredients": [
+      {
+        "id": "ing_1789470093162_0",
+        "amount": "5",
+        "quantity": "5",
+        "unit": "kg",
+        "item": "/ 3lb  chicken legs / drumsticks ((10 pieces) - Note 7 for other cuts)",
+        "name": "/ 3lb  chicken legs / drumsticks ((10 pieces) - Note 7 for other cuts)",
+        "category": "Meat and Seafood"
+      },
+      {
+        "id": "ing_1789470093162_1",
+        "amount": "1/3",
+        "quantity": "1/3",
+        "unit": "cup",
+        "item": "coconut milk (, full fat (I use a 270ml/9oz small can, the rest goes in the sauce))",
+        "name": "coconut milk (, full fat (I use a 270ml/9oz small can, the rest goes in the sauce))",
+        "category": "Dairy"
+      },
+      {
+        "id": "ing_1789470093162_2",
+        "amount": "1 1/2",
+        "quantity": "1 1/2",
+        "unit": "tbsp",
+        "item": "curry powder ((eg Clives, Keens, Note 1))",
+        "name": "curry powder ((eg Clives, Keens, Note 1))",
+        "category": "Pantry Staples"
+      },
+      {
+        "id": "ing_1789470093163_3",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "tbsp",
+        "item": "Thai red curry paste ((I recommend Maesri brand but any will do, Note 2))",
+        "name": "Thai red curry paste ((I recommend Maesri brand but any will do, Note 2))",
+        "category": "Condiments and Sauces"
+      },
+      {
+        "id": "ing_1789470093163_4",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "tbsp",
+        "item": "liquid coconut oil or any plain oil ((vegetable, canola, peanut))",
+        "name": "liquid coconut oil or any plain oil ((vegetable, canola, peanut))",
+        "category": "Condiments and Sauces"
+      },
+      {
+        "id": "ing_1789470093163_5",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "tsp",
+        "item": "white sugar",
+        "name": "white sugar",
+        "category": "Pantry Staples"
+      },
+      {
+        "id": "ing_1789470093163_6",
+        "amount": "1 1/2",
+        "quantity": "1 1/2",
+        "unit": "tsp",
+        "item": "cooking salt / kosher salt",
+        "name": "cooking salt / kosher salt",
+        "category": "Pantry Staples"
+      },
+      {
+        "id": "ing_1789470093163_7",
+        "amount": "3/4",
+        "quantity": "3/4",
+        "unit": "cup",
+        "item": "coconut milk (, full fat (the rest of the 270ml/9oz can))",
+        "name": "coconut milk (, full fat (the rest of the 270ml/9oz can))",
+        "category": "Dairy"
+      },
+      {
+        "id": "ing_1789470093163_8",
+        "amount": "3/4",
+        "quantity": "3/4",
+        "unit": "cup",
+        "item": "milk (, full fat)",
+        "name": "milk (, full fat)",
+        "category": "Dairy"
+      },
+      {
+        "id": "ing_1789470093163_9",
+        "amount": "1/4",
+        "quantity": "1/4",
+        "unit": "cup",
+        "item": "natural peanut butter (, it's runny, not the spread kind like Bega, Skippy etc (Note 3))",
+        "name": "natural peanut butter (, it's runny, not the spread kind like Bega, Skippy etc (Note 3))",
+        "category": "Dairy"
+      },
+      {
+        "id": "ing_1789470093163_10",
+        "amount": "2",
+        "quantity": "2",
+        "unit": "tbsp",
+        "item": "white sugar",
+        "name": "white sugar",
+        "category": "Pantry Staples"
+      },
+      {
+        "id": "ing_1789470093163_11",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "tbsp",
+        "item": "Thai red curry paste ((Note 2))",
+        "name": "Thai red curry paste ((Note 2))",
+        "category": "Condiments and Sauces"
+      },
+      {
+        "id": "ing_1789470093163_12",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "tbsp",
+        "item": "apple cider vinegar (, or regular white vinegar)",
+        "name": "apple cider vinegar (, or regular white vinegar)",
+        "category": "Produce"
+      },
+      {
+        "id": "ing_1789470093163_13",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "tsp",
+        "item": "dark soy sauce ((Note 4))",
+        "name": "dark soy sauce ((Note 4))",
+        "category": "Condiments and Sauces"
+      },
+      {
+        "id": "ing_1789470093163_14",
+        "amount": "1/2",
+        "quantity": "1/2",
+        "unit": "tsp",
+        "item": "cooking salt / kosher salt",
+        "name": "cooking salt / kosher salt",
+        "category": "Pantry Staples"
+      },
+      {
+        "id": "ing_1789470093163_15",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "unit",
+        "item": "Jasmine rice",
+        "name": "Jasmine rice",
+        "category": "Grains and Pasta"
+      },
+      {
+        "id": "ing_1789470093163_16",
+        "amount": "1",
+        "quantity": "1",
+        "unit": "unit",
+        "item": "Coriander / cilantro leaves, red chilli finely chopped, finely chopped peanuts ((all optional))",
+        "name": "Coriander / cilantro leaves, red chilli finely chopped, finely chopped peanuts ((all optional))",
+        "category": "Produce"
+      }
+    ],
+    "instructions": [
+      "Slash legs, coat with marinade. Marinate 3 hrs - overnight. Bake 35 min at 200\u00b0C/390\u00b0F (180\u00b0 fan) on rack, then grill/broil 3 - 5 min to char. Simmer Peanut Sauce ingredients 5 min, serve with legs!",
+      "Slash - Make 3 slashes into the flesh of the meatier side of the drumsticks taking care not to slash all the way through to the bone,",
+      "Satay Marinade - Mix the Satay Marinade ingredients in a large bowl using a rubber spatula. Add drumsticks, toss to coat, then use your hands to rub the marinade into the slashes.",
+      "Marinate (if you can) for 3 hours to overnight. It's ok if you don't - see Note 5.",
+      "Preheat oven to 200\u00b0C/390\u00b0F (180\u00b0 fan-forced).",
+      "Arrange legs - Line a tray with foil and place a rack on the tray. Arrange legs on the rack. Scrape up any residual marinade in the bowl and dab onto the legs.",
+      "Bake for 35 minutes. Flick the oven grill / broiler on high and grill for 3 to 5 minutes with the chicken 20cm/8\" from the heat source, to get some nice charry bits. Remove from the oven.",
+      "Peanut sauce - While the chicken is baking, put all the sauce ingredients in a medium saucepan and whisk to combine. Simmer for 5 minutes on medium-low, whisking every now and then to stop the base from catching, It should be fairly runny but thick enough to coat the chicken generously (Note 6). Keep warm until required.",
+      "Serve - Pile chicken on a large plate. Sprinkle with peanuts, chilli and coriander if using. Place sauce in a deep sauce bowl on the side, deep enough to dunk the entire head of the leg in! Serve with jasmine rice on the side (plenty of sauce for dousing) and plain chunks of tomato and cucumber (classic Thai side)."
+    ],
+    "steps": [
+      "Slash legs, coat with marinade. Marinate 3 hrs - overnight. Bake 35 min at 200\u00b0C/390\u00b0F (180\u00b0 fan) on rack, then grill/broil 3 - 5 min to char. Simmer Peanut Sauce ingredients 5 min, serve with legs!",
+      "Slash - Make 3 slashes into the flesh of the meatier side of the drumsticks taking care not to slash all the way through to the bone,",
+      "Satay Marinade - Mix the Satay Marinade ingredients in a large bowl using a rubber spatula. Add drumsticks, toss to coat, then use your hands to rub the marinade into the slashes.",
+      "Marinate (if you can) for 3 hours to overnight. It's ok if you don't - see Note 5.",
+      "Preheat oven to 200\u00b0C/390\u00b0F (180\u00b0 fan-forced).",
+      "Arrange legs - Line a tray with foil and place a rack on the tray. Arrange legs on the rack. Scrape up any residual marinade in the bowl and dab onto the legs.",
+      "Bake for 35 minutes. Flick the oven grill / broiler on high and grill for 3 to 5 minutes with the chicken 20cm/8\" from the heat source, to get some nice charry bits. Remove from the oven.",
+      "Peanut sauce - While the chicken is baking, put all the sauce ingredients in a medium saucepan and whisk to combine. Simmer for 5 minutes on medium-low, whisking every now and then to stop the base from catching, It should be fairly runny but thick enough to coat the chicken generously (Note 6). Keep warm until required.",
+      "Serve - Pile chicken on a large plate. Sprinkle with peanuts, chilli and coriander if using. Place sauce in a deep sauce bowl on the side, deep enough to dunk the entire head of the leg in! Serve with jasmine rice on the side (plenty of sauce for dousing) and plain chunks of tomato and cucumber (classic Thai side)."
+    ],
+    "sourceUrl": "https://www.recipetineats.com/satay-chicken-legs-with-peanut-sauce/",
+    "isFavorite": false,
+    "isCooked": false,
+    "rating": 0,
+    "createdAt": "2026-09-15T11:01:33.164Z"
+  }
+]

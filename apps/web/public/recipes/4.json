@@ -1,0 +1,78 @@
+{
+  "id": "4",
+  "name": "Tuscan Garlic Herb Chicken",
+  "title": "Tuscan Garlic Herb Chicken",
+  "category": "Dinner",
+  "recipeType": "Dinner",
+  "cuisine": "Italian",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 25,
+  "servings": 4,
+  "calories": 480,
+  "rating": 5,
+  "difficulty": "Medium",
+  "imageUrl": "/recipes/images/default.jpg",
+  "image": "/recipes/images/default.jpg",
+  "isFavorite": false,
+  "isCooked": false,
+  "description": "Pan-seared golden chicken breasts simmered in a velvety garlic-infused sun-dried tomato sauce with wilted tender baby spinach.",
+  "ingredients": [
+    {
+      "amount": "4",
+      "unit": "unit",
+      "item": "Organic chicken breasts",
+      "category": "Meat"
+    },
+    {
+      "amount": "1",
+      "unit": "cup",
+      "item": "Sun-dried tomatoes in oil, drained",
+      "category": "Pantry"
+    },
+    {
+      "amount": "3",
+      "unit": "cup",
+      "item": "Fresh baby spinach",
+      "category": "Produce"
+    },
+    {
+      "amount": "3/4",
+      "unit": "cup",
+      "item": "Light culinary cream",
+      "category": "Dairy"
+    },
+    {
+      "amount": "4",
+      "unit": "clove",
+      "item": "Garlic, crushed",
+      "category": "Produce"
+    },
+    {
+      "amount": "1",
+      "unit": "tsp",
+      "item": "Dried oregano and basil",
+      "category": "Spices"
+    },
+    {
+      "amount": "1",
+      "unit": "tbsp",
+      "item": "Olive oil",
+      "category": "Pantry"
+    }
+  ],
+  "instructions": [
+    "Season chicken breasts with dried oregano, salt, and black pepper on both sides.",
+    "Heat olive oil in a deep skillet over medium-high heat; sear chicken for 5-6 minutes per side until golden brown.",
+    "Remove chicken to a plate; add crushed garlic and sun-dried tomatoes to the same skillet.",
+    "Pour in cream, lower heat, and simmer gently for 3 minutes until aromatic.",
+    "Stir in baby spinach until wilted into the sauce.",
+    "Return chicken breasts with rested juices to the pan; simmer for 5 minutes until chicken registers 165\u00b0F internally."
+  ],
+  "tags": [
+    "Dinner",
+    "Comfort-Food",
+    "High-Protein",
+    "Italian"
+  ],
+  "createdAt": "2026-10-31T03:00:00.000Z"
+}

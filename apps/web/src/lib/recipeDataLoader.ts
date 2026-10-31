@@ -1,46 +1,211 @@
-// Local Recipe JSON Asset Loader with In-Memory Caching & Runtime Safeguards
 import fs from 'fs';
 import path from 'path';
 
-let inMemoryRecipeCache: any[] | null = null;
-let lastCacheTime = 0;
-const CACHE_TTL_MS = 60000; // 1-minute TTL
+export interface RecipeItem {
+  id: string;
+  name: string;
+  title?: string;
+  category: string;
+  cuisine?: string;
+  prepTime?: number;
+  cookTime?: number;
+  totalTime?: number;
+  servings?: number;
+  calories?: number;
+  difficulty?: string;
+  image?: string;
+  ingredients?: string[];
+  instructions?: string[];
+  tags?: string[];
+  isFavorite?: boolean;
+  createdAt?: string;
+}
 
-export function getLocalRecipeFiles(): any[] {
-  const now = Date.now();
-  if (inMemoryRecipeCache && (now - lastCacheTime < CACHE_TTL_MS)) {
-    return inMemoryRecipeCache;
-  }
+/**
+ * Next.js Extended Fetch RequestInit Interface
+ * Avoids TS2769 excess property checking on 'next'
+ */
+export interface ExtendedRequestInit extends RequestInit {
+  next?: {
+    revalidate?: number | false;
+    tags?: string[];
+  };
+}
 
-  const recipes: any[] = [];
-  const candidateDirs = [
-    path.join(process.cwd(), 'data', 'recipes'),
-    path.join(process.cwd(), 'apps', 'web', 'data', 'recipes'),
-    path.join(process.cwd(), 'public', 'recipes'),
-    path.join(process.cwd(), 'apps', 'web', 'public', 'recipes')
+/**
+ * Searches all candidate paths for saved_recipes.json across runtime environments
+ */
+export function getRecipeJsonCandidates(): string[] {
+  const cwd = process.cwd();
+  return [
+    path.join(cwd, 'data/saved_recipes.json'),
+    path.join(cwd, 'apps/web/data/saved_recipes.json'),
+    path.join(cwd, '.next/standalone/data/saved_recipes.json'),
+    path.join(cwd, '.next/standalone/apps/web/data/saved_recipes.json'),
+    path.join(__dirname, 'data/saved_recipes.json'),
+    path.join(__dirname, '../../data/saved_recipes.json'),
+    path.join(__dirname, '../../../data/saved_recipes.json'),
+    path.join(__dirname, '../../../../data/saved_recipes.json')
   ];
+}
 
-  for (const dir of candidateDirs) {
+/**
+ * Reads local JSON seed recipes directly from disk with fallback defaults
+ */
+export function readLocalSeedRecipes(): RecipeItem[] {
+  for (const p of getRecipeJsonCandidates()) {
     try {
-      if (fs.existsSync(dir)) {
-        const files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
-        for (const file of files) {
-          try {
-            const raw = fs.readFileSync(path.join(dir, file), 'utf-8');
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-              recipes.push(...parsed);
-            } else if (parsed && typeof parsed === 'object') {
-              recipes.push(parsed);
-            }
-          } catch (_) {}
+      if (fs.existsSync(p)) {
+        const raw = fs.readFileSync(p, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((item, idx) => ({
+            id: String(item.id || `rec_${idx + 1}`),
+            name: item.name || item.title || 'Delicious Recipe',
+            title: item.title || item.name || 'Delicious Recipe',
+            category: item.category || 'General',
+            cuisine: item.cuisine || 'International',
+            prepTime: Number(item.prepTime) || 15,
+            cookTime: Number(item.cookTime) || 20,
+            totalTime: Number(item.totalTime) || (Number(item.prepTime || 15) + Number(item.cookTime || 20)),
+            servings: Number(item.servings) || 2,
+            calories: Number(item.calories) || 450,
+            difficulty: item.difficulty || 'Easy',
+            image: item.image || '/recipes/images/default.jpg',
+            ingredients: Array.isArray(item.ingredients) ? item.ingredients : [],
+            instructions: Array.isArray(item.instructions) ? item.instructions : [],
+            tags: Array.isArray(item.tags) ? item.tags : ['Healthy'],
+            isFavorite: Boolean(item.isFavorite),
+            createdAt: item.createdAt || new Date().toISOString()
+          }));
         }
-        if (recipes.length > 0) break;
       }
     } catch (_) {}
   }
+  return [];
+}
 
-  inMemoryRecipeCache = recipes;
-  lastCacheTime = now;
-  return recipes;
+/**
+ * Resilient multi-tier recipe fetcher:
+ * 1. Supabase Cloud REST / SSR API
+ * 2. Standalone-safe seed file fallback
+ */
+export async function getSavedRecipes(): Promise<RecipeItem[]> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://tnhrkjtujdfgvwhsuuxb.supabase.co';
+  const supabaseKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    'sb_publishable_afBBLw4l9N08lDX60x_5XQ_z6TIP7HI';
+
+  // Tier 1: Supabase Cloud Database Query
+  try {
+    const cleanUrl = supabaseUrl.replace(/\/$/, '');
+    const fetchOptions: ExtendedRequestInit = {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json'
+      },
+      cache: 'no-store',
+      next: { revalidate: 60 }
+    };
+
+    const res = await fetch(`${cleanUrl}/rest/v1/saved_recipes?select=*`, fetchOptions as RequestInit);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return data.map((item, idx) => ({
+          id: String(item.id || `rec_${idx + 1}`),
+          name: item.name || item.title || 'Delicious Recipe',
+          title: item.title || item.name || 'Delicious Recipe',
+          category: item.category || 'General',
+          cuisine: item.cuisine || 'International',
+          prepTime: Number(item.prepTime || item.prep_time) || 15,
+          cookTime: Number(item.cookTime || item.cook_time) || 20,
+          totalTime: Number(item.totalTime || item.total_time) || 35,
+          servings: Number(item.servings) || 2,
+          calories: Number(item.calories) || 450,
+          difficulty: item.difficulty || 'Easy',
+          image: item.image || '/recipes/images/default.jpg',
+          ingredients: Array.isArray(item.ingredients) ? item.ingredients : [],
+          instructions: Array.isArray(item.instructions) ? item.instructions : [],
+          tags: Array.isArray(item.tags) ? item.tags : ['Healthy'],
+          isFavorite: Boolean(item.isFavorite || item.is_favorite),
+          createdAt: item.createdAt || item.created_at || new Date().toISOString()
+        }));
+      }
+    }
+  } catch (_) {
+    // Database query unconfigured or failed; fall back cleanly to seed records
+  }
+
+  // Tier 2: Standalone-safe seed fallback
+  return readLocalSeedRecipes();
+}
+
+/**
+ * Persists a recipe item across local JSON cache and Supabase Cloud
+ */
+export async function saveRecipeItem(recipe: Partial<RecipeItem>): Promise<RecipeItem> {
+  const newItem: RecipeItem = {
+    id: recipe.id || `rec_${Date.now()}`,
+    name: recipe.name || recipe.title || 'Custom Recipe',
+    title: recipe.title || recipe.name || 'Custom Recipe',
+    category: recipe.category || 'Dinner',
+    cuisine: recipe.cuisine || 'Modern',
+    prepTime: Number(recipe.prepTime) || 15,
+    cookTime: Number(recipe.cookTime) || 20,
+    totalTime: Number(recipe.totalTime) || 35,
+    servings: Number(recipe.servings) || 2,
+    calories: Number(recipe.calories) || 450,
+    difficulty: recipe.difficulty || 'Easy',
+    image: recipe.image || '/recipes/images/default.jpg',
+    ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [],
+    instructions: Array.isArray(recipe.instructions) ? recipe.instructions : [],
+    tags: Array.isArray(recipe.tags) ? recipe.tags : ['Healthy'],
+    isFavorite: Boolean(recipe.isFavorite),
+    createdAt: recipe.createdAt || new Date().toISOString()
+  };
+
+  // 1. Persist to local JSON if writable
+  try {
+    const candidates = getRecipeJsonCandidates();
+    for (const p of candidates) {
+      if (fs.existsSync(p)) {
+        const raw = fs.readFileSync(p, 'utf-8');
+        const list: RecipeItem[] = JSON.parse(raw);
+        const idx = list.findIndex((r) => r.id === newItem.id);
+        if (idx >= 0) {
+          list[idx] = { ...list[idx], ...newItem };
+        } else {
+          list.unshift(newItem);
+        }
+        fs.writeFileSync(p, JSON.stringify(list, null, 2), 'utf-8');
+        break;
+      }
+    }
+  } catch (_) {}
+
+  // 2. Persist to Supabase if credentials are present
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (supabaseUrl && supabaseKey) {
+    try {
+      const cleanUrl = supabaseUrl.replace(/\/$/, '');
+      const postOptions: RequestInit = {
+        method: 'POST',
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify(newItem)
+      };
+      await fetch(`${cleanUrl}/rest/v1/saved_recipes`, postOptions);
+    } catch (_) {}
+  }
+
+  return newItem;
 }

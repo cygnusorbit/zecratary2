@@ -1,0 +1,77 @@
+{
+  "id": "3",
+  "name": "Superfood Berry Acai Protein Bowl",
+  "title": "Superfood Berry Acai Protein Bowl",
+  "category": "Breakfast",
+  "recipeType": "Breakfast",
+  "cuisine": "Modern",
+  "prepTimeMinutes": 8,
+  "cookTimeMinutes": 0,
+  "servings": 1,
+  "calories": 340,
+  "rating": 4,
+  "difficulty": "Easy",
+  "imageUrl": "/recipes/images/default.jpg",
+  "image": "/recipes/images/default.jpg",
+  "isFavorite": false,
+  "isCooked": true,
+  "description": "Antioxidant-dense frozen acai smoothie bowl blended with clean plant protein, topped with crunchy almond granola and fresh blueberries.",
+  "ingredients": [
+    {
+      "amount": "1",
+      "unit": "packet",
+      "item": "Unsweetened frozen acai packet",
+      "category": "Frozen"
+    },
+    {
+      "amount": "1",
+      "unit": "scoop",
+      "item": "Vanilla plant protein powder",
+      "category": "Pantry"
+    },
+    {
+      "amount": "1/2",
+      "unit": "cup",
+      "item": "Unsweetened almond milk",
+      "category": "Dairy"
+    },
+    {
+      "amount": "1/2",
+      "unit": "cup",
+      "item": "Fresh wild blueberries",
+      "category": "Produce"
+    },
+    {
+      "amount": "1/2",
+      "unit": "unit",
+      "item": "Banana, sliced",
+      "category": "Produce"
+    },
+    {
+      "amount": "2",
+      "unit": "tbsp",
+      "item": "Organic chia seeds",
+      "category": "Pantry"
+    },
+    {
+      "amount": "1/4",
+      "unit": "cup",
+      "item": "Toasted almond granola",
+      "category": "Bakery"
+    }
+  ],
+  "instructions": [
+    "Break the frozen acai packet into pieces and place in a high-speed blender.",
+    "Add almond milk and vanilla plant protein powder.",
+    "Blend on low, using tamper to push ingredients down, until a thick, spoonable texture forms.",
+    "Transfer smooth acai base into a chilled serving bowl.",
+    "Neatly arrange sliced banana, blueberries, chia seeds, and granola on top in clean rows."
+  ],
+  "tags": [
+    "Breakfast",
+    "Antioxidants",
+    "Plant-Based",
+    "Quick"
+  ],
+  "createdAt": "2026-10-31T02:00:00.000Z"
+}

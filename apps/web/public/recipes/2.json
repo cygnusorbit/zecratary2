@@ -1,0 +1,72 @@
+{
+  "id": "2",
+  "name": "Pan-Seared Citrus Salmon & Asparagus",
+  "title": "Pan-Seared Citrus Salmon & Asparagus",
+  "category": "Dinner",
+  "recipeType": "Dinner",
+  "cuisine": "American",
+  "prepTimeMinutes": 10,
+  "cookTimeMinutes": 12,
+  "servings": 2,
+  "calories": 510,
+  "rating": 5,
+  "difficulty": "Medium",
+  "imageUrl": "/recipes/images/default.jpg",
+  "image": "/recipes/images/default.jpg",
+  "isFavorite": true,
+  "isCooked": false,
+  "description": "Crispy skin wild salmon fillets seared in grass-fed butter, pan-roasted with tender asparagus spears and glazed in citrus garlic pan drippings.",
+  "ingredients": [
+    {
+      "amount": "2",
+      "unit": "unit",
+      "item": "Wild salmon fillets (6 oz each)",
+      "category": "Meat"
+    },
+    {
+      "amount": "1",
+      "unit": "bunch",
+      "item": "Fresh asparagus, trimmed",
+      "category": "Produce"
+    },
+    {
+      "amount": "1",
+      "unit": "unit",
+      "item": "Fresh orange, juiced and zested",
+      "category": "Produce"
+    },
+    {
+      "amount": "2",
+      "unit": "clove",
+      "item": "Garlic, finely minced",
+      "category": "Produce"
+    },
+    {
+      "amount": "2",
+      "unit": "tbsp",
+      "item": "Grass-fed butter",
+      "category": "Dairy"
+    },
+    {
+      "amount": "1",
+      "unit": "tbsp",
+      "item": "Avocado oil",
+      "category": "Pantry"
+    }
+  ],
+  "instructions": [
+    "Pat salmon fillets dry with paper towels; season generously with sea salt and black pepper.",
+    "Heat avocado oil in a heavy stainless or cast-iron skillet over medium-high heat until shimmering.",
+    "Place salmon skin-side down; sear for 4 minutes undisturbed until golden and crisp.",
+    "Carefully flip fillets, reduce heat to medium, and toss in asparagus spears, butter, minced garlic, orange juice, and zest.",
+    "Baste salmon continuously with foaming citrus butter for 3-4 minutes until asparagus is tender-crisp.",
+    "Transfer to warm plates and spoon caramelized pan juices over the fillets."
+  ],
+  "tags": [
+    "Dinner",
+    "Keto",
+    "High-Protein",
+    "Omega-3"
+  ],
+  "createdAt": "2026-10-31T01:00:00.000Z"
+}
