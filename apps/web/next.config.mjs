@@ -1,5 +1,5 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -9,6 +9,11 @@ process.env.NEXT_CPU_COUNT = process.env.NEXT_CPU_COUNT || '2';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  turbopack: {},
+
+  output: 'standalone',
+  outputFileTracingRoot: path.join(__dirname, '../../'),
+
   // Unconditionally output standalone server bundle for Hostinger Node.js Web App
   output: 'standalone',
   reactStrictMode: false,
