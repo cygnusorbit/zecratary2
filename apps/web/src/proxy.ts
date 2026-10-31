@@ -1,91 +1,35 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { type NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/utils/supabase/middleware";
 
-export function proxy(req: NextRequest) {
-  const { pathname } = req.nextUrl;
-  const sessionCookie = req.cookies.get('zecratary_session')?.value;
-
-  let session: { id?: string; email?: string; role?: string; name?: string } | null = null;
-  if (sessionCookie && sessionCookie.trim() !== '') {
-    try {
-      session = JSON.parse(decodeURIComponent(sessionCookie));
-    } catch (_) {
-      try {
-        session = JSON.parse(sessionCookie);
-      } catch (_) {}
-    }
+/**
+ * Authoritative Next.js 16 Proxy / Middleware Entry Point
+ * Refreshes Supabase Cloud sessions and maintains cookie persistence
+ */
+export async function proxy(request: NextRequest) {
+  try {
+    return createClient(request);
+  } catch (err) {
+    // Graceful fallback to avoid unhandled pipeline exceptions
+    return NextResponse.next({
+      request: {
+        headers: request.headers,
+      },
+    });
   }
+}
 
-  const isAuthenticated = Boolean(session && (session.email || session.id));
-  const isAdmin = Boolean(
-    session && (session.role === 'admin' || session.email?.toLowerCase().includes('admin'))
-  );
+// Backwards-compatible export for Next.js middleware callers
+export async function middleware(request: NextRequest) {
+  return proxy(request);
+}
 
-  // 1. Enforce Admin Routes
-  if (pathname.startsWith('/admin')) {
-    if (!isAuthenticated) {
-      return NextResponse.redirect(new URL('/login', req.url));
-    }
-    if (!isAdmin) {
-      return NextResponse.redirect(new URL('/profile', req.url));
-    }
-  }
-
-  // 2. Enforce Protected Member Routes
-  const protectedPrefixes = [
-    '/profile',
-    '/dashboard',
-    '/planner',
-    '/pantry',
-    '/chef',
-    '/import',
-    '/manual',
-    '/saved',
-    '/shopping',
-    '/groceries',
-    '/cookbooks',
-    '/books',
-    '/templates',
-    '/recipe',
-    '/package'
-  ];
-
-  const isProtected = protectedPrefixes.some(prefix => pathname.startsWith(prefix));
-  if (isProtected && !isAuthenticated) {
-    return NextResponse.redirect(new URL('/login', req.url));
-  }
-
-  // 3. Guest Only Routes
-  if ((pathname === '/login' || pathname === '/register') && isAuthenticated) {
-    if (isAdmin) {
-      return NextResponse.redirect(new URL('/admin', req.url));
-    }
-    return NextResponse.redirect(new URL('/profile', req.url));
-  }
-
-  return NextResponse.next();
+// Default export fallback
+export default async function (request: NextRequest) {
+  return proxy(request);
 }
 
 export const config = {
   matcher: [
-    '/admin/:path*',
-    '/profile/:path*',
-    '/dashboard/:path*',
-    '/planner/:path*',
-    '/pantry/:path*',
-    '/chef/:path*',
-    '/import/:path*',
-    '/manual/:path*',
-    '/saved/:path*',
-    '/shopping/:path*',
-    '/groceries/:path*',
-    '/cookbooks/:path*',
-    '/books/:path*',
-    '/templates/:path*',
-    '/recipe/:path*',
-    '/package/:path*',
-    '/users/:path*',
-    '/login',
-    '/register'
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
