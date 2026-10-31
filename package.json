@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "turbo run build && (ln -sfn apps/web/.next .next 2>/dev/null || true)",
+    "build": "turbo run build && (ln -sfn apps/web/.next .next 2>/dev/null || true) && (cp server.js apps/web/.next/standalone/server.js 2>/dev/null || true)",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "start": "node server.js",
