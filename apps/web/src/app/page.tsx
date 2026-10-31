@@ -377,10 +377,12 @@ export default function DynamicHomePage() {
   const padTop = activePage?.padding?.top || '2.5rem';
   const padBottom = activePage?.padding?.bottom || '4rem';
 
-  // Fluid canvas boundary: defaults to 100% fluid full width unless explicitly constrained
+  // Synchronized Layout Container: Unifies Header, Content Canvas, and Footer
   const containerMaxWidthClass = activePage?.padding?.maxWidth && activePage.padding.maxWidth !== 'max-w-full'
     ? activePage.padding.maxWidth
     : 'w-full max-w-full';
+
+  const sharedContainerPadding = 'px-4 sm:px-6 lg:px-8 xl:px-10';
 
   return (
     <div
@@ -393,26 +395,21 @@ export default function DynamicHomePage() {
         color: 'var(--color-text)',
       }}
     >
-      {/* Global CSS Reset for Public Homepage: Remove application shell offsets */}
+      {/* Global CSS Reset: Prevents application shell offsets on the public homepage */}
       <style dangerouslySetInnerHTML={{ __html: `
         body.is-homepage-view,
         body:has(#zecratary-homepage-root) {
           margin: 0 !important;
           padding: 0 !important;
         }
-        body.is-homepage-view main,
-        body.is-homepage-view [role="main"],
+        body.is-homepage-view > main,
         body.is-homepage-view #zecratary-main-content,
         body.is-homepage-view .main-content,
-        body:has(#zecratary-homepage-root) main,
-        body:has(#zecratary-homepage-root) [role="main"],
+        body:has(#zecratary-homepage-root) > main,
         body:has(#zecratary-homepage-root) #zecratary-main-content,
         body:has(#zecratary-homepage-root) .main-content {
-          padding-top: 0 !important;
-          padding-left: 0 !important;
-          padding-right: 0 !important;
-          margin-left: 0 !important;
-          margin-right: 0 !important;
+          padding: 0 !important;
+          margin: 0 !important;
           width: 100% !important;
           max-width: 100% !important;
         }
@@ -436,8 +433,8 @@ export default function DynamicHomePage() {
           color: 'var(--color-text)',
         }}
       >
-        <div className="w-full max-w-full px-4 sm:px-6 lg:px-8 xl:px-10 h-16 flex items-center justify-between">
-          {/* BRAND */}
+        <div className={`${containerMaxWidthClass} ${sharedContainerPadding} mx-auto h-16 flex items-center justify-between`}>
+          {/* BRAND (Aligned with main canvas left edge) */}
           <Link href="/" className="flex items-center gap-2.5 font-black text-xl text-[var(--color-primary)]">
             <span className="text-2xl">{siteIcon || '🍳'}</span>
             <span>{siteName || 'Zecratary'}</span>
@@ -464,7 +461,7 @@ export default function DynamicHomePage() {
             })}
           </nav>
 
-          {/* ACTIONS: THEME TOGGLE & AUTH */}
+          {/* ACTIONS: THEME TOGGLE & AUTH (Aligned with main canvas right edge) */}
           <div className="flex items-center gap-3">
             {/* DAY/NIGHT SWITCHER */}
             <button
@@ -518,19 +515,19 @@ export default function DynamicHomePage() {
         </div>
       </header>
 
-      {/* 2. DYNAMIC FULL-WIDTH FLUID CONTENT CANVAS */}
+      {/* 2. DYNAMIC CONTENT CANVAS (Strictly aligned with topbar logo & buttons) */}
       <main
         id="zecratary-homepage-canvas"
         role="main"
         aria-label="Homepage Main Content"
-        className="flex-1 w-full max-w-full px-4 sm:px-6 lg:px-8 xl:px-10 mx-auto transition-colors duration-200"
+        className="flex-1 w-full mx-auto transition-colors duration-200"
         style={{
           paddingTop: padTop,
           paddingBottom: padBottom,
           boxSizing: 'border-box',
         }}
       >
-        <div className={`${containerMaxWidthClass} mx-auto space-y-12`}>
+        <div className={`${containerMaxWidthClass} ${sharedContainerPadding} mx-auto space-y-12`}>
           {elementsList.map((elem: any, elemIdx: number) => {
             // A. TITLE / HEADING ELEMENT
             if (elem.type === 'title') {
@@ -864,7 +861,7 @@ export default function DynamicHomePage() {
         </div>
       </main>
 
-      {/* 3. DYNAMIC MULTI-COLUMN FOOTER */}
+      {/* 3. DYNAMIC MULTI-COLUMN FOOTER (Strictly aligned with topbar logo & buttons) */}
       {activePage?.footer?.enabled !== false && (
         <footer
           role="contentinfo"
@@ -875,7 +872,7 @@ export default function DynamicHomePage() {
             color: activePage?.footer?.textColor || 'var(--color-text)',
           }}
         >
-          <div className="w-full max-w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-12 space-y-8">
+          <div className={`${containerMaxWidthClass} ${sharedContainerPadding} mx-auto py-12 space-y-8`}>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
               {/* BRAND MISSION */}
               <div className="space-y-3 md:col-span-2">
