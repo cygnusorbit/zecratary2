@@ -1,0 +1,254 @@
+[
+  {
+    "id": "page_home_default",
+    "title": "Home",
+    "slug": "/",
+    "description": "Zecratary AI-Powered Culinary & Recipe Intelligence",
+    "status": "published",
+    "is_default": true,
+    "is_published": true,
+    "show_in_nav": true,
+    "show_in_footer": true,
+    "order_index": 0,
+    "padding": {
+      "top": "2.5rem",
+      "bottom": "4rem",
+      "left": "1.5rem",
+      "right": "1.5rem",
+      "maxWidth": "max-w-full"
+    },
+    "footer": {
+      "enabled": true,
+      "aboutText": "Zecratary empowers home chefs and professionals with intelligent recipe discovery and culinary AI.",
+      "copyrightText": "© 2026 Zecratary Inc. All rights reserved.",
+      "columns": [
+        {
+          "id": "c_links",
+          "title": "Platform",
+          "links": [
+            {
+              "id": "l1",
+              "label": "Community Recipes",
+              "url": "/recipes"
+            },
+            {
+              "id": "l2",
+              "label": "AI Chef Assistant",
+              "url": "/chef"
+            },
+            {
+              "id": "l3",
+              "label": "Subscription Plans",
+              "url": "/pricing"
+            }
+          ]
+        }
+      ],
+      "socials": {
+        "twitter": "https://twitter.com/zecratary",
+        "github": "https://github.com/cygnusorbit/zecratary2",
+        "instagram": "",
+        "youtube": "",
+        "discord": ""
+      },
+      "bgColor": "var(--color-bg,#070b13)",
+      "textColor": "var(--color-text,#f1f5f9)",
+      "borderColor": "var(--color-border,#1e293b)",
+      "accentColor": "var(--color-primary,#E05638)"
+    },
+    "elements": [
+      {
+        "id": "elem_hero_title",
+        "type": "title",
+        "title": "Craft Culinary Wonders with AI Assistance",
+        "subtitle": "Personalized recipes, real-time ingredient intelligence, and dietary optimization at your fingertips.",
+        "level": "h1",
+        "alignment": "center",
+        "accentColor": "var(--color-primary,#E05638)"
+      },
+      {
+        "id": "elem_features_grid",
+        "type": "column",
+        "title": "Engineered for Modern Kitchens",
+        "columnsCount": 3,
+        "columns": [
+          {
+            "id": "c1",
+            "title": "Smart Pantry Sync",
+            "content": "Turn whatever is in your fridge into Michelin-worthy meals in seconds."
+          },
+          {
+            "id": "c2",
+            "title": "Dietary Guardrails",
+            "content": "Tailored calorie limits, macro tracking, and allergen-safe ingredient swaps."
+          },
+          {
+            "id": "c3",
+            "title": "Global Flavor Profiles",
+            "content": "Explore authentic regional delicacies curated by generative culinary models."
+          }
+        ]
+      },
+      {
+        "id": "elem_recipe_showcase",
+        "type": "recipe",
+        "title": "Trending Community Recipes",
+        "recipeGridDensity": 4,
+        "recipeLimit": 4,
+        "recipeCategoryFilter": "all"
+      },
+      {
+        "id": "elem_cta_box",
+        "type": "box",
+        "title": "Ready to elevate your cooking journey?",
+        "subtitle": "Join thousands of home cooks discovering new flavors every day.",
+        "badge": "Free Access",
+        "buttonText": "Try AI Chef Now",
+        "buttonUrl": "/chef",
+        "boxStyle": "highlight",
+        "accentColor": "var(--color-primary,#E05638)"
+      },
+      {
+        "id": "elem_1793473345864_hm22",
+        "type": "content",
+        "title": "New Block Title",
+        "level": "h2",
+        "alignment": "center",
+        "boxStyle": "highlight",
+        "recipeGridDensity": 3,
+        "recipeLimit": 6,
+        "recipeCategoryFilter": "all",
+        "planBillingInterval": "MONTH",
+        "planShowTokens": true,
+        "planShowAiModels": true,
+        "columnsCount": 3,
+        "columns": [
+          {
+            "id": "c1",
+            "title": "Feature One",
+            "content": "Detailed feature description."
+          },
+          {
+            "id": "c2",
+            "title": "Feature Two",
+            "content": "Detailed feature description."
+          },
+          {
+            "id": "c3",
+            "title": "Feature Three",
+            "content": "Detailed feature description."
+          }
+        ],
+        "buttonText": "Learn More",
+        "buttonUrl": "/chef",
+        "accentColor": "var(--color-primary, #E05638)"
+      },
+      {
+        "id": "elem_1793473355534_jnp0",
+        "type": "column",
+        "title": "New Block Title",
+        "level": "h2",
+        "alignment": "center",
+        "boxStyle": "highlight",
+        "recipeGridDensity": 3,
+        "recipeLimit": 6,
+        "recipeCategoryFilter": "all",
+        "planBillingInterval": "MONTH",
+        "planShowTokens": true,
+        "planShowAiModels": true,
+        "columnsCount": 3,
+        "columns": [
+          {
+            "id": "c1",
+            "title": "Feature One",
+            "content": "Detailed feature description."
+          },
+          {
+            "id": "c2",
+            "title": "Feature Two",
+            "content": "Detailed feature description."
+          },
+          {
+            "id": "c3",
+            "title": "Feature Three",
+            "content": "Detailed feature description."
+          }
+        ],
+        "buttonText": "Learn More",
+        "buttonUrl": "/chef",
+        "accentColor": "var(--color-primary, #E05638)"
+      },
+      {
+        "id": "elem_1793473359246_n3zy",
+        "type": "picture",
+        "title": "New Block Title",
+        "level": "h2",
+        "alignment": "center",
+        "boxStyle": "highlight",
+        "recipeGridDensity": 3,
+        "recipeLimit": 6,
+        "recipeCategoryFilter": "all",
+        "planBillingInterval": "MONTH",
+        "planShowTokens": true,
+        "planShowAiModels": true,
+        "columnsCount": 3,
+        "columns": [
+          {
+            "id": "c1",
+            "title": "Feature One",
+            "content": "Detailed feature description."
+          },
+          {
+            "id": "c2",
+            "title": "Feature Two",
+            "content": "Detailed feature description."
+          },
+          {
+            "id": "c3",
+            "title": "Feature Three",
+            "content": "Detailed feature description."
+          }
+        ],
+        "buttonText": "Learn More",
+        "buttonUrl": "/chef",
+        "accentColor": "var(--color-primary, #E05638)"
+      },
+      {
+        "id": "elem_1793473428190_isrd",
+        "type": "title",
+        "title": "New Section Heading",
+        "subtitle": "Add an informative subtitle here.",
+        "level": "h2",
+        "alignment": "center",
+        "boxStyle": "highlight",
+        "recipeGridDensity": 3,
+        "recipeLimit": 6,
+        "recipeCategoryFilter": "all",
+        "planBillingInterval": "MONTH",
+        "planShowTokens": true,
+        "planShowAiModels": true,
+        "columnsCount": 3,
+        "columns": [
+          {
+            "id": "c1",
+            "title": "Feature One",
+            "content": "Detailed feature description."
+          },
+          {
+            "id": "c2",
+            "title": "Feature Two",
+            "content": "Detailed feature description."
+          },
+          {
+            "id": "c3",
+            "title": "Feature Three",
+            "content": "Detailed feature description."
+          }
+        ],
+        "buttonText": "Learn More",
+        "buttonUrl": "/chef",
+        "accentColor": "var(--color-primary, #E05638)"
+      }
+    ]
+  }
+]
