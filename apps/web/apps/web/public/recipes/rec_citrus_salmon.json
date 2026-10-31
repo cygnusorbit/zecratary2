@@ -1,27 +1,18 @@
 {
   "id": "rec_citrus_salmon",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "Creator",
-    "email": "usr_admin_1"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "Creator",
-  "ownerEmail": "usr_admin_1",
-  "userId": "usr_admin_1",
-  "userEmail": "usr_admin_1",
-  "createdBy": "usr_admin_1",
-  "creatorName": "Creator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Pan-Seared Citrus Salmon",
   "title": "Pan-Seared Citrus Salmon",
-  "description": "Crisp Atlantic salmon fillet glazed with honey-lime marinade, served over fragrant jasmine rice and grilled asparagus.",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 2,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
-  "cuisine": "",
+  "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 2,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=800&q=80",
+  "image": "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=800&q=80",
   "ingredients": [
     "2 Salmon fillets",
     "1 tbsp Honey",
@@ -35,18 +26,15 @@
     "Sear skin-side down for 5 minutes, flip and glaze with lime-honey.",
     "Serve hot with grilled asparagus."
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=800&q=80",
-  "imageUrl": "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=800&q=80",
-  "sourceUrl": "https://allrecipes.com",
   "isFavorite": true,
   "isCooked": false,
-  "rating": 5,
   "bookId": "book_healthy_prep",
-  "createdAt": "2026-10-25T17:11:30.946Z",
-  "updatedAt": "2026-10-25T18:53:22.957Z",
-  "storageSettings": "Настройки хранилища"
+  "book_id": "book_healthy_prep",
+  "note": "",
+  "sourceUrl": "https://allrecipes.com",
+  "source_url": "https://allrecipes.com",
+  "createdAt": "2026-10-25T17:11:30.946Z"
 }

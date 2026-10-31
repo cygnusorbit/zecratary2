@@ -1,42 +1,103 @@
 {
   "id": "rcp_imp_musaid8w9yot",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "System Administrator",
-    "email": "admin@zecratary.com"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "System Administrator",
-  "ownerEmail": "admin@zecratary.com",
-  "userId": "usr_admin_1",
-  "userEmail": "admin@zecratary.com",
-  "createdBy": "admin@zecratary.com",
-  "creatorName": "System Administrator",
-  "isPublic": false,
-  "visibility": "private",
-  "title": "Aussie Lemon Coconut Slice Cake",
-  "description": "Recipe video above. This is a lovely buttery lemon coconut cake topped with lemon icing and coconut, made for cutting into bars or squares and eating with hands. The icing crusts over, so it’s perfect for lunchboxes, gifting and transporting. And it keeps incredibly well - fresh for a week!You'll need one very large lemon or two regular lemons. You can leave out the coconut if you want, to make plain lemon. Gluten-free - See Note 3",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 16,
+  "name": "Aussie Lemon Coconut Slice Cake",
+  "title": "Aussie Lemon Coconut Slice Cake!",
+  "category": "Breakfast",
   "recipeType": "Breakfast",
-  "mealType": "Breakfast",
   "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 16,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/scraped_1791025786196_r15tnb.webp",
+  "image": "/uploads/recipes/scraped_1791025786196_r15tnb.webp",
   "ingredients": [
-    "1 cup plain flour / all-purpose flour ((Note 3 for gluten-free))",
-    "3/4 cup desiccated coconut (, unsweetened (Note 1))",
-    "1 tsp baking powder",
-    "1/8 tsp cooking salt / kosher salt",
-    "125g / 8 tbsp unsalted butter (, softened (Note 2))",
-    "3/4 cup white sugar (, caster/superfine or regular/granulated)",
-    "2 large eggs (, at room temperature (~50-55g/2 oz))",
-    "1 tbsp lemon zest",
-    "2 tbsp lemon juice (, at room temperature)",
-    "1 tsp vanilla",
-    "1/2 cup milk (, full fat, at room temperature)",
-    "2 cups soft icing sugar / powdered sugar (, sifted)",
-    "7 - 8 tsp lemon juice (, BE CAREFUL! Goes from perfect to runny with the teeniest amount too much!)",
-    "2 tbsp desiccated coconut (, for sprinkling)"
+    {
+      "amount": "",
+      "unit": "",
+      "item": "1 cup plain flour / all-purpose flour ((Note 3 for gluten-free))",
+      "category": "Produce"
+    },
+    {
+      "amount": "",
+      "unit": "",
+      "item": "3/4 cup desiccated coconut (, unsweetened (Note 1))",
+      "category": "Produce"
+    },
+    {
+      "amount": "",
+      "unit": "",
+      "item": "1 tsp baking powder",
+      "category": "Produce"
+    },
+    {
+      "amount": "",
+      "unit": "",
+      "item": "1/8 tsp cooking salt / kosher salt",
+      "category": "Produce"
+    },
+    {
+      "amount": "",
+      "unit": "",
+      "item": "125g / 8 tbsp unsalted butter (, softened (Note 2))",
+      "category": "Produce"
+    },
+    {
+      "amount": "",
+      "unit": "",
+      "item": "3/4 cup white sugar (, caster/superfine or regular/granulated)",
+      "category": "Produce"
+    },
+    {
+      "amount": "",
+      "unit": "",
+      "item": "2 large eggs (, at room temperature (~50-55g/2 oz))",
+      "category": "Produce"
+    },
+    {
+      "amount": "",
+      "unit": "",
+      "item": "1 tbsp lemon zest",
+      "category": "Produce"
+    },
+    {
+      "amount": "",
+      "unit": "",
+      "item": "2 tbsp lemon juice (, at room temperature)",
+      "category": "Produce"
+    },
+    {
+      "amount": "",
+      "unit": "",
+      "item": "1 tsp vanilla",
+      "category": "Produce"
+    },
+    {
+      "amount": "",
+      "unit": "",
+      "item": "1/2 cup milk (, full fat, at room temperature)",
+      "category": "Produce"
+    },
+    {
+      "amount": "",
+      "unit": "",
+      "item": "2 cups soft icing sugar / powdered sugar (, sifted)",
+      "category": "Produce"
+    },
+    {
+      "amount": "",
+      "unit": "",
+      "item": "7 - 8 tsp lemon juice (, BE CAREFUL! Goes from perfect to runny with the teeniest amount too much!)",
+      "category": "Produce"
+    },
+    {
+      "amount": "",
+      "unit": "",
+      "item": "2 tbsp desiccated coconut (, for sprinkling)",
+      "category": "Produce"
+    }
   ],
   "instructions": [
     "Whisk Dry, set aside. Cream butter and sugar, beat in eggs one at a time. Beat in vanilla, zest and juice. On low, beat in 1/3 flour then 1/2 milk, repeat, finishing with flour. Finish mixing by hand. Bake in 20cm/8\" lined pan 30 min at 180°C/350°F (160°C fan). Cool upside down, spread with icing, sprinkle with coconut.",
@@ -50,17 +111,15 @@
     "Spread with the Lemon Icing, all the way to the edge. Then sprinkle with coconut while wet, so it sticks. Let the icing set for 1 hour before slicing to serve!",
     "Persevere! Put the icing sugar and lemon juice in a large bowl and use a rubber spatula to mix, using a smearing motion to combine until the glaze becomes a thick spreadable consistency like peanut butter (rather than the runny drippy kind). Be patient, it takes time to mix and assertive smearing to combine just a bit of lemon with lots of icing sugar! Only add extra lemon juice 1/2 teaspoon at a time if needed - glazes go from too thick to runny very easily!"
   ],
-  "nutrition": {},
   "tags": [
     "Breakfast"
   ],
-  "image": "/uploads/recipes/scraped_1791025786196_r15tnb.webp",
-  "imageUrl": "/uploads/recipes/scraped_1791025786196_r15tnb.webp",
-  "sourceUrl": "https://www.recipetineats.com/lemon-coconut-slice-cake/",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": "book_mus64ag3_5bps",
-  "createdAt": "2026-10-03T11:09:46.445Z",
-  "updatedAt": "2026-10-25T18:53:22.991Z"
+  "book_id": "book_mus64ag3_5bps",
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/lemon-coconut-slice-cake/",
+  "source_url": "https://www.recipetineats.com/lemon-coconut-slice-cake/",
+  "createdAt": "2026-10-03T11:09:46.445Z"
 }

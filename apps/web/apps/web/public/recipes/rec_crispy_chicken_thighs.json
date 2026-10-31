@@ -1,27 +1,18 @@
 {
   "id": "rec_crispy_chicken_thighs",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "Creator",
-    "email": "usr_admin_1"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "Creator",
-  "ownerEmail": "usr_admin_1",
-  "userId": "usr_admin_1",
-  "userEmail": "usr_admin_1",
-  "createdBy": "usr_admin_1",
-  "creatorName": "Creator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Crispy Garlic Herb Chicken Thighs",
   "title": "Crispy Garlic Herb Chicken Thighs",
-  "description": "Pan-roasted bone-in chicken thighs with crispy golden skin, rosemary, garlic cloves, and a rich pan-jus reduction.",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 4,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
-  "cuisine": "",
+  "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 4,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=800&q=80",
+  "image": "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=800&q=80",
   "ingredients": [
     "4 Bone-in chicken thighs",
     "4 cloves Garlic, smashed",
@@ -34,18 +25,15 @@
     "Sear skin-side down over medium heat for 12 minutes until deeply crisp.",
     "Flip, add garlic and rosemary, and roast until internal temp reaches 165°F."
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=800&q=80",
-  "imageUrl": "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=800&q=80",
-  "sourceUrl": "https://recipetineats.com",
   "isFavorite": true,
   "isCooked": false,
-  "rating": 5,
   "bookId": null,
-  "createdAt": "2026-10-25T17:11:30.942Z",
-  "updatedAt": "2026-10-25T18:53:22.969Z",
-  "storageSettings": "Storage Settings"
+  "book_id": null,
+  "note": "",
+  "sourceUrl": "https://recipetineats.com",
+  "source_url": "https://recipetineats.com",
+  "createdAt": "2026-10-25T17:11:30.942Z"
 }

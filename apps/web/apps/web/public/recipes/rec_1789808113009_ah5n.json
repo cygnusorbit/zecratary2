@@ -1,27 +1,18 @@
 {
   "id": "rec_1789808113009_ah5n",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "System Administrator",
-    "email": "admin@zecratary.com"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "System Administrator",
-  "ownerEmail": "admin@zecratary.com",
-  "userId": "usr_admin_1",
-  "userEmail": "admin@zecratary.com",
-  "createdBy": "admin@zecratary.com",
-  "creatorName": "System Administrator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Monster Cookies",
   "title": "Monster Cookies",
-  "description": "",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 18,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
-  "cuisine": "",
+  "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 18,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/import-1789808112976-n26l7x.jpg",
+  "image": "/uploads/recipes/import-1789808112976-n26l7x.jpg",
   "ingredients": [
     {
       "id": "ing_1789808113003_0",
@@ -154,17 +145,15 @@
     "Decorate (optional) - While the cookies are still hot, press chocolate chips onto the surface (the heat will melt them enough to stick) and lightly press M&M’s halfway in, they’ll set firmly in place once the cookies cool. (Note 4).",
     "Cool for 10 minutes on the tray (to finish cooking and set) then transfer to a rack and cool for another 10 minutes before attacking, these cookies are fragile when hot. (Meanwhile, bake the third tray). Fully cool before storing in an airtight container for 5 days, in a cool pantry."
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "/uploads/recipes/import-1789808112976-n26l7x.jpg",
-  "imageUrl": "/uploads/recipes/import-1789808112976-n26l7x.jpg",
-  "sourceUrl": "https://www.recipetineats.com/monster-cookies-recipe/",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": null,
-  "createdAt": "2026-10-03T09:19:34.318Z",
-  "updatedAt": "2026-10-25T18:53:23.017Z"
+  "book_id": null,
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/monster-cookies-recipe/",
+  "source_url": "https://www.recipetineats.com/monster-cookies-recipe/",
+  "createdAt": "2026-10-03T09:19:34.318Z"
 }

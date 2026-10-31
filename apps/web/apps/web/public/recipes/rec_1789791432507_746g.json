@@ -1,27 +1,18 @@
 {
   "id": "rec_1789791432507_746g",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "System Administrator",
-    "email": "admin@zecratary.com"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "System Administrator",
-  "ownerEmail": "admin@zecratary.com",
-  "userId": "usr_admin_1",
-  "userEmail": "admin@zecratary.com",
-  "createdBy": "admin@zecratary.com",
-  "creatorName": "System Administrator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Spinach French Onion Cob Dip",
   "title": "Spinach French Onion Cob Dip",
-  "description": "",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 12,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
-  "cuisine": "",
+  "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 12,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/import-1789791432479-gdcen7.jpg",
+  "image": "/uploads/recipes/import-1789791432479-gdcen7.jpg",
   "ingredients": [
     {
       "id": "ing_1789791432501_0",
@@ -96,17 +87,15 @@
     "Serve - Take it out of the fridge 1 hour prior to serving to take the chill out and loosen (if needed, warm slightly in microwave). Give it a good mix, pour into the bowl and serve with the bread pieces on the side for dipping. I recommend providing extra dippers (crackers, chips - my favourite is crinkle cut plain potato chips) as there is more dip than bread!",
     "Loosely wrap the dip filled bread with foil and bake for 30 minutes at 180°C/350°F (160°C fan-forced). Olive oil spray bread pieces and season with pinch of salt. Scatter around the unwrapped cob dip and bake for a further 15 minutes or until the bread pieces are lightly browned. Serve warm!"
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "/uploads/recipes/import-1789791432479-gdcen7.jpg",
-  "imageUrl": "/uploads/recipes/import-1789791432479-gdcen7.jpg",
-  "sourceUrl": "https://www.recipetineats.com/spinach-french-onion-cob-dip/",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": null,
-  "createdAt": "2026-10-03T09:19:34.319Z",
-  "updatedAt": "2026-10-25T18:53:23.015Z"
+  "book_id": null,
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/spinach-french-onion-cob-dip/",
+  "source_url": "https://www.recipetineats.com/spinach-french-onion-cob-dip/",
+  "createdAt": "2026-10-03T09:19:34.319Z"
 }

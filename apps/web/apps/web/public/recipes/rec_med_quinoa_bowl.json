@@ -1,27 +1,18 @@
 {
   "id": "rec_med_quinoa_bowl",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "Creator",
-    "email": "usr_admin_1"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "Creator",
-  "ownerEmail": "usr_admin_1",
-  "userId": "usr_admin_1",
-  "userEmail": "usr_admin_1",
-  "createdBy": "usr_admin_1",
-  "creatorName": "Creator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Mediterranean Quinoa Bowl",
   "title": "Mediterranean Quinoa Bowl",
-  "description": "Organic rainbow quinoa tossed with English cucumbers, Kalamata olives, cherry tomatoes, and crumbled feta with lemon vinaigrette.",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 3,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
-  "cuisine": "",
+  "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 3,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80",
+  "image": "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80",
   "ingredients": [
     "2 cups Cooked quinoa",
     "1 cup Cherry tomatoes",
@@ -35,17 +26,15 @@
     "Toss thoroughly with vinaigrette dressing.",
     "Top with crumbled feta cheese."
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80",
-  "imageUrl": "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80",
-  "sourceUrl": "https://bbcgoodfood.com",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": "book_healthy_prep",
-  "createdAt": "2026-10-25T17:11:30.944Z",
-  "updatedAt": "2026-10-25T18:53:22.963Z"
+  "book_id": "book_healthy_prep",
+  "note": "",
+  "sourceUrl": "https://bbcgoodfood.com",
+  "source_url": "https://bbcgoodfood.com",
+  "createdAt": "2026-10-25T17:11:30.944Z"
 }

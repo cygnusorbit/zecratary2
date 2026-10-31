@@ -1,27 +1,18 @@
 {
   "id": "rec_1789633786595_0oyy",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "Admin User",
-    "email": "admin@zecratary.com"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "Admin User",
-  "ownerEmail": "admin@zecratary.com",
-  "userId": "usr_admin_1",
-  "userEmail": "admin@zecratary.com",
-  "createdBy": "admin@zecratary.com",
-  "creatorName": "Admin User",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Chinese Orange Chicken",
   "title": "Chinese Orange Chicken",
-  "description": "",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 4,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
-  "cuisine": "",
+  "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 4,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/import-1789633786569-5vetcs.jpg",
+  "image": "/uploads/recipes/import-1789633786569-5vetcs.jpg",
   "ingredients": [
     {
       "id": "ing_1789633786588_0",
@@ -215,17 +206,15 @@
     "Thicken sauce - Give the sauce a whisk (to mix cornflour settled on the base) then pour it in the pan. Simmer for 1 to 2 minutes until it thickens into a thick, glossy syrup (honey consistency). Stir in zest.",
     "Toss - Put the chicken back into the pan and toss quickly to coat in the sauce. Serve over rice, garnished with green onion."
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "/uploads/recipes/import-1789633786569-5vetcs.jpg",
-  "imageUrl": "/uploads/recipes/import-1789633786569-5vetcs.jpg",
-  "sourceUrl": "https://www.recipetineats.com/orange-chicken/",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": null,
-  "createdAt": "2026-10-03T09:19:34.320Z",
-  "updatedAt": "2026-10-25T18:53:23.010Z"
+  "book_id": null,
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/orange-chicken/",
+  "source_url": "https://www.recipetineats.com/orange-chicken/",
+  "createdAt": "2026-10-03T09:19:34.320Z"
 }

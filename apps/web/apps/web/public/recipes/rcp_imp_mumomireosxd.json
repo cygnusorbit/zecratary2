@@ -1,27 +1,18 @@
 {
   "id": "rcp_imp_mumomireosxd",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "System Administrator",
-    "email": "admin@zecratary.com"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "System Administrator",
-  "ownerEmail": "admin@zecratary.com",
-  "userId": "usr_admin_1",
-  "userEmail": "admin@zecratary.com",
-  "createdBy": "admin@zecratary.com",
-  "creatorName": "System Administrator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Coquillettes au Jambon - French Macaroni and Cheese with Ham",
   "title": "Coquillettes au Jambon - French Macaroni and Cheese with Ham",
-  "description": "Recipe Video above. A stovetop mac & cheese, that's what this is really! Without the hassle of baking it! This dish was a big part of my childhood diet and even now but somehow never got sick of it. Who wouldn't? Pasta, cheese sauce and ham. A great comfort meal, done fast and done right. Enjoy!",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 5,
+  "category": "Breakfast",
   "recipeType": "Breakfast",
-  "mealType": "Breakfast",
   "cuisine": "French",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 5,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/scraped_1790686697546_t4s9s.webp",
+  "image": "/uploads/recipes/scraped_1790686697546_t4s9s.webp",
   "ingredients": [
     "500g / 1 lb elbow pasta / macaroni (, but any similar size pasta would work )",
     "1 tsp cooking salt / kosher salt (, for pasta water, half for table salt)",
@@ -47,17 +38,15 @@
     "Combine - Add drained pasta and stir well until fully coated, the sauce will thicken slightly and cling to the macaroni. Add more pasta water if the sauce gets too thick.",
     "Serve immediately while hot and creamy. I like to grind extra black pepper on top just before eating. Enjoy!"
   ],
-  "nutrition": {},
   "tags": [
     "Breakfast"
   ],
-  "image": "/uploads/recipes/scraped_1790686697546_t4s9s.webp",
-  "imageUrl": "/uploads/recipes/scraped_1790686697546_t4s9s.webp",
-  "sourceUrl": "https://www.recipetineats.com/coquillettes-au-jambon-french-macaroni-and-cheese-with-ham/",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": null,
-  "createdAt": "2026-10-03T09:19:34.315Z",
-  "updatedAt": "2026-10-25T18:53:23.025Z"
+  "book_id": null,
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/coquillettes-au-jambon-french-macaroni-and-cheese-with-ham/",
+  "source_url": "https://www.recipetineats.com/coquillettes-au-jambon-french-macaroni-and-cheese-with-ham/",
+  "createdAt": "2026-10-03T09:19:34.315Z"
 }

@@ -1,27 +1,18 @@
 {
   "id": "rcp_imp_mumooaom06e0",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "System Administrator",
-    "email": "admin@zecratary.com"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "System Administrator",
-  "ownerEmail": "admin@zecratary.com",
-  "userId": "usr_admin_1",
-  "userEmail": "admin@zecratary.com",
-  "createdBy": "admin@zecratary.com",
-  "creatorName": "System Administrator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Polish Cabbage Rolls (Golabki)",
   "title": "Polish Cabbage Rolls (Golabki)",
-  "description": "Recipe video above. Here is a recipe for traditional Polish stuffed Cabbage Rolls (Gołąbki). Made with a savoury pork and rice filling wrapped in tender cabbage leaves then simmered in tomato sauce, they are beautifully soft and succulent inside. It's pure hearty, homey, Polish comfort food!I know the recipe looks long, but don’t be intimidated - there’s nothing technically difficult here. The rolls are surprisingly easy to make (easier than burritos, Nagi declares!) and hold together well. And if yours don't look perfect, it doesn't matter. This is home cooking, not Michelin-star fine dining - and they’ll taste just as good!",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 5,
+  "category": "Breakfast",
   "recipeType": "Breakfast",
-  "mealType": "Breakfast",
   "cuisine": "polish",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 5,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/scraped_1790686780402_9su3z.webp",
+  "image": "/uploads/recipes/scraped_1790686780402_9su3z.webp",
   "ingredients": [
     "1 head savoy cabbage or green cabbage (, ~1.5kg / 3lbs (Note 1))",
     "1 tbsp cooking salt / kosher salt (, for cooking water (half for table salt, +50% for flakes))",
@@ -59,17 +50,15 @@
     "Add rolls - Place the cabbage rolls seam side down into the sauce. Dip a brush into the sauce in the pan and brush some on top of each roll, just enough to give the surface a thin coating.",
     "Warm cabbage rolls - Once the sauce starts simmering around the edges of the cabbage, turn the heat down to medium, cover with a lid and let the cabbage rolls warm through for 5 minutes. Remove the lid, scatter with parsley and serve."
   ],
-  "nutrition": {},
   "tags": [
     "Breakfast"
   ],
-  "image": "/uploads/recipes/scraped_1790686780402_9su3z.webp",
-  "imageUrl": "/uploads/recipes/scraped_1790686780402_9su3z.webp",
-  "sourceUrl": "https://www.recipetineats.com/polish-cabbage-rolls-golabki-recipe/",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": null,
-  "createdAt": "2026-10-03T09:19:34.314Z",
-  "updatedAt": "2026-10-25T18:53:23.027Z"
+  "book_id": null,
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/polish-cabbage-rolls-golabki-recipe/",
+  "source_url": "https://www.recipetineats.com/polish-cabbage-rolls-golabki-recipe/",
+  "createdAt": "2026-10-03T09:19:34.314Z"
 }

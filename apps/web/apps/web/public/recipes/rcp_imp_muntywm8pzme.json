@@ -1,27 +1,18 @@
 {
   "id": "rcp_imp_muntywm8pzme",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "System Administrator",
-    "email": "admin@zecratary.com"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "System Administrator",
-  "ownerEmail": "admin@zecratary.com",
-  "userId": "usr_admin_1",
-  "userEmail": "admin@zecratary.com",
-  "createdBy": "admin@zecratary.com",
-  "creatorName": "System Administrator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "French Glazed Carrots (Carottes Vichy)",
   "title": "French Glazed Carrots (Carottes Vichy)",
-  "description": "Recipe video above. This is JB's recipe for glazed carrots, the French way - carrot coins gently cooked in water, butter, salt and just a small amount of sugar until it reduces down into a glaze. It's far less sweet than typical glazed carrots and the carrot pieces are so tender they almost melt in your mouth.Called Carrotes Vichy or Carottes Glacées, it's a very classic French side dish made in homes and also served at restaurants and bistros.",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 6,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
   "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 6,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/scraped_1790756139759_owe1d1.webp",
+  "image": "/uploads/recipes/scraped_1790756139759_owe1d1.webp",
   "ingredients": [
     "800g / 1.75 lb carrots (, peeled and sliced into 6mm / 0.2\" rounds)",
     "3/4 cup water",
@@ -39,17 +30,15 @@
     "Finish - Remove from the stove, remove the cartouche, add the parsley and stir very gently until the carrots are coated in the butter glaze. Go easy on the stirring, the carrots can break apart if handled roughly.",
     "Serve - Transfer into a bowl and serve warm!"
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "/uploads/recipes/scraped_1790756139759_owe1d1.webp",
-  "imageUrl": "/uploads/recipes/scraped_1790756139759_owe1d1.webp",
-  "sourceUrl": "https://www.recipetineats.com/french-glazed-carrots-carottes-vichy-recipe/",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": null,
-  "createdAt": "2026-10-03T09:19:34.303Z",
-  "updatedAt": "2026-10-25T18:53:23.037Z"
+  "book_id": null,
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/french-glazed-carrots-carottes-vichy-recipe/",
+  "source_url": "https://www.recipetineats.com/french-glazed-carrots-carottes-vichy-recipe/",
+  "createdAt": "2026-10-03T09:19:34.303Z"
 }

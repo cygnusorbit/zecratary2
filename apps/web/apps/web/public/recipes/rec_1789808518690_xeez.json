@@ -1,27 +1,18 @@
 {
   "id": "rec_1789808518690_xeez",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "System Administrator",
-    "email": "admin@zecratary.com"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "System Administrator",
-  "ownerEmail": "admin@zecratary.com",
-  "userId": "usr_admin_1",
-  "userEmail": "admin@zecratary.com",
-  "createdBy": "admin@zecratary.com",
-  "creatorName": "System Administrator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Slow-roast Easter stuffed lamb",
   "title": "Slow-roast Easter stuffed lamb",
-  "description": "",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 5,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
-  "cuisine": "",
+  "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 5,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/import-1789808518140-3qnb86.jpg",
+  "image": "/uploads/recipes/import-1789808518140-3qnb86.jpg",
   "ingredients": [
     {
       "id": "ing_1789808518679_0",
@@ -289,17 +280,15 @@
     "Cut the string off the lamb then slice into 2cm / 0.8\" thick slices.",
     "Plate on a platter, surround with the potatoes. Serve with gravy, sprinkled with extra chopped pistachios if desired! (Shown in the video with sautéed green beans)."
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "/uploads/recipes/import-1789808518140-3qnb86.jpg",
-  "imageUrl": "/uploads/recipes/import-1789808518140-3qnb86.jpg",
-  "sourceUrl": "https://www.recipetineats.com/slow-roast-easter-stuffed-lamb/",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": null,
-  "createdAt": "2026-10-03T09:19:34.317Z",
-  "updatedAt": "2026-10-25T18:53:23.020Z"
+  "book_id": null,
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/slow-roast-easter-stuffed-lamb/",
+  "source_url": "https://www.recipetineats.com/slow-roast-easter-stuffed-lamb/",
+  "createdAt": "2026-10-03T09:19:34.317Z"
 }

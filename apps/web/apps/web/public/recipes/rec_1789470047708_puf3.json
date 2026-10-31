@@ -1,27 +1,18 @@
 {
   "id": "rec_1789470047708_puf3",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "Creator",
-    "email": "usr_admin_1"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "Creator",
-  "ownerEmail": "usr_admin_1",
-  "userId": "usr_admin_1",
-  "userEmail": "usr_admin_1",
-  "createdBy": "usr_admin_1",
-  "creatorName": "Creator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Cheesy Zucchini Muffins",
   "title": "Cheesy Zucchini Muffins",
-  "description": "",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 12,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
-  "cuisine": "",
+  "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 12,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/import-1789470047686-v4uf2v.jpg",
+  "image": "/uploads/recipes/import-1789470047686-v4uf2v.jpg",
   "ingredients": [
     {
       "id": "ing_1789470047704_0",
@@ -145,17 +136,15 @@
     "Bake 25 min - Divide between 12 holes in muffin in (I use an ice cream scooper). Bake for 25 minutes or until the muffins are golden and crusty, and a toothpick inserted into the centre comes out clean.",
     "Cool for 10 minutes, then transfer to cooling rack. If they are a bit stuck (cheese!), run a knife around the rim then invert and bang the pan on the counter so they tumble out. Serve warm for optimum experience!"
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "/uploads/recipes/import-1789470047686-v4uf2v.jpg",
-  "imageUrl": "/uploads/recipes/import-1789470047686-v4uf2v.jpg",
-  "sourceUrl": "https://www.recipetineats.com/cheesy-zucchini-muffins/",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": null,
-  "createdAt": "2026-10-03T09:19:34.328Z",
-  "updatedAt": "2026-10-25T18:53:22.995Z"
+  "book_id": null,
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/cheesy-zucchini-muffins/",
+  "source_url": "https://www.recipetineats.com/cheesy-zucchini-muffins/",
+  "createdAt": "2026-10-03T09:19:34.328Z"
 }

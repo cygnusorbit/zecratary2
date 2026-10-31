@@ -1,27 +1,18 @@
 {
   "id": "rec_1789469789000_1zfh",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "Creator",
-    "email": "usr_admin_1"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "Creator",
-  "ownerEmail": "usr_admin_1",
-  "userId": "usr_admin_1",
-  "userEmail": "usr_admin_1",
-  "createdBy": "usr_admin_1",
-  "creatorName": "Creator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Beef Rice Noodles",
   "title": "Beef Rice Noodles",
-  "description": "",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 2,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
-  "cuisine": "",
+  "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 2,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/import-1789469788962-pfxtvk.jpg",
+  "image": "/uploads/recipes/import-1789469788962-pfxtvk.jpg",
   "ingredients": [
     {
       "id": "ing_1789469788989_0",
@@ -160,17 +151,15 @@
     "Cook onion, beef then garlic - Heat the oil over high heat in a large wok or large deep fry pan / skillet (~30cm/12\"). Add the onion for 30 seconds. Add beef and cook until the red is almost gone (~1 minute), then add the garlic and cook for 30 seconds.",
     "Stems then everything else - Add the stem part of the Asian greens, toss for 1 minute. Add the leafy part, noodles then sauce (in that order). Toss for 1 1/2 to 2 minutes until the sauce has stained all the noodles and there is no sauce left in the base of the pan.  Serve immediately!"
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "/uploads/recipes/import-1789469788962-pfxtvk.jpg",
-  "imageUrl": "/uploads/recipes/import-1789469788962-pfxtvk.jpg",
-  "sourceUrl": "https://www.recipetineats.com/beef-rice-noodles/",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": "book_1789053656064_zyyz",
-  "createdAt": "2026-10-03T09:19:34.327Z",
-  "updatedAt": "2026-10-25T18:53:22.998Z"
+  "book_id": "book_1789053656064_zyyz",
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/beef-rice-noodles/",
+  "source_url": "https://www.recipetineats.com/beef-rice-noodles/",
+  "createdAt": "2026-10-03T09:19:34.327Z"
 }

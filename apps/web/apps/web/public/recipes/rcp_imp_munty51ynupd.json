@@ -1,27 +1,18 @@
 {
   "id": "rcp_imp_munty51ynupd",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "System Administrator",
-    "email": "admin@zecratary.com"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "System Administrator",
-  "ownerEmail": "admin@zecratary.com",
-  "userId": "usr_admin_1",
-  "userEmail": "admin@zecratary.com",
-  "createdBy": "admin@zecratary.com",
-  "creatorName": "System Administrator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Fish en Papillote (Fish in a Bag)",
   "title": "Fish en Papillote (Fish in a Bag)",
-  "description": "Recipe video above. Fish En Papillote - fondly known as \"Fish in a Bag\" - is a classic French way of baking fish sealed in its own little parcel, where it gently steams and soaks up all the flavours tucked inside. Add a handful of garden vegetables and a splash of white wine that turns into a lovely light sauce, and you’ve got yourself a full dinner.I've used snapper here, but you can use any similar sized white fish fillets (see Note 1).Also, using paper only for the parcels might be traditional, but adding foil makes it much easier to seal and ensure it stays sealed in the oven.",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 2,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
   "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 2,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/scraped_1790756104160_0hf07m.webp",
+  "image": "/uploads/recipes/scraped_1790756104160_0hf07m.webp",
   "ingredients": [
     "160g / 5.6oz x 2 snapper fillets (, skin off, pin boned (or other fish fillets, see Note 1))",
     "3 tbsp extra virgin olive oil (, separated)",
@@ -48,17 +39,15 @@
     "Bake & rest - Place the parcels on a baking tray and cook for 18 minutes. Remove and let rest for 3 minutes. (Once cooked, the core fish temperature should read at least 55°C / 130°F.)",
     "Serving - Grand opening time! Open the parcels, watch the steam escape, squeeze some lemon juice over and eat while hot with some crusty bread on the side."
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "/uploads/recipes/scraped_1790756104160_0hf07m.webp",
-  "imageUrl": "/uploads/recipes/scraped_1790756104160_0hf07m.webp",
-  "sourceUrl": "https://www.recipetineats.com/fish-en-papillote-recipe/",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": null,
-  "createdAt": "2026-10-03T09:19:34.307Z",
-  "updatedAt": "2026-10-25T18:53:23.035Z"
+  "book_id": null,
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/fish-en-papillote-recipe/",
+  "source_url": "https://www.recipetineats.com/fish-en-papillote-recipe/",
+  "createdAt": "2026-10-03T09:19:34.307Z"
 }

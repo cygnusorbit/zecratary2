@@ -1,27 +1,18 @@
 {
   "id": "rec_1789615656375_omm2",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "System Administrator",
-    "email": "admin@zecratary.com"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "System Administrator",
-  "ownerEmail": "admin@zecratary.com",
-  "userId": "usr_admin_1",
-  "userEmail": "admin@zecratary.com",
-  "createdBy": "admin@zecratary.com",
-  "creatorName": "System Administrator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Fresh Basil Vinaigrette",
   "title": "Fresh Basil Vinaigrette",
-  "description": "",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 1,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
-  "cuisine": "",
+  "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 1,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/import-1789615656362-e8vwmn.jpg",
+  "image": "/uploads/recipes/import-1789615656362-e8vwmn.jpg",
   "ingredients": [
     {
       "id": "ing_1789615656370_0",
@@ -105,17 +96,15 @@
     "Basil vinaigrette - Place all the vinaigrette ingredients in a tall, narrow container the blender stick fits into all the way to the base. Blitz until combined.",
     "Plate - Arrange half the broccoli on a large serving plate, then scatter over half the dressing, bacon and parmesan. Repeat with remaining ingredients. Sprinkle over basil leaves and serve."
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "/uploads/recipes/import-1789615656362-e8vwmn.jpg",
-  "imageUrl": "/uploads/recipes/import-1789615656362-e8vwmn.jpg",
-  "sourceUrl": "https://www.recipetineats.com/fresh-basil-vinaigrette/",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": null,
-  "createdAt": "2026-10-03T09:19:34.325Z",
-  "updatedAt": "2026-10-25T18:53:23.001Z"
+  "book_id": null,
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/fresh-basil-vinaigrette/",
+  "source_url": "https://www.recipetineats.com/fresh-basil-vinaigrette/",
+  "createdAt": "2026-10-03T09:19:34.325Z"
 }

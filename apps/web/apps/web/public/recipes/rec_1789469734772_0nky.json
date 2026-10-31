@@ -1,27 +1,18 @@
 {
   "id": "rec_1789469734772_0nky",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "Creator",
-    "email": "usr_admin_1"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "Creator",
-  "ownerEmail": "usr_admin_1",
-  "userId": "usr_admin_1",
-  "userEmail": "usr_admin_1",
-  "createdBy": "usr_admin_1",
-  "creatorName": "Creator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Sweet tartlet shells (individual tart crusts)",
   "title": "Sweet tartlet shells (individual tart crusts)",
-  "description": "",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 6,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
-  "cuisine": "",
+  "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 6,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/import-1789469734757-4n14sq.jpg",
+  "image": "/uploads/recipes/import-1789469734757-4n14sq.jpg",
   "ingredients": [
     {
       "id": "ing_1789469734764_0",
@@ -96,17 +87,15 @@
     "Cool and fill - Fully cool in the tart tins before filling and baking again if filling needs to be cooked (like Raspberry Tartlets).",
     "Storage - Or keep unfilled in an airtight container for up to 3 days."
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "/uploads/recipes/import-1789469734757-4n14sq.jpg",
-  "imageUrl": "/uploads/recipes/import-1789469734757-4n14sq.jpg",
-  "sourceUrl": "https://www.recipetineats.com/sweet-tartlet-shells-individual-tart-crusts/",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": null,
-  "createdAt": "2026-10-03T09:19:34.326Z",
-  "updatedAt": "2026-10-25T18:53:22.999Z"
+  "book_id": null,
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/sweet-tartlet-shells-individual-tart-crusts/",
+  "source_url": "https://www.recipetineats.com/sweet-tartlet-shells-individual-tart-crusts/",
+  "createdAt": "2026-10-03T09:19:34.326Z"
 }

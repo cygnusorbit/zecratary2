@@ -1,27 +1,18 @@
 {
   "id": "rcp_imp_mumtslls2o8j",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "System Administrator",
-    "email": "admin@zecratary.com"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "System Administrator",
-  "ownerEmail": "admin@zecratary.com",
-  "userId": "usr_admin_1",
-  "userEmail": "admin@zecratary.com",
-  "createdBy": "admin@zecratary.com",
-  "creatorName": "System Administrator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "My Everyday Kale Side Salad",
   "title": "My Everyday Kale Side Salad",
-  "description": "Recipe video above. This is how I make a kale side salad on a Monday night after a long day at work. It’s virtuous and lazy - no chopping, no separate dressing - but makes kale enjoyable to eat, thanks to the oil-and-scrunch technique that softens the chewy leaves without loads of oil-heavy dressing.It goes with \"everything\", and keeps for 2 days in the fridge - useful! Make it once with the recipe, then just eyeball it and use it as a base for your own additions - apple, red onion, cranberries, bacon, whatever takes your fancy. NOTE: This is probably not the salad to convert kale haters. It's a little too simple, I feel :)",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 4,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
   "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 4,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/scraped_1790695379425_6fgjed.webp",
+  "image": "/uploads/recipes/scraped_1790695379425_6fgjed.webp",
   "ingredients": [
     "4 tightly packed cups (180 g) kale leaves",
     "2 tbsp extra virgin olive oil (, use your good stuff)",
@@ -38,17 +29,15 @@
     "Toss - Drizzle with remaining oil and all the lemon juice. Toss. Add half the almonds and parmesan. Toss.",
     "Serve - Tumble into serving bowl. Top with remaining almonds and parmesan, then serve! Keeps 2 days in the fridge."
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "/uploads/recipes/scraped_1790695379425_6fgjed.webp",
-  "imageUrl": "/uploads/recipes/scraped_1790695379425_6fgjed.webp",
-  "sourceUrl": "https://www.recipetineats.com/nagis-everyday-kale-side-salad/",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": null,
-  "createdAt": "2026-10-03T09:19:34.313Z",
-  "updatedAt": "2026-10-25T18:53:23.030Z"
+  "book_id": null,
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/nagis-everyday-kale-side-salad/",
+  "source_url": "https://www.recipetineats.com/nagis-everyday-kale-side-salad/",
+  "createdAt": "2026-10-03T09:19:34.313Z"
 }

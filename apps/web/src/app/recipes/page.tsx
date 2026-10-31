@@ -114,8 +114,8 @@ export default function RecipesPage() {
   const [isReorderingSteps, setIsReorderingSteps] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
-  // View States
-  const [servingsMultiplier, setServingsMultiplier] = useState(1);
+  // Dynamic Servings Counter State
+  const [currentServings, setCurrentServings] = useState<number>(4);
   const [fontSizeScale, setFontSizeScale] = useState(80);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [noteText, setNoteText] = useState('');
@@ -130,7 +130,7 @@ export default function RecipesPage() {
   const [isShoppingModalOpen, setIsShoppingModalOpen] = useState(false);
   const [shoppingModalIngredients, setShoppingModalIngredients] = useState<any[]>([]);
 
-  // KITCHEN TIMER FUNCTIONALITY
+  // Kitchen Timer Functionality
   const [activeTimerRecipe, setActiveTimerRecipe] = useState<any | null>(null);
   const [timerSecondsLeft, setTimerSecondsLeft] = useState<number>(0);
   const [timerTotalSeconds, setTimerTotalSeconds] = useState<number>(0);
@@ -145,7 +145,7 @@ export default function RecipesPage() {
     { id: 'book_3', title: 'Baking & Desserts', description: 'Sweet treats & pastries.' }
   ];
 
-  // Web Audio API Chime for Timer Completion (Zero External Asset Dependency)
+  // Web Audio API Harmonic Chime for Timer Completion
   const playTimerChime = () => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -153,13 +153,12 @@ export default function RecipesPage() {
       const ctx = new AudioCtx();
       const now = ctx.currentTime;
 
-      // Two-tone chime (587Hz -> 880Hz)
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = 'sine';
+      osc.type = 'triangle';
       osc.frequency.setValueAtTime(587.33, now);
       osc.frequency.setValueAtTime(880, now + 0.18);
-      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.setValueAtTime(0.35, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
 
       osc.connect(gain);
@@ -191,13 +190,11 @@ export default function RecipesPage() {
     };
   }, [isTimerRunning, timerSecondsLeft]);
 
-  // Launch Timer for a Recipe (from Card or Modal)
   const handleOpenTimer = (e: React.MouseEvent, recipe: any) => {
     e.stopPropagation();
     const durationMinutes = Number(recipe.cookTimeMinutes || recipe.cookTime || 15);
     const totalSecs = Math.max(60, durationMinutes * 60);
 
-    // If starting a fresh recipe timer
     if (activeTimerRecipe?.id !== recipe.id) {
       setActiveTimerRecipe(recipe);
       setTimerTotalSeconds(totalSecs);
@@ -529,7 +526,7 @@ export default function RecipesPage() {
       mealType: planMealType,
       time: planTime || '',
       notes: planNotes || '',
-      servings: currentTotalServings || selectedRecipe.servings || 4,
+      servings: currentServings || selectedRecipe.servings || 4,
       prepTimeMinutes: selectedRecipe.prepTimeMinutes || 15,
       cookTimeMinutes: selectedRecipe.cookTimeMinutes || 25,
       recipe: selectedRecipe,
@@ -748,10 +745,12 @@ export default function RecipesPage() {
     }
 
     const cleanType = getCleanRecipeType(editForm);
+    const updatedServings = Math.max(1, Number(editForm.servings) || 4);
 
     const updatedRec = {
       ...selectedRecipe,
       ...editForm,
+      servings: updatedServings,
       userId: currentUser?.id || selectedRecipe.userId || 'usr_admin_1',
       recipeType: cleanType,
       category: cleanType,
@@ -759,36 +758,74 @@ export default function RecipesPage() {
     };
 
     setSelectedRecipe(updatedRec);
+    setCurrentServings(updatedServings);
     const updatedList = recipes.map(r => r.id === updatedRec.id ? updatedRec : r);
     saveAllRecipes(updatedList);
     setIsEditing(false);
   };
 
-  const calculateScaledAmount = (rawAmt: any, baseServings: number, currentServings: number) => {
-    if (!rawAmt || isNaN(Number(rawAmt))) {
-      if (typeof rawAmt === 'string' && rawAmt.includes('/')) {
-        try {
-          const parts = rawAmt.trim().split(' ');
-          let fractionValue = 0;
-          if (parts.length === 2) {
-            const [num, den] = parts[1].split('/').map(Number);
-            fractionValue = Number(parts[0]) + (num / den);
-          } else {
-            const [num, den] = parts[0].split('/').map(Number);
-            fractionValue = num / den;
-          }
-          const scaled = (fractionValue / (baseServings || 4)) * currentServings;
-          return Number.isInteger(scaled) ? scaled : Number(scaled.toFixed(2));
-        } catch {
-          return rawAmt;
-        }
+  /**
+   * Calculates scaled ingredient amount strictly based on percentage of origin total per serving.
+   * Ratio = currentServings / baseServings
+   */
+  const calculateScaledAmount = (rawAmt: any, baseServings: number, targetServings: number) => {
+    if (!rawAmt || baseServings <= 0) return rawAmt;
+    const ratio = targetServings / baseServings;
+    if (ratio === 1) {
+      if (typeof rawAmt === 'number') {
+        return Number.isInteger(rawAmt) ? rawAmt : parseFloat(rawAmt.toFixed(2));
       }
       return rawAmt;
     }
 
-    const num = Number(rawAmt);
-    const scaled = (num / (baseServings || 4)) * currentServings;
-    return Number.isInteger(scaled) ? scaled : Number(scaled.toFixed(2));
+    if (!isNaN(Number(rawAmt)) && typeof rawAmt !== 'boolean' && String(rawAmt).trim() !== '') {
+      const num = Number(rawAmt);
+      const scaled = num * ratio;
+      return Number.isInteger(scaled) ? scaled : parseFloat(scaled.toFixed(2));
+    }
+
+    if (typeof rawAmt === 'string') {
+      const trimmed = rawAmt.trim();
+
+      if (trimmed.includes('-') && !trimmed.includes('/')) {
+        const parts = trimmed.split('-');
+        if (parts.length === 2) {
+          const p1 = Number(parts[0].trim());
+          const p2 = Number(parts[1].trim());
+          if (!isNaN(p1) && !isNaN(p2)) {
+            const s1 = Number.isInteger(p1 * ratio) ? p1 * ratio : parseFloat((p1 * ratio).toFixed(2));
+            const s2 = Number.isInteger(p2 * ratio) ? p2 * ratio : parseFloat((p2 * ratio).toFixed(2));
+            return `${s1} - ${s2}`;
+          }
+        }
+      }
+
+      if (trimmed.includes('/')) {
+        try {
+          const parts = trimmed.split(/\s+/);
+          let whole = 0;
+          let fracPart = '';
+          if (parts.length === 2) {
+            whole = Number(parts[0]);
+            fracPart = parts[1];
+          } else {
+            fracPart = parts[0];
+          }
+          const [numStr, denStr] = fracPart.split('/');
+          const num = Number(numStr);
+          const den = Number(denStr);
+          if (!isNaN(num) && !isNaN(den) && den !== 0) {
+            const fractionValue = whole + (num / den);
+            const scaled = fractionValue * ratio;
+            return Number.isInteger(scaled) ? scaled : parseFloat(scaled.toFixed(2));
+          }
+        } catch {
+          return rawAmt;
+        }
+      }
+    }
+
+    return rawAmt;
   };
 
   const parseIngredientString = (rawStr: string, defaultCat: string) => {
@@ -823,8 +860,8 @@ export default function RecipesPage() {
   const handleOpenShoppingModal = () => {
     if (!selectedRecipe) return;
     const defaultCat = categories[0] || 'Produce';
-    const baseServings = selectedRecipe.servings || 4;
-    const totalServings = baseServings * servingsMultiplier;
+    const baseServings = Math.max(1, Number(selectedRecipe.servings) || 4);
+    const targetServings = currentServings;
 
     let rawIngredients = selectedRecipe.ingredients;
     if (typeof rawIngredients === 'string') {
@@ -846,7 +883,7 @@ export default function RecipesPage() {
         };
       }
 
-      const scaledAmt = calculateScaledAmount(parsed.amount, baseServings, totalServings);
+      const scaledAmt = calculateScaledAmount(parsed.amount, baseServings, targetServings);
 
       return {
         id: 'shop_item_' + idx + '_' + Math.random().toString(36).substring(2, 6),
@@ -1006,9 +1043,12 @@ export default function RecipesPage() {
   const paginatedRecipes = filtered.slice(startIndex, startIndex + itemsPerPage);
 
   const assignedBook = books.find(b => b.id === (selectedRecipe?.bookId || selectedRecipe?.book_id));
-  const baseServings = selectedRecipe?.servings || 4;
-  const currentTotalServings = baseServings * servingsMultiplier;
+  const baseServings = Math.max(1, Number(selectedRecipe?.servings) || 4);
   const recipeCategoryBadge = selectedRecipe ? getCleanRecipeType(selectedRecipe) : 'Main Dish';
+
+  const servingDiffPercent = baseServings > 0
+    ? Math.round(((currentServings - baseServings) / baseServings) * 100)
+    : 0;
 
   return (
     <div 
@@ -1262,7 +1302,7 @@ export default function RecipesPage() {
                       key={type}
                       type="button"
                       onClick={() => { setSelectedType(type); setOpenDropdown(null); }}
-                      className="w-full text-left px-3.5 py-2 rounded-xl text-xs font-semibold transition"
+                      className="w-full text-left px-3.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer"
                       style={selectedType === type ? {
                         backgroundColor: 'var(--color-inner-dark)',
                         color: 'var(--color-text)',
@@ -1331,7 +1371,7 @@ export default function RecipesPage() {
                       key={rat}
                       type="button"
                       onClick={() => { setSelectedRating(rat); setOpenDropdown(null); }}
-                      className="w-full text-left px-3.5 py-2 rounded-xl text-xs font-semibold transition"
+                      className="w-full text-left px-3.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer"
                       style={selectedRating === rat ? {
                         backgroundColor: 'var(--color-inner-dark)',
                         color: 'var(--color-text)',
@@ -1381,7 +1421,7 @@ export default function RecipesPage() {
                       key={time}
                       type="button"
                       onClick={() => { setSelectedPrepTime(time); setOpenDropdown(null); }}
-                      className="w-full text-left px-3.5 py-2 rounded-xl text-xs font-semibold transition"
+                      className="w-full text-left px-3.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer"
                       style={selectedPrepTime === time ? {
                         backgroundColor: 'var(--color-inner-dark)',
                         color: 'var(--color-text)',
@@ -1431,7 +1471,7 @@ export default function RecipesPage() {
                       key={time}
                       type="button"
                       onClick={() => { setSelectedCookTime(time); setOpenDropdown(null); }}
-                      className="w-full text-left px-3.5 py-2 rounded-xl text-xs font-semibold transition"
+                      className="w-full text-left px-3.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer"
                       style={selectedCookTime === time ? {
                         backgroundColor: 'var(--color-inner-dark)',
                         color: 'var(--color-text)',
@@ -1467,8 +1507,9 @@ export default function RecipesPage() {
               <div
                 key={r.id}
                 onClick={() => {
+                  const base = Math.max(1, Number(r.servings) || 4);
                   setSelectedRecipe(r);
-                  setServingsMultiplier(1);
+                  setCurrentServings(base);
                   setCompletedSteps([]);
                   setNoteText(r.note || '');
                   setIsBookDropdownOpen(false);
@@ -1494,9 +1535,8 @@ export default function RecipesPage() {
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                     />
                     
-                    {/* Card Action Buttons (Cooked, Favorite, and KITCHEN TIMER) */}
+                    {/* Card Action Buttons */}
                     <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 z-10" onClick={(e) => e.stopPropagation()}>
-                      {/* Kitchen Timer Action Button on Card */}
                       <button
                         type="button"
                         onClick={(e) => handleOpenTimer(e, r)}
@@ -1515,7 +1555,6 @@ export default function RecipesPage() {
                         <Timer className={`h-3.5 w-3.5 ${isRecipeTimerRunning ? 'animate-pulse' : ''}`}/>
                       </button>
 
-                      {/* Cooked Toggle Button */}
                       <button
                         type="button"
                         onClick={(e) => toggleCooked(e, r.id)}
@@ -1534,7 +1573,6 @@ export default function RecipesPage() {
                         <CheckCircle2 className="h-3.5 w-3.5"/>
                       </button>
 
-                      {/* Favorite Button */}
                       <button
                         type="button"
                         onClick={(e) => toggleFavorite(e, r.id)}
@@ -1590,7 +1628,6 @@ export default function RecipesPage() {
                     ) : null}
                   </div>
 
-                  {/* Clickable Cooking Time with Timer Shortcut */}
                   <button
                     type="button"
                     onClick={(e) => handleOpenTimer(e, r)}
@@ -1867,44 +1904,117 @@ export default function RecipesPage() {
 
                   <div className="border-t mx-5" style={{ borderColor: 'var(--color-border)' }} />
 
-                  {/* Servings Stepper & Action Tools (WITH TIMER) */}
+                  {/* Servings Stepper & Action Tools (+1 Stepper with Origin Percentage Telemetry) */}
                   <div className="px-5 flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <span 
                         className="text-xs font-bold flex items-center gap-1.5"
                         style={{ color: 'var(--color-primary)' }}
                       >
                         <Users className="h-4 w-4"/> {t('servingsLabel') || 'Servings'}
                       </span>
+
+                      {/* Stepper: -1 / Input / +1 */}
                       <div 
-                        className="flex items-center border rounded-lg overflow-hidden shadow-xs"
+                        className="flex items-center border rounded-xl overflow-hidden shadow-xs"
                         style={{
                           backgroundColor: 'var(--color-inner-dark)',
                           borderColor: 'var(--color-border)'
                         }}
                       >
                         <button
-                          onClick={() => setServingsMultiplier(Math.max(1, servingsMultiplier - 1))}
-                          className="px-2.5 py-1 font-bold cursor-pointer transition"
+                          type="button"
+                          onClick={() => setCurrentServings(prev => Math.max(1, prev - 1))}
+                          className="px-3 py-1.5 font-bold cursor-pointer transition hover:bg-black/10 dark:hover:bg-white/10 select-none"
                           style={{ color: 'var(--color-text-secondary)' }}
+                          title={t('decreaseServings') || 'Decrease Servings (-1)'}
                         >
                           -
                         </button>
-                        <span className="px-3 py-1 text-xs font-bold min-w-[32px] text-center" style={{ color: 'var(--color-text)' }}>
-                          {currentTotalServings}
-                        </span>
+
+                        <input
+                          type="number"
+                          min="1"
+                          max="200"
+                          autoComplete="off"
+                          data-lpignore="true"
+                          data-form-type="other"
+                          value={currentServings}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            if (!isNaN(val) && val >= 1) {
+                              setCurrentServings(val);
+                            } else if (e.target.value === '') {
+                              setCurrentServings(1);
+                            }
+                          }}
+                          className="w-12 py-1 text-xs font-black text-center bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          style={{ color: 'var(--color-text)' }}
+                          title={t('servingsCount') || 'Current Servings'}
+                        />
+
                         <button
-                          onClick={() => setServingsMultiplier(servingsMultiplier + 1)}
-                          className="px-2.5 py-1 font-bold cursor-pointer transition"
+                          type="button"
+                          onClick={() => setCurrentServings(prev => prev + 1)}
+                          className="px-3 py-1.5 font-bold cursor-pointer transition hover:bg-black/10 dark:hover:bg-white/10 select-none"
                           style={{ color: 'var(--color-text-secondary)' }}
+                          title={t('increaseServings') || 'Increase Servings (+1)'}
                         >
                           +
                         </button>
                       </div>
+
+                      {/* Percentage Delta & Origin Reset Badge */}
+                      <div className="flex items-center gap-1.5">
+                        {servingDiffPercent !== 0 ? (
+                          <span 
+                            className="text-[10px] font-black px-2 py-0.5 rounded-full border shadow-xs transition"
+                            style={servingDiffPercent > 0 ? {
+                              backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                              borderColor: 'var(--color-emerald)',
+                              color: 'var(--color-emerald)'
+                            } : {
+                              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                              borderColor: '#ef4444',
+                              color: '#ef4444'
+                            }}
+                            title={`Ingredients scaled by ${servingDiffPercent > 0 ? `+${servingDiffPercent}%` : `${servingDiffPercent}%`} from origin total`}
+                          >
+                            {servingDiffPercent > 0 ? `+${servingDiffPercent}%` : `${servingDiffPercent}%`}
+                          </span>
+                        ) : (
+                          <span 
+                            className="text-[10px] font-medium px-2 py-0.5 rounded-full border"
+                            style={{
+                              backgroundColor: 'var(--color-inner-dark)',
+                              borderColor: 'var(--color-border)',
+                              color: 'var(--color-text-secondary)'
+                            }}
+                          >
+                            {t('originServingsBadge') || 'Origin'}: {baseServings}
+                          </span>
+                        )}
+
+                        {currentServings !== baseServings && (
+                          <button
+                            type="button"
+                            onClick={() => setCurrentServings(baseServings)}
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-lg border transition hover:opacity-80 flex items-center gap-1 cursor-pointer"
+                            style={{
+                              backgroundColor: 'var(--color-inner-dark)',
+                              borderColor: 'var(--color-border)',
+                              color: 'var(--color-text-secondary)'
+                            }}
+                            title={t('resetServingsTooltip') || `Reset to origin ${baseServings} servings`}
+                          >
+                            <RotateCcw className="h-3 w-3"/>
+                            <span>{t('reset') || 'Reset'}</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Kitchen Timer Action Button inside Modal */}
                       <button
                         onClick={(e) => handleOpenTimer(e, selectedRecipe)}
                         className="border font-bold text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm"
@@ -2054,10 +2164,19 @@ export default function RecipesPage() {
 
                   <div className="border-t mx-5" style={{ borderColor: 'var(--color-border)' }} />
 
-                  {/* INGREDIENTS SECTION */}
+                  {/* INGREDIENTS SECTION (SCALED BASED ON PERCENTAGE OF ORIGIN TOTAL) */}
                   <div className="px-5 space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-xl font-black" style={{ color: 'var(--color-text)' }}>{t('ingredientsHeading') || 'Ingredients'}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-black" style={{ color: 'var(--color-text)' }}>
+                          {t('ingredientsHeading') || 'Ingredients'}
+                        </h3>
+                        {servingDiffPercent !== 0 && (
+                          <span className="text-[11px] font-bold" style={{ color: 'var(--color-text-secondary)' }}>
+                            ({currentServings} {t('servingsLabel') || 'servings'})
+                          </span>
+                        )}
+                      </div>
                       
                       <div 
                         className="flex items-center border rounded-lg overflow-hidden text-xs shadow-xs"
@@ -2092,7 +2211,7 @@ export default function RecipesPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2.5" style={{ fontSize: `${fontSizeScale}%` }}>
                       {Array.isArray(selectedRecipe.ingredients) && selectedRecipe.ingredients.map((ing: any, idx: number) => {
                         const rawAmt = typeof ing === 'string' ? '' : ing.amount || ing.quantity || '';
-                        const scaledAmt = calculateScaledAmount(rawAmt, baseServings, currentTotalServings);
+                        const scaledAmt = calculateScaledAmount(rawAmt, baseServings, currentServings);
                         const unit = typeof ing === 'string' ? '' : ing.unit || '';
                         const name = typeof ing === 'string' ? ing : ing.item || ing.name || '';
                         return (
@@ -2415,11 +2534,13 @@ export default function RecipesPage() {
                           </label>
                           <input
                             type="number"
+                            min="1"
+                            max="200"
                             autoComplete="off"
                             data-lpignore="true"
                             data-form-type="other"
                             value={editForm.servings}
-                            onChange={(e) => setEditForm({ ...editForm, servings: parseInt(e.target.value) || 1 })}
+                            onChange={(e) => setEditForm({ ...editForm, servings: parseInt(e.target.value, 10) || 1 })}
                             className="w-full border rounded-xl p-3 text-xs outline-none"
                             style={{
                               backgroundColor: 'var(--color-inner-dark)',

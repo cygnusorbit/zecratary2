@@ -1,27 +1,18 @@
 {
   "id": "rcp_imp_mumvnuslda5t",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "System Administrator",
-    "email": "admin@zecratary.com"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "System Administrator",
-  "ownerEmail": "admin@zecratary.com",
-  "userId": "usr_admin_1",
-  "userEmail": "admin@zecratary.com",
-  "createdBy": "admin@zecratary.com",
-  "creatorName": "System Administrator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Ranch Dressing",
   "title": "Ranch Dressing",
-  "description": "Homemade ranch is so much better than the bottled stuff, you can actually taste the herbs and spices in it!I'll go to the trouble of using fresh herbs for company, but for everyday purposes I use dried herbs (I've provided both options). Use as a dressing for salads or a dipping sauce for wings, wedges, veggie sticks, crumbed chicken tenders etc.Makes 1 1/2 cups, enough to dress a big salad for 5 - 6 people. For a no-mayo version, see my Greek Yogurt Ranch Dressing.",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 1,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
   "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 1,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/scraped_1790698517365_snxeor.webp",
+  "image": "/uploads/recipes/scraped_1790698517365_snxeor.webp",
   "ingredients": [
     "1/2 cup buttermilk ((Note 1 for easy substitution))",
     "1/2 cup mayonnaise (, either store-bought whole egg or homemade)",
@@ -39,17 +30,15 @@
     "Whisk all ingredients together until the dressing is smooth. Leave in the fridge for 2 hours to let the flavours meld before using.",
     "Use as a dressing or dip for everything from wings to chips, veggie sticks or even bread!"
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "/uploads/recipes/scraped_1790698517365_snxeor.webp",
-  "imageUrl": "/uploads/recipes/scraped_1790698517365_snxeor.webp",
-  "sourceUrl": "https://www.recipetineats.com/ranch-dressing/",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": null,
-  "createdAt": "2026-10-03T09:19:34.311Z",
-  "updatedAt": "2026-10-25T18:53:23.032Z"
+  "book_id": null,
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/ranch-dressing/",
+  "source_url": "https://www.recipetineats.com/ranch-dressing/",
+  "createdAt": "2026-10-03T09:19:34.311Z"
 }

@@ -1,27 +1,18 @@
 {
   "id": "rec_1789470093164_nvix",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "Creator",
-    "email": "usr_admin_1"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "Creator",
-  "ownerEmail": "usr_admin_1",
-  "userId": "usr_admin_1",
-  "userEmail": "usr_admin_1",
-  "createdBy": "usr_admin_1",
-  "creatorName": "Creator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Satay Chicken Legs with Peanut Sauce",
   "title": "Satay Chicken Legs with Peanut Sauce",
-  "description": "",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 4,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
-  "cuisine": "",
+  "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 4,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/import-1789470093153-sn73gk.jpg",
+  "image": "/uploads/recipes/import-1789470093153-sn73gk.jpg",
   "ingredients": [
     {
       "id": "ing_1789470093162_0",
@@ -188,17 +179,15 @@
     "Peanut sauce - While the chicken is baking, put all the sauce ingredients in a medium saucepan and whisk to combine. Simmer for 5 minutes on medium-low, whisking every now and then to stop the base from catching, It should be fairly runny but thick enough to coat the chicken generously (Note 6). Keep warm until required.",
     "Serve - Pile chicken on a large plate. Sprinkle with peanuts, chilli and coriander if using. Place sauce in a deep sauce bowl on the side, deep enough to dunk the entire head of the leg in! Serve with jasmine rice on the side (plenty of sauce for dousing) and plain chunks of tomato and cucumber (classic Thai side)."
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "/uploads/recipes/import-1789470093153-sn73gk.jpg",
-  "imageUrl": "/uploads/recipes/import-1789470093153-sn73gk.jpg",
-  "sourceUrl": "https://www.recipetineats.com/satay-chicken-legs-with-peanut-sauce/",
   "isFavorite": true,
   "isCooked": false,
-  "rating": 5,
   "bookId": "book_mvldwmnl_qmzd",
-  "createdAt": "2026-10-25T17:11:30.915Z",
-  "updatedAt": "2026-10-25T18:53:22.986Z"
+  "book_id": "book_mvldwmnl_qmzd",
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/satay-chicken-legs-with-peanut-sauce/",
+  "source_url": "https://www.recipetineats.com/satay-chicken-legs-with-peanut-sauce/",
+  "createdAt": "2026-10-25T17:11:30.915Z"
 }

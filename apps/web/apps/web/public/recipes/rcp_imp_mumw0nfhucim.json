@@ -1,27 +1,18 @@
 {
   "id": "rcp_imp_mumw0nfhucim",
-  "owner": {
-    "id": "usr_admin_1",
-    "name": "System Administrator",
-    "email": "admin@zecratary.com"
-  },
-  "ownerId": "usr_admin_1",
-  "ownerName": "System Administrator",
-  "ownerEmail": "admin@zecratary.com",
-  "userId": "usr_admin_1",
-  "userEmail": "admin@zecratary.com",
-  "createdBy": "admin@zecratary.com",
-  "creatorName": "System Administrator",
-  "isPublic": false,
-  "visibility": "private",
+  "name": "Oven Baked Chicken Schnitzel",
   "title": "Oven Baked Chicken Schnitzel",
-  "description": "Recipe video above. Using the tried-and-loved method from Truly Crunchy Baked Chicken Tenders, these oven-baked schnitzels really are golden and crunchy all over, without overcooking the chicken inside! It's also pretty great that you can pull 4 hot schnitzels out of the oven rather than frying one-by-one.The trick is to toast the panko in the oven first (effortless!), then use an extra-strong egg-and-flour dredge so the crumbs stick well, and bake for just 13 minutes in a hot oven. Marinate the chicken in the egg mixture if you can for extra flavour and juiciness. But it's still worth making if you don't!",
-  "prepMinutes": 15,
-  "cookMinutes": 25,
-  "servings": 4,
+  "category": "Main Dish",
   "recipeType": "Main Dish",
-  "mealType": "Main Dish",
   "cuisine": "International",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 10,
+  "servings": 4,
+  "calories": 450,
+  "rating": 5,
+  "difficulty": "Easy",
+  "imageUrl": "/uploads/recipes/scraped_1790699114286_umr0aw.webp",
+  "image": "/uploads/recipes/scraped_1790699114286_umr0aw.webp",
   "ingredients": [
     "2 x ~300g/8oz chicken breast",
     "2 1/2 cups panko breadcrumbs",
@@ -51,17 +42,15 @@
     "Bake for 13 minutes - Spray the top of the chicken with oil spray. Bake 13 minutes - do not flip. The thin chicken will be cooked perfectly, not overcooked and dry, and the panko breadcrumbs will be crunchy and golden all over, including the underside (thanks to the rack).",
     "Serve immediately with a sprinkle of salt flakes! Keep it simple with lemon wedges, or add a side of creamy mash and mushroom or plain gravy. Or make schnitzel rolls with mayo, lettuce and tomato, or Chicken Parmigiana!"
   ],
-  "nutrition": {},
   "tags": [
     "Main Dish"
   ],
-  "image": "/uploads/recipes/scraped_1790699114286_umr0aw.webp",
-  "imageUrl": "/uploads/recipes/scraped_1790699114286_umr0aw.webp",
-  "sourceUrl": "https://www.recipetineats.com/oven-baked-chicken-schnitzel/",
   "isFavorite": false,
   "isCooked": false,
-  "rating": 5,
   "bookId": null,
-  "createdAt": "2026-10-03T09:19:34.309Z",
-  "updatedAt": "2026-10-25T18:53:23.033Z"
+  "book_id": null,
+  "note": "",
+  "sourceUrl": "https://www.recipetineats.com/oven-baked-chicken-schnitzel/",
+  "source_url": "https://www.recipetineats.com/oven-baked-chicken-schnitzel/",
+  "createdAt": "2026-10-03T09:19:34.309Z"
 }
