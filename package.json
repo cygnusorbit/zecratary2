@@ -7,11 +7,12 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "turbo run build",
+    "build": "turbo run build && ln -sfn apps/web/.next .next",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "start": "node server.js",
-    "version:bump": "python update_version.py"
+    "version:bump": "python update_version.py",
+    "postinstall": "ln -sfn apps/web/.next .next 2>/dev/null || true"
   },
   "packageManager": "npm@10.8.2",
   "dependencies": {

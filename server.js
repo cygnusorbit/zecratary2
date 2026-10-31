@@ -1,101 +1,48 @@
-// Universal LiteSpeed / lsnode.js Production Server Launcher
-// GitHub: cygnusorbit/zecratary
-// Satisfies Hostinger Node.js Web App Deployment Requirements
-
+/**
+ * Production Standalone Runner for Hostinger Cloud & VPS
+ * Bridges root entry to apps/web Next.js standalone build
+ */
 const path = require('path');
 const fs = require('fs');
 
-const port = process.env.PORT || 3000;
-const hostname = process.env.HOSTNAME || '0.0.0.0';
+process.env.NODE_ENV = 'production';
+process.env.HOSTNAME = process.env.HOSTNAME || '0.0.0.0';
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
-process.env.PORT = String(port);
-process.env.HOSTNAME = hostname;
+console.log(`[Hostinger Runner] Initializing server on http://${process.env.HOSTNAME}:${PORT}`);
 
-console.log(`[Zecratary Boot] Initializing on Node.js ${process.version}`);
-console.log(`[Zecratary Boot] Target Port: ${port} | Hostname: ${hostname}`);
-console.log(`[Zecratary Boot] __dirname: ${__dirname}`);
-console.log(`[Zecratary Boot] process.cwd(): ${process.cwd()}`);
-
-// Priority search candidates for Next.js standalone server entry point
-// In Hostinger monorepo deployments, the files are copied into:
-// /home/u472824187/domains/zecratary.com/hbuilds/current/nodejs/apps/web/server.js
-const candidates = [
-  path.join(__dirname, 'apps', 'web', 'server.js'),
-  path.join(__dirname, '.next', 'standalone', 'apps', 'web', 'server.js'),
-  path.join(__dirname, 'apps', 'web', '.next', 'standalone', 'apps', 'web', 'server.js'),
-  path.join(__dirname, 'standalone', 'apps', 'web', 'server.js'),
-  path.join(process.cwd(), 'apps', 'web', 'server.js'),
-  path.join(process.cwd(), '.next', 'standalone', 'apps', 'web', 'server.js'),
-  path.join(__dirname, '.next', 'standalone', 'server.js'),
-  path.join(__dirname, 'standalone', 'server.js'),
+const candidatePaths = [
+  path.join(__dirname, 'apps/web/.next/standalone/apps/web/server.js'),
+  path.join(__dirname, 'apps/web/.next/standalone/server.js'),
+  path.join(__dirname, '.next/standalone/apps/web/server.js'),
+  path.join(__dirname, '.next/standalone/server.js')
 ];
 
 let targetServer = null;
-for (const cand of candidates) {
-  if (fs.existsSync(cand) && path.resolve(cand) !== path.resolve(__filename)) {
-    targetServer = cand;
+for (const p of candidatePaths) {
+  if (fs.existsSync(p)) {
+    targetServer = p;
     break;
   }
 }
 
-if (targetServer) {
-  console.log(`🚀 [Hostinger lsnode] Booting Next.js standalone server from: ${targetServer}`);
+if (!targetServer) {
+  console.error('[FATAL] Next.js standalone server entry point was not found.');
+  console.error('Candidate locations checked:');
+  candidatePaths.forEach((p) => console.error(`  - ${p}`));
+  console.error('\nRun "npm run build" to generate the standalone bundle.');
+  process.exit(1);
+}
 
-  const targetDir = path.dirname(targetServer);
-  if (fs.existsSync(path.join(targetDir, '.next'))) {
-    try {
-      process.chdir(targetDir);
-      console.log(`✓ [Hostinger lsnode] Switched working directory to: ${targetDir}`);
-    } catch (err) {
-      console.warn('chdir notice:', err.message);
-    }
-  }
+console.log(`[Hostinger Runner] Loading standalone server from: ${targetServer}`);
 
-  // Execute Next.js standalone server bundle (binds LiteSpeed socket via customListen)
+// Change working directory to the directory containing the standalone server
+// This ensures relative module imports, node_modules, and chunks resolve properly
+process.chdir(path.dirname(targetServer));
+
+try {
   require(targetServer);
-} else {
-  console.log(`ℹ️ Standalone server candidate not found. Attempting Next.js runtime fallback...`);
-
-  let nextModule = null;
-  const nextResolutionPaths = [
-    'next',
-    path.join(__dirname, 'node_modules', 'next'),
-    path.join(__dirname, 'apps', 'web', 'node_modules', 'next'),
-    path.join(process.cwd(), 'node_modules', 'next'),
-    path.join(process.cwd(), 'apps', 'web', 'node_modules', 'next'),
-  ];
-
-  for (const np of nextResolutionPaths) {
-    try {
-      nextModule = require(np);
-      console.log(`✓ Resolved Next.js from: ${np}`);
-      break;
-    } catch (_) {}
-  }
-
-  if (!nextModule) {
-    console.error('❌ FATAL: Cannot resolve Next.js or standalone server in runtime environment.');
-    console.error('Checked standalone paths:', candidates);
-    process.exit(1);
-  }
-
-  const appDir = fs.existsSync(path.join(__dirname, 'apps', 'web'))
-    ? path.join(__dirname, 'apps', 'web')
-    : __dirname;
-
-  const app = nextModule({ dev: false, dir: appDir, hostname, port: Number(port) });
-  const handle = app.getRequestHandler();
-
-  app.prepare().then(() => {
-    const http = require('http');
-    http.createServer((req, res) => {
-      handle(req, res);
-    }).listen(port, hostname, (err) => {
-      if (err) throw err;
-      console.log(`✅ Zecratary Web Server active at http://${hostname}:${port}`);
-    });
-  }).catch(err => {
-    console.error('❌ Failed to prepare Next.js app:', err);
-    process.exit(1);
-  });
+} catch (err) {
+  console.error('[FATAL] Uncaught runtime exception while starting Next.js standalone server:', err);
+  process.exit(1);
 }

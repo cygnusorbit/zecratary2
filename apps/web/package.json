@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack && npm run postbuild",
-    "postbuild": "cp -r public .next/standalone/apps/web/public && cp -r .next/static .next/standalone/apps/web/.next/static",
+    "postbuild": "mkdir -p .next/standalone/apps/web/.next && cp -rn public .next/standalone/apps/web/public 2>/dev/null || true && cp -rn .next/static .next/standalone/apps/web/.next/static 2>/dev/null || true",
     "start": "node server.js",
     "lint": "next lint"
   },
