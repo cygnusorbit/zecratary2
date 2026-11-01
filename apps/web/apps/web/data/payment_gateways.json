@@ -1,0 +1,67 @@
+{
+  "currency": "USD",
+  "allowed_gateways": [
+    "stripe",
+    "manual"
+  ],
+  "verified_gateways": [
+    "stripe",
+    "manual"
+  ],
+  "active_gateway": "stripe",
+  "stripeConnected": true,
+  "stripe_configured": true,
+  "paypal_configured": false,
+  "stripeKeysVerified": true,
+  "stripeWebhookVerified": true,
+  "paypalKeysVerified": false,
+  "paypalWebhookVerified": false,
+  "test_mode": true,
+  "manual_details": {
+    "enabled": true,
+    "bankName": "Silicon Valley Commercial Bank",
+    "accountHolder": "Zecratary Inc.",
+    "accountNumber": "9842103891",
+    "routingNumber": "121000358",
+    "swiftBic": "SVCBUS6S",
+    "branchName": "Siam Paragon Branch",
+    "instructions": "Please include your Transfer Reference ID in the transfer memo.",
+    "requireReference": true,
+    "requireApproval": true
+  },
+  "gateways": {
+    "stripe": {
+      "enabled": true,
+      "mode": "test",
+      "testMode": true,
+      "publishableKey": "pk_test_51UJEgrCcmLZF49WGZiAF30eLSt4Sxpyv3G9nl2rxqEkrOwaoDVFuVRHvkniacq7Fh2xOZooi3IctzwDtGIXneyNb00wfpLn6xG",
+      "secretKey": "sk_test_51UJEgrCcmLZF49WGIS4IucDaZiaEweJSIpDvksgk3aMB0riI98YVSjzhLwJQFjnR07FiGoN8wNrzQAgymdYZErod00oG8EYYDp",
+      "webhookSecret": "whsec_KoQrwLkBDrfVOPNzuik1JoszRCnIonOS",
+      "keysVerified": true,
+      "webhookVerified": true
+    },
+    "paypal": {
+      "enabled": false,
+      "mode": "sandbox",
+      "testMode": true,
+      "clientId": "",
+      "clientSecret": "",
+      "webhookId": "",
+      "environment": "sandbox",
+      "keysVerified": false,
+      "webhookVerified": false
+    },
+    "manualSettlement": {
+      "enabled": true,
+      "bankName": "Silicon Valley Commercial Bank",
+      "accountHolder": "Zecratary Inc.",
+      "accountNumber": "9842103891",
+      "routingNumber": "121000358",
+      "swiftBic": "SVCBUS6S",
+      "branchName": "Siam Paragon Branch",
+      "instructions": "Please include your Transfer Reference ID in the transfer memo.",
+      "requireReference": true,
+      "requireApproval": true
+    }
+  }
+}
