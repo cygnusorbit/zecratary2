@@ -28,6 +28,8 @@ export function getMysqlPool(): mysql.Pool | null {
   return pool;
 }
 
+export const getPool = getMysqlPool;
+
 /**
  * Robust MySQL Query execution with precision column auto-repair and suppressed notice spam
  */
@@ -108,3 +110,22 @@ export async function query<T = any>(sql: string, params: any[] = []): Promise<T
     return [];
   }
 }
+
+// Authoritative named aliases for consumers expecting queryMysql or execute
+export const queryMysql = query;
+export const execute = query;
+export const executeMysql = query;
+export const mysqlQuery = query;
+
+// Default export for dynamic module imports (e.g. await import('@/lib/mysql'))
+const mysqlExport = {
+  query,
+  queryMysql,
+  execute,
+  executeMysql,
+  mysqlQuery,
+  getMysqlPool,
+  getPool
+};
+
+export default mysqlExport;
