@@ -69,27 +69,116 @@ const isFalseVal = (v: any): boolean =>
 const isTrueVal = (v: any): boolean =>
   v === true || v === 1 || v === 'true' || v === '1' || v === 'active' || v === 'enabled';
 
+// Shadow Loader Skeleton for Whole-Page Suspense Fallback
+function WalletPageSkeleton() {
+  return (
+    <div 
+      className="w-full max-w-full px-4 sm:px-6 lg:px-8 xl:px-10 space-y-6 pb-24 font-sans transition-colors duration-200"
+      style={{ color: 'var(--color-text)' }}
+    >
+      {/* Top Header Skeleton */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="space-y-2">
+          <div className="h-7 w-48 rounded-2xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+          <div className="h-3.5 w-72 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+        </div>
+        <div className="flex items-center gap-2.5">
+          <div className="h-10 w-36 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+          <div className="h-10 w-24 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+          <div className="h-10 w-32 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+        </div>
+      </div>
+
+      {/* Main Grid Skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Balance Box Skeleton */}
+        <div className="lg:col-span-4 p-6 rounded-3xl border shadow-sm space-y-5" style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}>
+          <div className="flex items-center justify-between">
+            <div className="h-4 w-28 rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+            <div className="h-11 w-11 rounded-2xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+          </div>
+          <div className="h-9 w-40 rounded-2xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+          <div className="pt-3 border-t space-y-2.5" style={{ borderColor: 'var(--color-border)' }}>
+            <div className="h-4 w-full rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+            <div className="h-4 w-full rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+            <div className="h-4 w-full rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+          </div>
+        </div>
+
+        {/* Deposit Form Skeleton */}
+        <div className="lg:col-span-8 p-6 rounded-3xl border shadow-sm space-y-5" style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}>
+          <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--color-border)' }}>
+            <div className="h-5 w-32 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+            <div className="h-5 w-24 rounded-full animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+          </div>
+          <div className="space-y-2">
+            <div className="h-3.5 w-36 rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="h-10 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+              ))}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="h-3.5 w-36 rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+            <div className="h-10 w-full rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+          </div>
+          <div className="space-y-2">
+            <div className="h-3.5 w-36 rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-12 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+              ))}
+            </div>
+          </div>
+          <div className="h-11 w-full rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+        </div>
+      </div>
+
+      {/* Ledger Skeleton */}
+      <div className="p-6 rounded-3xl border shadow-sm space-y-4" style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="h-5 w-48 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-48 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+            <div className="h-8 w-28 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+          </div>
+        </div>
+        <div className="space-y-3 pt-2">
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="h-10 w-full rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WalletContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
 
-  const [loading, setLoading] = useState(false);
-  const [gatewaysLoaded, setGatewaysLoaded] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [reconciling, setReconciling] = useState(false);
+  // Initial and background loading states
+  const [initialLoading, setInitialLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [gatewaysLoaded, setGatewaysLoaded] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const [reconciling, setReconciling] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
+  // Dynamic user and balance states
   const [user, setUser] = useState<User | null>(null);
-  const [balance, setBalance] = useState<number>(150);
+  const [balance, setBalance] = useState<number>(0);
 
+  // Dynamic wallet configuration (no hardcoded settings)
   const [settings, setSettings] = useState<WalletSettings>({
     is_enabled: true,
     currency: 'USD',
     min_topup: 5,
     max_topup: 1000,
-    preset_amounts: [10, 25, 50, 100, 250],
-    bonus_rules: [{ threshold: 50, bonus_percent: 5 }, { threshold: 100, bonus_percent: 10 }],
+    preset_amounts: [],
+    bonus_rules: [],
     allowed_gateways: [],
     verified_gateways: ['manual'],
     stripeKeysVerified: false,
@@ -97,20 +186,24 @@ function WalletContent() {
     allow_site_purchases: true,
   });
 
-  const [selectedAmount, setSelectedAmount] = useState<number>(50);
+  const [selectedAmount, setSelectedAmount] = useState<number>(0);
   const [customAmount, setCustomAmount] = useState<string>('');
   const [selectedGateway, setSelectedGateway] = useState<string>('');
   const [manualReference, setManualReference] = useState<string>('');
 
   const [transactions, setTransactions] = useState<WalletTx[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [stats, setStats] = useState({ totalDeposited: 250, totalSpent: 100, totalEvents: 2 });
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [page, setPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [stats, setStats] = useState<{ totalDeposited: number; totalSpent: number; totalEvents: number }>({ 
+    totalDeposited: 0, 
+    totalSpent: 0, 
+    totalEvents: 0 
+  });
 
-  const isFetchingRef = useRef(false);
+  const isFetchingRef = useRef<boolean>(false);
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const verifyingIdRef = useRef<string | null>(null);
 
@@ -292,7 +385,6 @@ function WalletContent() {
 
       const activePayload = gwData?.success ? gwData : walletData;
 
-      // 1. Authoritative Gateway Settings
       if (activePayload && (activePayload.success || activePayload.allowed_gateways)) {
         const loadedAllowed = resolveAllowedChannels(activePayload);
 
@@ -318,14 +410,16 @@ function WalletContent() {
           activePayload.gatewaySettings?.manualSettlement || 
           walletData.settings?.manual_details || {};
 
+        const dynamicPresets = Array.isArray(walletData.settings?.preset_amounts) && walletData.settings.preset_amounts.length > 0 
+          ? walletData.settings.preset_amounts.map(Number) 
+          : [10, 25, 50, 100, 250];
+
         setSettings({
           is_enabled: activePayload.settings?.is_enabled !== false,
           currency: activePayload.settings?.currency || activePayload.currency || walletData.currency || 'USD',
           min_topup: Number(walletData.settings?.min_topup || 5),
           max_topup: Number(walletData.settings?.max_topup || 1000),
-          preset_amounts: Array.isArray(walletData.settings?.preset_amounts) && walletData.settings.preset_amounts.length > 0 
-            ? walletData.settings.preset_amounts.map(Number) 
-            : [10, 25, 50, 100, 250],
+          preset_amounts: dynamicPresets,
           bonus_rules: Array.isArray(walletData.settings?.bonus_rules) ? walletData.settings.bonus_rules : [],
           allowed_gateways: loadedAllowed,
           verified_gateways: activePayload.verified_gateways || ['manual'],
@@ -339,15 +433,24 @@ function WalletContent() {
           manual_details: resolvedManualDetails
         });
 
+        // Initialize preset amount selection dynamically
+        setSelectedAmount(prev => (prev > 0 ? prev : (dynamicPresets[0] || 50)));
+
         setGatewaysLoaded(true);
 
+        // Smart Gateway Selection: Prioritize verified gateways over unverified
         setSelectedGateway((prev) => {
           if (prev && loadedAllowed.includes(prev)) return prev;
-          return loadedAllowed[0] || '';
+          const verifiedCandidates = loadedAllowed.filter(gw => {
+            if (['manual', 'bank_wire', 'wire'].includes(gw.toLowerCase())) return true;
+            if (gw === 'stripe') return stripeVerified;
+            if (gw === 'paypal') return paypalVerified;
+            return false;
+          });
+          return verifiedCandidates[0] || loadedAllowed[0] || '';
         });
       }
 
-      // 2. Authoritative Wallet Balance & Transactions
       if (walletData && walletData.success) {
         const wBal = typeof walletData.wallet_balance === 'number' 
           ? walletData.wallet_balance 
@@ -370,9 +473,11 @@ function WalletContent() {
     } finally {
       isFetchingRef.current = false;
       setLoading(false);
+      setInitialLoading(false);
     }
   }, [syncLocalBalanceQuietly, resolveAllowedChannels]);
 
+  // Debounced Search Query Listener
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchQuery);
@@ -380,6 +485,13 @@ function WalletContent() {
     }, 250);
     return () => clearTimeout(handler);
   }, [searchQuery]);
+
+  // Pagination Auto-Clamping Fix: Never stay on out-of-bounds page
+  useEffect(() => {
+    if (page > totalPages && totalPages > 0) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   const handleReconcile = async () => {
     if (!user) return;
@@ -422,7 +534,7 @@ function WalletContent() {
       return;
     }
     setUser(u);
-    if (typeof u.wallet_balance === 'number' && u.wallet_balance > 0) {
+    if (typeof u.wallet_balance === 'number') {
       setBalance(u.wallet_balance);
     }
 
@@ -709,7 +821,7 @@ function WalletContent() {
           className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-2xl text-xs font-bold shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-3 border"
           style={{
             backgroundColor: 'var(--color-card)',
-            borderColor: toastMessage.type === 'success' ? 'var(--color-emerald)' : toastMessage.type === 'info' ? 'var(--color-primary)' : '#ef4444',
+            borderColor: toastMessage.type === 'success' ? 'var(--color-emerald, #10b981)' : toastMessage.type === 'info' ? 'var(--color-primary)' : '#ef4444',
             color: 'var(--color-text)'
           }}
         >
@@ -785,23 +897,39 @@ function WalletContent() {
             </div>
           </div>
 
-          <div className="text-3xl font-black font-mono text-emerald-400">
-            {activeCurrencySymbol}{balance.toFixed(2)}
-          </div>
+          {/* Dynamic Balance with Shadow Pulse Loader */}
+          {initialLoading ? (
+            <div className="h-9 w-40 rounded-2xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+          ) : (
+            <div className="text-3xl font-black font-mono text-emerald-400">
+              {activeCurrencySymbol}{balance.toFixed(2)}
+            </div>
+          )}
 
+          {/* Dynamic Stats with Shadow Pulse Loaders */}
           <div className="pt-3 border-t space-y-2 text-xs" style={{ borderColor: 'var(--color-border)' }}>
-            <div className="flex justify-between items-center opacity-80">
-              <span>{t('totalDeposited', 'Total Deposited')}:</span>
-              <span className="font-bold font-mono text-emerald-400">+{activeCurrencySymbol}{stats.totalDeposited.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between items-center opacity-80">
-              <span>{t('totalSpent', 'Total Spent')}:</span>
-              <span className="font-bold font-mono text-rose-400">-{activeCurrencySymbol}{stats.totalSpent.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between items-center opacity-80">
-              <span>{t('totalEvents', 'Total Events')}:</span>
-              <span className="font-bold font-mono">{stats.totalEvents}</span>
-            </div>
+            {initialLoading ? (
+              <div className="space-y-2 pt-1">
+                <div className="h-4 w-full rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+                <div className="h-4 w-full rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+                <div className="h-4 w-full rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between items-center opacity-80">
+                  <span>{t('totalDeposited', 'Total Deposited')}:</span>
+                  <span className="font-bold font-mono text-emerald-400">+{activeCurrencySymbol}{stats.totalDeposited.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center opacity-80">
+                  <span>{t('totalSpent', 'Total Spent')}:</span>
+                  <span className="font-bold font-mono text-rose-400">-{activeCurrencySymbol}{stats.totalSpent.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center opacity-80">
+                  <span>{t('totalEvents', 'Total Events')}:</span>
+                  <span className="font-bold font-mono">{stats.totalEvents}</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -825,37 +953,45 @@ function WalletContent() {
             )}
           </div>
 
-          {/* Preset Amounts */}
+          {/* Preset Amounts with Dynamic Shadow Loaders */}
           <div className="space-y-2">
             <label className="block text-xs font-bold opacity-80">{t('selectPresetAmount', 'Select Preset Amount')}</label>
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
-              {settings.preset_amounts.map(amt => (
-                <button
-                  key={amt}
-                  type="button"
-                  onClick={() => {
-                    setSelectedAmount(amt);
-                    setCustomAmount('');
-                  }}
-                  className={`py-2.5 rounded-xl border text-xs font-mono font-bold transition cursor-pointer shadow-xs ${
-                    selectedAmount === amt && !customAmount ? 'text-white' : 'hover:border-[var(--color-primary)]'
-                  }`}
-                  style={selectedAmount === amt && !customAmount ? {
-                    backgroundColor: 'var(--color-primary)',
-                    borderColor: 'var(--color-primary)'
-                  } : {
-                    backgroundColor: 'var(--color-inner-dark)',
-                    borderColor: 'var(--color-border)',
-                    color: 'var(--color-text)'
-                  }}
-                >
-                  {activeCurrencySymbol}{amt}
-                </button>
-              ))}
-            </div>
+            {initialLoading || settings.preset_amounts.length === 0 ? (
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
+                {[1, 2, 3, 4, 5].map(idx => (
+                  <div key={idx} className="h-10 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)', border: '1px solid var(--color-border)' }} />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
+                {settings.preset_amounts.map(amt => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => {
+                      setSelectedAmount(amt);
+                      setCustomAmount('');
+                    }}
+                    className={`py-2.5 rounded-xl border text-xs font-mono font-bold transition cursor-pointer shadow-xs ${
+                      selectedAmount === amt && !customAmount ? 'text-white' : 'hover:border-[var(--color-primary)]'
+                    }`}
+                    style={selectedAmount === amt && !customAmount ? {
+                      backgroundColor: 'var(--color-primary)',
+                      borderColor: 'var(--color-primary)'
+                    } : {
+                      backgroundColor: 'var(--color-inner-dark)',
+                      borderColor: 'var(--color-border)',
+                      color: 'var(--color-text)'
+                    }}
+                  >
+                    {activeCurrencySymbol}{amt}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Custom Amount */}
+          {/* Custom Amount with Enter-Key Handling and Clear Fallback */}
           <div>
             <label className="block text-xs font-bold mb-1 opacity-80">{t('orCustomAmount', 'Or enter custom amount')}</label>
             <div className="relative">
@@ -869,22 +1005,30 @@ function WalletContent() {
                 data-lpignore="true"
                 data-form-type="other"
                 spellCheck="false"
-                placeholder="50.00"
+                placeholder={String(settings.preset_amounts[0] || 50)}
                 value={customAmount}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleDeposit();
+                  }
+                }}
                 onChange={(e) => {
                   const val = e.target.value;
                   setCustomAmount(val);
                   if (val.trim() !== '') {
                     setSelectedAmount(0);
+                  } else {
+                    // Safe fallback to first preset when input is erased
+                    setSelectedAmount(settings.preset_amounts[0] || 50);
                   }
                 }}
-                className="w-full pl-8 pr-4 py-2.5 rounded-xl border text-sm font-mono font-bold outline-none"
+                className="w-full pl-8 pr-4 py-2.5 rounded-xl border text-sm font-mono font-bold outline-none transition"
                 style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
               />
             </div>
           </div>
 
-          {/* Payment Gateway Options with Verification Badges */}
+          {/* Payment Gateway Options with Dynamic Shadow Loaders */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-bold opacity-80">{t('paymentGateway', 'Payment Gateway')}</label>
@@ -895,10 +1039,11 @@ function WalletContent() {
               )}
             </div>
 
-            {!gatewaysLoaded ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div className="p-3.5 rounded-xl border animate-pulse opacity-40 h-12" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }} />
-                <div className="p-3.5 rounded-xl border animate-pulse opacity-40 h-12" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }} />
+            {!gatewaysLoaded || initialLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {[1, 2, 3].map(idx => (
+                  <div key={idx} className="p-3.5 rounded-xl border animate-pulse h-12" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }} />
+                ))}
               </div>
             ) : settings.allowed_gateways.length === 0 ? (
               <div 
@@ -914,10 +1059,14 @@ function WalletContent() {
                   <button
                     type="button"
                     onClick={() => setSelectedGateway('stripe')}
-                    className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-between transition cursor-pointer ${
-                      selectedGateway === 'stripe' ? 'border-[var(--color-primary)] bg-[var(--color-inner-dark)]' : 'hover:border-[var(--color-primary)]'
+                    className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-between transition cursor-pointer shadow-xs ${
+                      selectedGateway === 'stripe' ? 'border-[var(--color-primary)]' : 'hover:border-[var(--color-primary)]'
                     }`}
-                    style={{ borderColor: selectedGateway === 'stripe' ? 'var(--color-primary)' : 'var(--color-border)' }}
+                    style={{ 
+                      backgroundColor: 'var(--color-inner-dark)', 
+                      borderColor: selectedGateway === 'stripe' ? 'var(--color-primary)' : 'var(--color-border)',
+                      color: 'var(--color-text)'
+                    }}
                   >
                     <div className="flex items-center gap-2">
                       <CreditCard className="h-4 w-4 text-sky-400" />
@@ -943,10 +1092,14 @@ function WalletContent() {
                   <button
                     type="button"
                     onClick={() => setSelectedGateway('paypal')}
-                    className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-between transition cursor-pointer ${
-                      selectedGateway === 'paypal' ? 'border-[var(--color-primary)] bg-[var(--color-inner-dark)]' : 'hover:border-[var(--color-primary)]'
+                    className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-between transition cursor-pointer shadow-xs ${
+                      selectedGateway === 'paypal' ? 'border-[var(--color-primary)]' : 'hover:border-[var(--color-primary)]'
                     }`}
-                    style={{ borderColor: selectedGateway === 'paypal' ? 'var(--color-primary)' : 'var(--color-border)' }}
+                    style={{ 
+                      backgroundColor: 'var(--color-inner-dark)', 
+                      borderColor: selectedGateway === 'paypal' ? 'var(--color-primary)' : 'var(--color-border)',
+                      color: 'var(--color-text)'
+                    }}
                   >
                     <div className="flex items-center gap-2">
                       <Sparkles className="h-4 w-4 text-amber-400" />
@@ -972,10 +1125,14 @@ function WalletContent() {
                   <button
                     type="button"
                     onClick={() => setSelectedGateway('manual')}
-                    className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-between transition cursor-pointer ${
-                      selectedGateway === 'manual' ? 'border-[var(--color-primary)] bg-[var(--color-inner-dark)]' : 'hover:border-[var(--color-primary)]'
+                    className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-between transition cursor-pointer shadow-xs ${
+                      selectedGateway === 'manual' ? 'border-[var(--color-primary)]' : 'hover:border-[var(--color-primary)]'
                     }`}
-                    style={{ borderColor: selectedGateway === 'manual' ? 'var(--color-primary)' : 'var(--color-border)' }}
+                    style={{ 
+                      backgroundColor: 'var(--color-inner-dark)', 
+                      borderColor: selectedGateway === 'manual' ? 'var(--color-primary)' : 'var(--color-border)',
+                      color: 'var(--color-text)'
+                    }}
                   >
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="h-4 w-4 text-purple-400" />
@@ -1019,7 +1176,7 @@ function WalletContent() {
             </div>
           )}
 
-          {/* Bank Wire Details Form */}
+          {/* Bank Wire Details Form with Enter-Key Support */}
           {selectedGateway === 'manual' && settings.allowed_gateways.includes('manual') && (
             <div 
               className="p-3.5 rounded-xl border text-xs space-y-2 transition animate-in fade-in"
@@ -1052,6 +1209,11 @@ function WalletContent() {
                   spellCheck="false"
                   placeholder={t('transferReferencePlaceholder', 'e.g. WIRE-94821 or Transaction Ref')}
                   value={manualReference}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleDeposit();
+                    }
+                  }}
                   onChange={(e) => setManualReference(e.target.value)}
                   className="w-full px-3 py-1.5 rounded-lg border text-xs outline-none font-mono"
                   style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
@@ -1061,41 +1223,45 @@ function WalletContent() {
           )}
 
           {/* Deposit Submit Button */}
-          <button
-            type="button"
-            onClick={handleDeposit}
-            disabled={
-              submitting || 
-              finalDepositAmount < settings.min_topup || 
-              settings.allowed_gateways.length === 0 || 
-              !selectedGateway ||
-              !isSelectedVerified
-            }
-            className={`w-full py-3 rounded-xl font-bold text-xs transition shadow-lg flex items-center justify-center gap-2 ${
-              !isSelectedVerified ? 'opacity-50 cursor-not-allowed text-white' : 'text-white cursor-pointer hover:opacity-90'
-            }`}
-            style={{
-              backgroundColor: isSelectedVerified ? 'var(--color-primary)' : 'var(--color-border)'
-            }}
-          >
-            {submitting ? t('processingDeposit', 'Processing Deposit...') : !isSelectedVerified ? (
-              <>
-                <ShieldAlert className="h-4 w-4 text-amber-300" />
-                <span>{t('gatewayUnverifiedSubmitBlocked', 'Key Not Verified — Payment Blocked')}</span>
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4" />
-                <span>
-                  {settings.allowed_gateways.length === 0 ? (
-                    t('topupsUnavailable', 'Top-Ups Temporarily Unavailable')
-                  ) : (
-                    `${t('addFundsBtn', 'Add Funds to Wallet')} (${activeCurrencySymbol}${finalDepositAmount.toFixed(2)}${bonusAmount > 0 ? ` + ${activeCurrencySymbol}${bonusAmount.toFixed(2)} Bonus` : ''})`
-                  )}
-                </span>
-              </>
-            )}
-          </button>
+          {initialLoading ? (
+            <div className="w-full h-11 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)', border: '1px solid var(--color-border)' }} />
+          ) : (
+            <button
+              type="button"
+              onClick={handleDeposit}
+              disabled={
+                submitting || 
+                finalDepositAmount < settings.min_topup || 
+                settings.allowed_gateways.length === 0 || 
+                !selectedGateway ||
+                !isSelectedVerified
+              }
+              className={`w-full py-3 rounded-xl font-bold text-xs transition shadow-lg flex items-center justify-center gap-2 ${
+                !isSelectedVerified ? 'opacity-50 cursor-not-allowed text-white' : 'text-white cursor-pointer hover:opacity-90'
+              }`}
+              style={{
+                backgroundColor: isSelectedVerified ? 'var(--color-primary)' : 'var(--color-border)'
+              }}
+            >
+              {submitting ? t('processingDeposit', 'Processing Deposit...') : !isSelectedVerified ? (
+                <>
+                  <ShieldAlert className="h-4 w-4 text-amber-300" />
+                  <span>{t('gatewayUnverifiedSubmitBlocked', 'Key Not Verified — Payment Blocked')}</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" />
+                  <span>
+                    {settings.allowed_gateways.length === 0 ? (
+                      t('topupsUnavailable', 'Top-Ups Temporarily Unavailable')
+                    ) : (
+                      `${t('addFundsBtn', 'Add Funds to Wallet')} (${activeCurrencySymbol}${finalDepositAmount.toFixed(2)}${bonusAmount > 0 ? ` + ${activeCurrencySymbol}${bonusAmount.toFixed(2)} Bonus` : ''})`
+                    )}
+                  </span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -1147,9 +1313,36 @@ function WalletContent() {
           </div>
         </div>
 
-        {/* Ledger Table */}
+        {/* Ledger Table with Dynamic Shadow Loader Skeletons */}
         <div className="overflow-x-auto">
-          {transactions.length === 0 ? (
+          {initialLoading || loading ? (
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b text-[10px] uppercase font-bold opacity-70" style={{ borderColor: 'var(--color-border)' }}>
+                  <th className="py-2.5 px-3">{t('colDate', 'Date')}</th>
+                  <th className="py-2.5 px-3">{t('colTxId', 'Transaction ID')}</th>
+                  <th className="py-2.5 px-3">{t('colGateway', 'Gateway')}</th>
+                  <th className="py-2.5 px-3">{t('colType', 'Type')}</th>
+                  <th className="py-2.5 px-3">{t('colDescription', 'Description')}</th>
+                  <th className="py-2.5 px-3 text-right">{t('colAmount', 'Amount')}</th>
+                  <th className="py-2.5 px-3 text-right">{t('colBalanceAfter', 'Balance After')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+                {[1, 2, 3, 4, 5].map((rowIdx) => (
+                  <tr key={rowIdx} className="animate-pulse">
+                    <td className="py-3.5 px-3"><div className="h-3.5 w-20 rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} /></td>
+                    <td className="py-3.5 px-3"><div className="h-3.5 w-24 rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} /></td>
+                    <td className="py-3.5 px-3"><div className="h-3.5 w-16 rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} /></td>
+                    <td className="py-3.5 px-3"><div className="h-3.5 w-14 rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} /></td>
+                    <td className="py-3.5 px-3"><div className="h-3.5 w-40 rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} /></td>
+                    <td className="py-3.5 px-3 text-right"><div className="h-3.5 w-16 rounded-lg ml-auto animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} /></td>
+                    <td className="py-3.5 px-3 text-right"><div className="h-3.5 w-16 rounded-lg ml-auto animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : transactions.length === 0 ? (
             <div className="py-12 text-center text-xs opacity-50">
               {t('noTransactionsFound', 'No transactions found matching your criteria.')}
             </div>
@@ -1169,14 +1362,20 @@ function WalletContent() {
               <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
                 {transactions.map((tx) => {
                   const amt = Number(tx.amount || 0);
-                  const isDebit = amt < 0;
+                  const isDebit = amt < 0 || ['debit', 'purchase', 'withdrawal', 'fee'].includes((tx.type || '').toLowerCase());
+                  const formattedDate = tx.created_at 
+                    ? new Date(tx.created_at).toLocaleDateString(locale === 'th' ? 'th-TH' : (locale || 'en-US'), {
+                        year: 'numeric', month: 'short', day: 'numeric'
+                      }) 
+                    : '—';
+
                   return (
                     <tr 
                       key={tx.id} 
                       className="transition duration-150 hover:bg-[var(--color-inner-dark)]"
                     >
                       <td className="py-3 px-3 font-mono text-[11px] opacity-75">
-                        {tx.created_at ? new Date(tx.created_at).toLocaleDateString() : '—'}
+                        {formattedDate}
                       </td>
                       <td className="py-3 px-3 font-mono text-[10px] opacity-60">
                         {(tx.id || '').slice(0, 14)}...
@@ -1185,7 +1384,14 @@ function WalletContent() {
                         {tx.gateway || 'Stripe'}
                       </td>
                       <td className="py-3 px-3">
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border opacity-80" style={{ borderColor: 'var(--color-border)' }}>
+                        <span 
+                          className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border"
+                          style={{
+                            backgroundColor: 'var(--color-inner-dark)',
+                            borderColor: isDebit ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)',
+                            color: isDebit ? '#ef4444' : 'var(--color-emerald, #10b981)'
+                          }}
+                        >
                           {t(`txType_${tx.type}`, tx.type || 'topup')}
                         </span>
                       </td>
@@ -1246,11 +1452,7 @@ function WalletContent() {
 
 export default function WalletPage() {
   return (
-    <Suspense fallback={
-      <div className="p-12 text-center text-xs opacity-50">
-        Loading Wallet Portal...
-      </div>
-    }>
+    <Suspense fallback={<WalletPageSkeleton />}>
       <WalletContent />
     </Suspense>
   );
