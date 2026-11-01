@@ -5,11 +5,10 @@ import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } fr
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
-  Wallet, CreditCard, Plus, RefreshCw, CheckCircle2, AlertCircle, 
-  Gift, ShieldCheck, ArrowRight, History, Search, Filter, 
-  ArrowUpRight, ArrowDownLeft, ChevronLeft, ChevronRight, 
-  Layers, Coins, Shield, ExternalLink, Info, Sparkles, RotateCw, Check,
-  AlertTriangle, ShieldAlert
+  Wallet, CreditCard, Plus, CheckCircle2, AlertCircle, 
+  Gift, ShieldCheck, History, Search, 
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  RotateCw, Check, AlertTriangle, ShieldAlert, Info, Sparkles
 } from 'lucide-react';
 import { getCurrentUser, initAuthStorage, User } from '@/lib/auth';
 import { useTranslation } from '@/components/LanguageProvider';
@@ -84,8 +83,6 @@ function WalletPageSkeleton() {
         </div>
         <div className="flex items-center gap-2.5">
           <div className="h-10 w-36 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
-          <div className="h-10 w-24 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
-          <div className="h-10 w-32 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
         </div>
       </div>
 
@@ -172,20 +169,20 @@ function WalletContent() {
   const [balance, setBalance] = useState<number>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const uRaw = localStorage.getItem('zecratary_user') || localStorage.getItem('currentUser');
+        const uRaw = localStorage.getItem('zecratary_user') || localStorage.getItem('currentUser') || localStorage.getItem('user');
         if (uRaw) {
           const u = JSON.parse(uRaw);
           const b = Number(u.wallet_balance ?? u.balance);
-          if (!isNaN(b) && b > 0) return b;
+          if (!isNaN(b) && b >= 0) return b;
         }
         const cached = localStorage.getItem('zecratary_wallet_balance');
-        if (cached && !isNaN(Number(cached)) && Number(cached) > 0) return Number(cached);
+        if (cached && !isNaN(Number(cached)) && Number(cached) >= 0) return Number(cached);
       } catch (_) {}
     }
     return 150.00;
   });
 
-  // Dynamic wallet configuration (no hardcoded settings)
+  // Dynamic wallet configuration
   const [settings, setSettings] = useState<WalletSettings>({
     is_enabled: true,
     currency: 'USD',
@@ -205,12 +202,15 @@ function WalletContent() {
   const [selectedGateway, setSelectedGateway] = useState<string>('');
   const [manualReference, setManualReference] = useState<string>('');
 
+  // Ledger state: Search, Filter & Enhanced Pagination (Default: 10 rows per page)
   const [transactions, setTransactions] = useState<WalletTx[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
   const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalRecords, setTotalRecords] = useState<number>(0);
   const [stats, setStats] = useState<{ totalDeposited: number; totalSpent: number; totalEvents: number }>({ 
     totalDeposited: 0, 
     totalSpent: 0, 
@@ -235,10 +235,6 @@ function WalletContent() {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('zecratary_wallet_balance', String(newBal));
-      } catch (_) {}
-    }
-    if (typeof window !== 'undefined') {
-      try {
         const keys = ['zecratary_user', 'currentUser', 'zecratary_current_user', 'user'];
         for (const k of keys) {
           const raw = localStorage.getItem(k);
@@ -367,6 +363,7 @@ function WalletContent() {
     targetPage = 1, 
     search = '', 
     filter = 'all',
+    targetPageSize = 10,
     force = false
   ) => {
     if (!force && isFetchingRef.current) return;
@@ -381,7 +378,7 @@ function WalletContent() {
         email: userEmail,
         userId: String(userId),
         page: String(targetPage),
-        limit: '10',
+        limit: String(targetPageSize),
         search: search,
         type: filter,
         t: String(Date.now())
@@ -501,12 +498,15 @@ function WalletContent() {
         if (Array.isArray(txList)) {
           setTransactions(txList);
         }
-        if (walletData.totalPages) setTotalPages(Number(walletData.totalPages));
+        if (walletData.totalPages) setTotalPages(Math.max(1, Number(walletData.totalPages)));
+        if (walletData.total !== undefined) setTotalRecords(Number(walletData.total));
+        else if (Array.isArray(txList)) setTotalRecords(txList.length);
+
         if (walletData.stats) {
           setStats({
-            totalDeposited: Number(walletData.stats.totalDeposited || 0),
-            totalSpent: Number(walletData.stats.totalSpent || 0),
-            totalEvents: Number(walletData.stats.totalEvents || 0)
+            totalDeposited: Number(walletData.stats.totalDeposited ?? 0),
+            totalSpent: Number(walletData.stats.totalSpent ?? 0),
+            totalEvents: Number(walletData.stats.totalEvents ?? (walletData.total || txList.length || 0))
           });
         }
       }
@@ -559,7 +559,7 @@ function WalletContent() {
           setTransactions(data.transactions);
         }
         showToast(data.message || t('paymentReconciledToast', 'Payment verified! Your wallet has been credited.'), 'success');
-        fetchWalletData(user, page, debouncedSearch, typeFilter, true);
+        fetchWalletData(user, page, debouncedSearch, typeFilter, pageSize, true);
       } else {
         showToast(data.error || 'Reconciliation completed. No missing payments found.', 'info');
       }
@@ -642,7 +642,7 @@ function WalletContent() {
               setTransactions(data.transactions);
             }
             showToast(data.message || t('paymentReconciledToast', 'Payment verified! Your wallet has been credited.'), 'success');
-            fetchWalletData(u, 1, '', 'all', true);
+            fetchWalletData(u, 1, '', 'all', 10, true);
             if (typeof window !== 'undefined') {
               window.history.replaceState({}, '', '/wallet');
             }
@@ -659,7 +659,7 @@ function WalletContent() {
 
       verifyPaymentReturn();
     } else {
-      fetchWalletData(u, 1, '', 'all', true);
+      fetchWalletData(u, 1, '', 'all', 10, true);
     }
 
     const debouncedSync = () => {
@@ -668,7 +668,7 @@ function WalletContent() {
         const active = getCurrentUser();
         if (active) {
           setUser(active);
-          fetchWalletData(active, page, debouncedSearch, typeFilter, true);
+          fetchWalletData(active, page, debouncedSearch, typeFilter, pageSize, true);
         }
       }, 150);
     };
@@ -719,6 +719,7 @@ function WalletContent() {
 
     return () => {
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+      clearTimeout(safetyTimer);
       window.removeEventListener('storage', debouncedSync);
       window.removeEventListener('focus', debouncedSync);
       window.removeEventListener('zecratary_languages_updated', debouncedSync);
@@ -734,11 +735,17 @@ function WalletContent() {
     };
   }, [resolveAllowedChannels]);
 
+  // Re-fetch when page, search, type, or pageSize change
+  const isInitialMount = useRef(true);
   useEffect(() => {
-    if (user) {
-      fetchWalletData(user, page, debouncedSearch, typeFilter, true);
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
     }
-  }, [page, debouncedSearch, typeFilter]);
+    if (user) {
+      fetchWalletData(user, page, debouncedSearch, typeFilter, pageSize, true);
+    }
+  }, [page, debouncedSearch, typeFilter, pageSize]);
 
   const finalDepositAmount = useMemo(() => {
     if (customAmount.trim()) {
@@ -858,7 +865,7 @@ function WalletContent() {
       setCustomAmount('');
       setManualReference('');
       setSelectedAmount(settings.preset_amounts[0] || 50);
-      fetchWalletData(user, page, debouncedSearch, typeFilter, true);
+      fetchWalletData(user, page, debouncedSearch, typeFilter, pageSize, true);
     } catch (err: any) {
       showToast(err.message || 'Deposit failed.', 'error');
     } finally {
@@ -867,6 +874,11 @@ function WalletContent() {
   };
 
   const isSelectedVerified = isGatewayKeyVerified(selectedGateway);
+
+  // Pagination display range calculations
+  const displayTotal = totalRecords || transactions.length || 0;
+  const startRecord = displayTotal === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endRecord = Math.min(page * pageSize, displayTotal);
 
   return (
     <div 
@@ -894,7 +906,7 @@ function WalletContent() {
         </div>
       )}
 
-      {/* Top Header Bar */}
+      {/* Top Header Bar (Reload and Top Up Token buttons cleanly removed) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4" style={{ borderColor: 'var(--color-border)' }}>
         <div>
           <h1 className="text-2xl font-black tracking-tight" style={{ color: 'var(--color-primary)' }}>
@@ -905,7 +917,7 @@ function WalletContent() {
           </p>
         </div>
 
-        <div className="flex items-center flex-wrap gap-2.5">
+        <div className="flex items-center gap-2.5">
           <button
             type="button"
             onClick={handleReconcile}
@@ -917,27 +929,6 @@ function WalletContent() {
             <RotateCw className={`h-4 w-4 ${reconciling ? 'animate-spin' : ''}`} style={{ color: 'var(--color-primary)' }} />
             <span>{reconciling ? t('reconciling', 'Reconciling...') : t('reconcilePaymentsBtn', 'Reconcile Payments')}</span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => fetchWalletData(user, page, debouncedSearch, typeFilter, true)}
-            disabled={loading}
-            className="border font-bold text-xs px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 hover:opacity-80"
-            style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-            title={t('reloadBtn', 'Reload')}
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} style={{ color: 'var(--color-primary)' }} />
-            <span>{t('reloadBtn', 'Reload')}</span>
-          </button>
-
-          <Link
-            href="/token"
-            className="px-4 py-2.5 rounded-xl text-xs font-bold text-white transition shadow flex items-center gap-1.5 hover:opacity-90"
-            style={{ backgroundColor: 'var(--color-primary)' }}
-          >
-            <Coins className="h-4 w-4" />
-            <span>{t('topUpTokens', 'Token Portal')}</span>
-          </Link>
         </div>
       </div>
 
@@ -964,11 +955,15 @@ function WalletContent() {
           <div className="pt-3 border-t space-y-2 text-xs" style={{ borderColor: 'var(--color-border)' }}>
             <div className="flex justify-between items-center opacity-80">
               <span>{t('totalDeposited', 'Total Deposited')}:</span>
-              <span className="font-bold font-mono text-emerald-400">+{activeCurrencySymbol}{(stats.totalDeposited || balance || 0).toFixed(2)}</span>
+              <span className="font-bold font-mono text-emerald-400">
+                +{activeCurrencySymbol}{(typeof stats.totalDeposited === 'number' ? stats.totalDeposited : (balance || 0)).toFixed(2)}
+              </span>
             </div>
             <div className="flex justify-between items-center opacity-80">
               <span>{t('totalSpent', 'Total Spent')}:</span>
-              <span className="font-bold font-mono text-rose-400">-{activeCurrencySymbol}{(stats.totalSpent || 0).toFixed(2)}</span>
+              <span className="font-bold font-mono text-rose-400">
+                -{activeCurrencySymbol}{(stats.totalSpent || 0).toFixed(2)}
+              </span>
             </div>
             <div className="flex justify-between items-center opacity-80">
               <span>{t('totalEvents', 'Total Events')}:</span>
@@ -1062,7 +1057,6 @@ function WalletContent() {
                   if (val.trim() !== '') {
                     setSelectedAmount(0);
                   } else {
-                    // Safe fallback to first preset when input is erased
                     setSelectedAmount(settings.preset_amounts[0] || 50);
                   }
                 }}
@@ -1309,7 +1303,7 @@ function WalletContent() {
         </div>
       </div>
 
-      {/* Transaction Audit Ledger */}
+      {/* Transaction Audit Ledger with Comprehensive Pagination (Default: 10 rows) */}
       <div 
         role="region"
         aria-label={t('walletLedgerTitle', 'Wallet Transaction Ledger')}
@@ -1456,35 +1450,96 @@ function WalletContent() {
           )}
         </div>
 
-        {/* Pagination Controls */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between pt-4 border-t text-xs" style={{ borderColor: 'var(--color-border)' }}>
-            <span className="opacity-75">
-              {(t('pageIndicator', 'Page {page} of {total}'))
-                .replace('{page}', String(page))
-                .replace('{total}', String(totalPages))}
-            </span>
+        {/* Enhanced Pagination Controls Bar (Default: 10 rows per page) */}
+        {displayTotal > 0 && (
+          <div 
+            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t text-xs transition-colors" 
+            style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+          >
+            <div className="flex flex-wrap items-center gap-3">
+              <span>
+                {tr ? (
+                  t('showingTransactions', 'Showing {start} to {end} of {total} transactions')
+                    .replace('{start}', String(startRecord))
+                    .replace('{end}', String(endRecord))
+                    .replace('{total}', String(displayTotal))
+                ) : (
+                  `Showing ${startRecord} to ${endRecord} of ${displayTotal} transactions`
+                )}
+              </span>
 
-            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 pl-2 border-l" style={{ borderColor: 'var(--color-border)' }}>
+                <span className="text-[11px] font-medium">{t('rowsPerPage', 'Rows:')}</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    const newSize = parseInt(e.target.value, 10) || 10;
+                    setPageSize(newSize);
+                    setPage(1);
+                  }}
+                  className="px-2 py-1 rounded-lg border text-xs font-bold outline-none cursor-pointer"
+                  style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPage(1)}
+                disabled={page <= 1}
+                className="p-1.5 rounded-xl border font-bold text-xs transition disabled:opacity-30 cursor-pointer shadow-xs hover:border-[var(--color-primary)]"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                title={t('firstPage', 'First Page')}
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </button>
+
               <button
                 type="button"
                 onClick={() => setPage(Math.max(1, page - 1))}
-                disabled={page === 1}
-                className="p-2 rounded-xl border disabled:opacity-30 cursor-pointer shadow-xs hover:opacity-80"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
-                title={t('prevPage', 'Previous')}
+                disabled={page <= 1}
+                className="p-1.5 rounded-xl border transition disabled:opacity-30 cursor-pointer shadow-xs hover:border-[var(--color-primary)]"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                title={t('prevPage', 'Previous Page')}
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
+
+              <span 
+                className="px-3.5 py-1.5 rounded-xl font-mono font-bold border shadow-xs text-xs"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+              >
+                {t('pageIndicator', 'Page {page} of {total}')
+                  .replace('{page}', String(page))
+                  .replace('{total}', String(totalPages))}
+              </span>
+
               <button
                 type="button"
                 onClick={() => setPage(Math.min(totalPages, page + 1))}
-                disabled={page === totalPages}
-                className="p-2 rounded-xl border disabled:opacity-30 cursor-pointer shadow-xs hover:opacity-80"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
-                title={t('nextPage', 'Next')}
+                disabled={page >= totalPages}
+                className="p-1.5 rounded-xl border transition disabled:opacity-30 cursor-pointer shadow-xs hover:border-[var(--color-primary)]"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                title={t('nextPage', 'Next Page')}
               >
                 <ChevronRight className="h-4 w-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPage(totalPages)}
+                disabled={page >= totalPages}
+                className="p-1.5 rounded-xl border font-bold text-xs transition disabled:opacity-30 cursor-pointer shadow-xs hover:border-[var(--color-primary)]"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                title={t('lastPage', 'Last Page')}
+              >
+                <ChevronsRight className="h-4 w-4" />
               </button>
             </div>
           </div>
