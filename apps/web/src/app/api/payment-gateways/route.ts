@@ -23,14 +23,12 @@ export async function GET() {
       gatewaySettings: settings.gateways,
       manual_details: settings.manual_details,
       currency: settings.currency
-    }, {
-      headers: CORS_HEADERS
-    });
+    }, { headers: CORS_HEADERS });
   } catch (err: any) {
     return NextResponse.json({
       success: false,
       error: err.message,
-      allowed_gateways: ['stripe', 'paypal', 'manual']
+      allowed_gateways: ['stripe', 'manual']
     }, { status: 500, headers: CORS_HEADERS });
   }
 }

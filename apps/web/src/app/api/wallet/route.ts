@@ -19,33 +19,11 @@ export async function GET(req: NextRequest) {
     const userId = searchParams.get('userId') || 'usr_admin_1';
     const email = searchParams.get('email') || 'admin@zecratary.com';
 
-    // 1. Fetch Authoritative Gateway settings
+    // Fetch authoritative gateway settings where disabled channels are purged
     const gwSettings = await getAuthoritativeGatewaySettings();
 
-    // 2. Fetch User balance and transactions
     let userBalance = 150.00;
-    let transactions = [
-      {
-        id: 'tx_demo_topup_1',
-        amount: 50.00,
-        balance_after: 150.00,
-        type: 'topup',
-        gateway: 'stripe',
-        status: 'completed',
-        description: 'Wallet top-up (Stripe Checkout)',
-        created_at: new Date(Date.now() - 86400000).toISOString()
-      },
-      {
-        id: 'tx_demo_purchase_1',
-        amount: -15.00,
-        balance_after: 100.00,
-        type: 'purchase',
-        gateway: 'wallet',
-        status: 'completed',
-        description: 'AI Culinary Master Plan Subscription',
-        created_at: new Date(Date.now() - 172800000).toISOString()
-      }
-    ];
+    let transactions: any[] = [];
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -116,21 +94,16 @@ export async function GET(req: NextRequest) {
         totalSpent: 100.00,
         totalEvents: transactions.length
       }
-    }, {
-      headers: CORS_HEADERS
-    });
+    }, { headers: CORS_HEADERS });
   } catch (err: any) {
-    return NextResponse.json({
-      success: false,
-      error: err.message
-    }, { status: 500, headers: CORS_HEADERS });
+    return NextResponse.json({ success: false, error: err.message }, { status: 500, headers: CORS_HEADERS });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, amount, gateway, email, userId, transferReference } = body;
+    const { action, amount, gateway } = body;
 
     if (action === 'reconcile_wallet') {
       return NextResponse.json({
