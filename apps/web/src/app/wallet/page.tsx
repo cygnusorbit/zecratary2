@@ -156,6 +156,14 @@ function WalletContent() {
   const searchParams = useSearchParams();
   const { t, locale } = useTranslation();
 
+  const tr = useCallback((key: string, fallback: string): string => {
+    if (typeof t === 'function') {
+      const val = t(key, fallback);
+      if (val && val !== key) return val;
+    }
+    return fallback;
+  }, [t]);
+
   // Initial and background loading states
   const [initialLoading, setInitialLoading] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(false);
@@ -1458,14 +1466,10 @@ function WalletContent() {
           >
             <div className="flex flex-wrap items-center gap-3">
               <span>
-                {tr ? (
-                  t('showingTransactions', 'Showing {start} to {end} of {total} transactions')
-                    .replace('{start}', String(startRecord))
-                    .replace('{end}', String(endRecord))
-                    .replace('{total}', String(displayTotal))
-                ) : (
-                  `Showing ${startRecord} to ${endRecord} of ${displayTotal} transactions`
-                )}
+                {tr('showingTransactions', 'Showing {start} to {end} of {total} transactions')
+                  .replace('{start}', String(startRecord))
+                  .replace('{end}', String(endRecord))
+                  .replace('{total}', String(displayTotal))}
               </span>
 
               <div className="flex items-center gap-1.5 pl-2 border-l" style={{ borderColor: 'var(--color-border)' }}>
