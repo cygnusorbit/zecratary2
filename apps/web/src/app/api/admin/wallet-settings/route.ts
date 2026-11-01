@@ -4,6 +4,7 @@ import path from 'path';
 import { 
   getAllAuthoritativeTransactions, 
   deleteAuthoritativeTransactions, 
+  deleteAllAuthoritativeTransactions,
   recordAuthoritativeTransaction,
   autoHarmonizeTransactionSchema 
 } from '@/lib/transactionService';
@@ -119,15 +120,16 @@ async function loadAuthoritativeUsers(): Promise<any[]> {
     }
   } catch (_) {}
 
-  // Disk fallback if empty
-  if (userMap.size === 0) {
-    const diskUsersPath = path.join(process.cwd(), 'apps/web/data/users.json');
-    if (fs.existsSync(diskUsersPath)) {
-      try {
-        const raw = JSON.parse(fs.readFileSync(diskUsersPath, 'utf-8'));
-        if (Array.isArray(raw)) {
-          for (const u of raw) {
-            userMap.set(String(u.id || u.email), {
+  // Fallback Disk users
+  const diskUsersPath = path.join(process.cwd(), 'apps/web/data/users.json');
+  if (fs.existsSync(diskUsersPath)) {
+    try {
+      const raw = JSON.parse(fs.readFileSync(diskUsersPath, 'utf-8'));
+      if (Array.isArray(raw)) {
+        for (const u of raw) {
+          const k = String(u.id || u.email);
+          if (k && !userMap.has(k)) {
+            userMap.set(k, {
               id: String(u.id || `usr_${u.email}`),
               name: u.name || 'Customer',
               email: u.email || 'customer@zecratary.com',
@@ -135,8 +137,8 @@ async function loadAuthoritativeUsers(): Promise<any[]> {
             });
           }
         }
-      } catch (_) {}
-    }
+      }
+    } catch (_) {}
   }
 
   if (userMap.size === 0) {
@@ -226,8 +228,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const action = body.action || 'save_settings';
 
-    // 1. Delete transactions action fallback
-    if (action === 'delete_transactions' || action === 'delete_transaction') {
+    // 1. Delete transactions action (single, batch, or all)
+    if (action === 'delete_transactions' || action === 'delete_transaction' || action === 'delete_all_transactions') {
+      if (body.all === true || body.deleteAll === true || action === 'delete_all_transactions') {
+        await deleteAllAuthoritativeTransactions();
+        return NextResponse.json({
+          success: true,
+          message: 'All transaction records deleted successfully.',
+          deletedAll: true
+        }, { headers: CORS_HEADERS });
+      }
+
       const idsToDelete: string[] = Array.isArray(body.ids) ? body.ids : (body.id ? [body.id] : []);
       if (idsToDelete.length === 0) {
         return NextResponse.json({ success: false, error: 'No transaction ID specified' }, { status: 400, headers: CORS_HEADERS });
@@ -269,7 +280,7 @@ export async function POST(req: NextRequest) {
         try {
           const { createClient } = await import('@supabase/supabase-js');
           const supabase = createClient(supabaseUrl, supabaseKey);
-          await supabase.from('users').update({ wallet_balance: newBal, balance: newBal, updated_at: new Date().toISOString() }).eq('email', email);
+          await supabase.from('users').upsert({ email: email, wallet_balance: newBal, balance: newBal, updated_at: new Date().toISOString() }, { onConflict: 'email' });
         } catch (_) {}
       }
 
@@ -277,8 +288,30 @@ export async function POST(req: NextRequest) {
       try {
         const mysqlModule = await import('@/lib/mysql').catch(() => null);
         if (mysqlModule && typeof mysqlModule.query === 'function') {
-          await mysqlModule.query('UPDATE users SET wallet_balance = ?, balance = ?, updated_at = NOW() WHERE email = ?', [newBal, newBal, email]);
+          await mysqlModule.query(
+            `INSERT INTO users (id, email, name, wallet_balance, balance, updated_at)
+             VALUES (?, ?, ?, ?, ?, NOW())
+             ON DUPLICATE KEY UPDATE wallet_balance = VALUES(wallet_balance), balance = VALUES(balance), updated_at = NOW()`,
+            [`usr_${email}`, email, email.split('@')[0], newBal, newBal]
+          );
         }
+      } catch (_) {}
+
+      // Persist to disk users.json
+      const diskUsersPath = path.join(process.cwd(), 'apps/web/data/users.json');
+      try {
+        let usersArr: any[] = [];
+        if (fs.existsSync(diskUsersPath)) {
+          usersArr = JSON.parse(fs.readFileSync(diskUsersPath, 'utf-8'));
+        }
+        const existingIdx = usersArr.findIndex((u: any) => u.email === email);
+        if (existingIdx >= 0) {
+          usersArr[existingIdx].wallet_balance = newBal;
+          usersArr[existingIdx].balance = newBal;
+        } else {
+          usersArr.push({ id: `usr_${email}`, email, name: email.split('@')[0], wallet_balance: newBal, balance: newBal });
+        }
+        fs.writeFileSync(diskUsersPath, JSON.stringify(usersArr, null, 2), 'utf-8');
       } catch (_) {}
 
       // Record transaction
@@ -352,8 +385,12 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     let ids: string[] = [];
+    let deleteAll = false;
 
     const { searchParams } = new URL(req.url);
+    if (searchParams.get('all') === 'true' || searchParams.get('deleteAll') === 'true') {
+      deleteAll = true;
+    }
     const qId = searchParams.get('id');
     const qIds = searchParams.get('ids');
     if (qId) ids.push(qId);
@@ -361,9 +398,19 @@ export async function DELETE(req: NextRequest) {
 
     try {
       const body = await req.json();
+      if (body?.all === true || body?.deleteAll === true) deleteAll = true;
       if (Array.isArray(body?.ids)) ids.push(...body.ids.map(String));
       else if (body?.id) ids.push(String(body.id));
     } catch (_) {}
+
+    if (deleteAll) {
+      await deleteAllAuthoritativeTransactions();
+      return NextResponse.json({
+        success: true,
+        message: 'All transaction records deleted successfully.',
+        deletedAll: true
+      }, { headers: CORS_HEADERS });
+    }
 
     ids = Array.from(new Set(ids.filter(Boolean)));
     if (ids.length === 0) {

@@ -63,8 +63,8 @@ export function readDiskTransactions(): WalletTransactionRecord[] {
       try {
         const raw = fs.readFileSync(p, 'utf-8');
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed; // Returns [] cleanly without resurrecting seed data
         }
       } catch (_) {}
     }
@@ -207,7 +207,7 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
     }
   } catch (_) {}
 
-  // 3. Fallback Disk Merge
+  // 3. Fallback Disk Merge (only if disk file has records)
   const diskRecords = readDiskTransactions();
   for (const r of diskRecords) {
     if (r.id && !combinedMap.has(r.id)) {
@@ -219,7 +219,6 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 
-  writeDiskTransactions(result);
   return result;
 }
 
@@ -329,22 +328,41 @@ export async function deleteAuthoritativeTransactions(ids: string[]): Promise<bo
   return true;
 }
 
-/**
- * Authoritative user balance reconciliation:
- * Supports calculateAuthoritativeUserBalance(userId, email, fallbackBalance)
- * and calculateAuthoritativeUserBalance(transactions, fallbackBalance)
- */
+export async function deleteAllAuthoritativeTransactions(): Promise<boolean> {
+  // 1. Disk Mirror
+  writeDiskTransactions([]);
+
+  // 2. PostgreSQL (Supabase)
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  if (supabaseUrl && supabaseKey) {
+    try {
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      await supabase.from('payment_transactions').delete().neq('id', 'placeholder_impossible_id');
+    } catch (_) {}
+  }
+
+  // 3. MySQL
+  try {
+    const mysqlModule = await import('@/lib/mysql').catch(() => null);
+    if (mysqlModule && typeof mysqlModule.query === 'function') {
+      await mysqlModule.query("DELETE FROM payment_transactions");
+    }
+  } catch (_) {}
+
+  return true;
+}
+
 export async function calculateAuthoritativeUserBalance(
   userOrEmailOrTxs?: string | WalletTransactionRecord[] | any,
   emailOrInitial?: string | number,
   fallbackBalance: number = 0
 ): Promise<number> {
-  // Case A: Transactions array passed
   if (Array.isArray(userOrEmailOrTxs)) {
     const txs = userOrEmailOrTxs;
-    if (txs.length === 0) {
-      return typeof emailOrInitial === 'number' ? emailOrInitial : fallbackBalance;
-    }
+    if (txs.length === 0) return typeof emailOrInitial === 'number' ? emailOrInitial : fallbackBalance;
     const latest = txs[0];
     if (latest && (latest.balance_after !== undefined || latest.balanceAfter !== undefined)) {
       const b = Number(latest.balance_after ?? latest.balanceAfter);
@@ -359,17 +377,15 @@ export async function calculateAuthoritativeUserBalance(
     return Math.max(0, running);
   }
 
-  // Case B: User identifier or email passed
   const userId = typeof userOrEmailOrTxs === 'string' ? userOrEmailOrTxs.trim() : '';
   let email = typeof emailOrInitial === 'string' ? emailOrInitial.trim() : '';
-  if (!email && userId.includes('@')) {
-    email = userId;
-  }
+  if (!email && userId.includes('@')) email = userId;
+
   const defaultFallback = typeof emailOrInitial === 'number'
     ? emailOrInitial
     : (typeof fallbackBalance === 'number' ? fallbackBalance : 0);
 
-  // 1. Check PostgreSQL (Supabase) users table
+  // PostgreSQL (Supabase)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
@@ -378,62 +394,44 @@ export async function calculateAuthoritativeUserBalance(
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(supabaseUrl, supabaseKey);
       let query = supabase.from('users').select('wallet_balance, balance');
-      if (email && userId && email !== userId) {
-        query = query.or(`email.eq.${email},id.eq.${userId}`);
-      } else if (email) {
-        query = query.eq('email', email);
-      } else if (userId) {
-        query = query.eq('id', userId);
-      }
+      if (email && userId && email !== userId) query = query.or(`email.eq.${email},id.eq.${userId}`);
+      else if (email) query = query.eq('email', email);
+      else if (userId) query = query.eq('id', userId);
       const { data, error } = await query.maybeSingle();
       if (!error && data) {
         const val = data.wallet_balance !== undefined ? data.wallet_balance : data.balance;
-        if (val !== null && val !== undefined && !isNaN(Number(val))) {
-          return Number(val);
-        }
+        if (val !== null && val !== undefined && !isNaN(Number(val))) return Number(val);
       }
     } catch (_) {}
   }
 
-  // 2. Check MySQL users table
+  // MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
     if (mysqlModule && typeof mysqlModule.query === 'function') {
       let rows: any = null;
       if (email && userId && email !== userId) {
-        rows = await mysqlModule.query(
-          'SELECT wallet_balance, balance FROM users WHERE email = ? OR id = ? LIMIT 1',
-          [email, userId]
-        );
+        rows = await mysqlModule.query('SELECT wallet_balance, balance FROM users WHERE email = ? OR id = ? LIMIT 1', [email, userId]);
       } else if (email) {
-        rows = await mysqlModule.query(
-          'SELECT wallet_balance, balance FROM users WHERE email = ? LIMIT 1',
-          [email]
-        );
+        rows = await mysqlModule.query('SELECT wallet_balance, balance FROM users WHERE email = ? LIMIT 1', [email]);
       } else if (userId) {
-        rows = await mysqlModule.query(
-          'SELECT wallet_balance, balance FROM users WHERE id = ? LIMIT 1',
-          [userId]
-        );
+        rows = await mysqlModule.query('SELECT wallet_balance, balance FROM users WHERE id = ? LIMIT 1', [userId]);
       }
       if (Array.isArray(rows) && rows.length > 0) {
         const u = rows[0];
         const val = u.wallet_balance !== undefined ? u.wallet_balance : u.balance;
-        if (val !== null && val !== undefined && !isNaN(Number(val))) {
-          return Number(val);
-        }
+        if (val !== null && val !== undefined && !isNaN(Number(val))) return Number(val);
       }
     }
   } catch (_) {}
 
-  // 3. Check Authoritative Transactions
+  // Authoritative Transactions latest balance_after
   try {
     const allTxs = await getAllAuthoritativeTransactions();
     const userTxs = allTxs.filter(t => {
       const mEmail = email && (
         (t.email && t.email.toLowerCase() === email.toLowerCase()) || 
-        (t.customer_email && t.customer_email.toLowerCase() === email.toLowerCase()) ||
-        (t.customerEmail && t.customerEmail.toLowerCase() === email.toLowerCase())
+        (t.customer_email && t.customer_email.toLowerCase() === email.toLowerCase())
       );
       const mUser = userId && (t.user_id === userId || t.userId === userId);
       return mEmail || mUser;
@@ -448,33 +446,6 @@ export async function calculateAuthoritativeUserBalance(
     }
   } catch (_) {}
 
-  // 4. Check Disk users fallback
-  try {
-    const fsMod = await import('fs');
-    const pathMod = await import('path');
-    const candidatePaths = [
-      pathMod.join(process.cwd(), 'apps/web/data/users.json'),
-      pathMod.join(process.cwd(), 'data/users.json'),
-    ];
-    for (const cp of candidatePaths) {
-      if (fsMod.existsSync(cp)) {
-        const raw = JSON.parse(fsMod.readFileSync(cp, 'utf-8'));
-        if (Array.isArray(raw)) {
-          const found = raw.find((u: any) => 
-            (email && u.email?.toLowerCase() === email.toLowerCase()) || 
-            (userId && u.id === userId)
-          );
-          if (found) {
-            const val = found.wallet_balance !== undefined ? found.wallet_balance : found.balance;
-            if (val !== null && val !== undefined && !isNaN(Number(val))) {
-              return Number(val);
-            }
-          }
-        }
-      }
-    }
-  } catch (_) {}
-
   return defaultFallback;
 }
 
@@ -484,6 +455,7 @@ export const recordTransaction = recordAuthoritativeTransaction;
 export const deleteAuthoritativeTransaction = async (id: string) => deleteAuthoritativeTransactions([id]);
 export const deleteTransaction = deleteAuthoritativeTransaction;
 export const deleteTransactions = deleteAuthoritativeTransactions;
+export const deleteAllTransactions = deleteAllAuthoritativeTransactions;
 export const getUserAuthoritativeBalance = calculateAuthoritativeUserBalance;
 export const getUserBalance = calculateAuthoritativeUserBalance;
 export const getWalletBalance = calculateAuthoritativeUserBalance;

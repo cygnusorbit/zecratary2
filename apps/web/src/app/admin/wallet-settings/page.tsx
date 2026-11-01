@@ -8,7 +8,7 @@ import {
   Check, Plus, Trash2, Edit3, Sliders, History, Activity, Database, 
   Coins, User as UserIcon, Columns3, ArrowUpDown, ArrowUp, ArrowDown, 
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, Sparkles, Gift, ArrowDownLeft, ArrowUpRight,
-  ExternalLink, ArrowRight
+  ExternalLink, ArrowRight, Download
 } from 'lucide-react';
 import { useTranslation } from '@/components/LanguageProvider';
 
@@ -32,6 +32,7 @@ export interface WalletTransactionItem {
   id: string;
   customer_name?: string;
   customer_email?: string;
+  email?: string;
   amount: number;
   balance_after?: number;
   type: string;
@@ -102,6 +103,7 @@ export default function AdminWalletSettingsPage() {
   const [users, setUsers] = useState<AppUserOption[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
+  const [deleting, setDeleting] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
   // Quick Preset Add State
@@ -118,17 +120,21 @@ export default function AdminWalletSettingsPage() {
   const [adjustReason, setAdjustReason] = useState<string>('');
   const [applyingAdjustment, setApplyingAdjustment] = useState<boolean>(false);
 
-  // Ledger Table State: Search, Filter, Pagination, Selection, Column Popover
+  // Ledger Table State: Search, Filter, Pagination, Selection, Sorting, Column Popover
   const [search, setSearch] = useState<string>('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [rowsPerPage, setRowsPerPage] = useState<number>(10);
   const [selectedTxIds, setSelectedTxIds] = useState<string[]>([]);
+  const [isSelectAllLedger, setIsSelectAllLedger] = useState<boolean>(false);
+  const [sortField, setSortField] = useState<string>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showColumnsPopover, setShowColumnsPopover] = useState<boolean>(false);
 
   const isFetchingRef = useRef<boolean>(false);
   const isSavingRef = useRef<boolean>(false);
   const columnsPopoverRef = useRef<HTMLDivElement>(null);
+  const selectAllCheckboxRef = useRef<HTMLInputElement>(null);
 
   const showToast = (type: 'success' | 'error', msg: string) => {
     setFeedback({ type, msg });
@@ -152,6 +158,13 @@ export default function AdminWalletSettingsPage() {
         const data = await res.json();
         if (data.walletSettings || data.settings) {
           const loaded = data.walletSettings || data.settings;
+          
+          let savedColumns = DEFAULT_SETTINGS.ledgerColumns;
+          try {
+            const cachedCols = localStorage.getItem('zecratary_wallet_ledger_columns');
+            if (cachedCols) savedColumns = JSON.parse(cachedCols);
+          } catch (_) {}
+
           setSettings({
             currency: loaded.currency || 'USD',
             isEnabled: loaded.isEnabled !== undefined ? Boolean(loaded.isEnabled) : true,
@@ -160,7 +173,7 @@ export default function AdminWalletSettingsPage() {
             maxTopup: Number(loaded.maxTopup ?? loaded.max_topup ?? 1000),
             presetAmounts: Array.isArray(loaded.presetAmounts) ? loaded.presetAmounts : DEFAULT_SETTINGS.presetAmounts,
             bonusRules: Array.isArray(loaded.bonusRules) ? loaded.bonusRules : DEFAULT_SETTINGS.bonusRules,
-            ledgerColumns: loaded.ledgerColumns || DEFAULT_SETTINGS.ledgerColumns
+            ledgerColumns: loaded.ledgerColumns || savedColumns
           });
         }
         if (Array.isArray(data.users)) setUsers(data.users);
@@ -255,6 +268,7 @@ export default function AdminWalletSettingsPage() {
       if (res.ok && data.success) {
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new Event('zecratary_wallet_updated'));
+          window.dispatchEvent(new Event('zecratary_wallet_settings_updated'));
           window.dispatchEvent(new Event('zecratary_payment_updated'));
           localStorage.setItem('zecratary_wallet_updated_at', Date.now().toString());
         }
@@ -273,6 +287,9 @@ export default function AdminWalletSettingsPage() {
   const handleResetDefaults = () => {
     if (!confirm(tr('confirmResetDefaults', 'Reset wallet settings and bonus rules to default values?'))) return;
     setSettings(DEFAULT_SETTINGS);
+    try {
+      localStorage.removeItem('zecratary_wallet_ledger_columns');
+    } catch (_) {}
     showToast('success', tr('toastWalletReset', 'Wallet settings reset to defaults successfully!'));
   };
 
@@ -371,26 +388,100 @@ export default function AdminWalletSettingsPage() {
     }
   };
 
-  // Delete Transactions (Single or Batch) with multi-tier database removal
-  const handleDeleteTransactions = async (idsToDelete: string[]) => {
-    if (idsToDelete.length === 0) return;
-    const promptMsg = idsToDelete.length > 1
+  // Filtered & Sorted Ledger Transactions
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      // Harmonized type filtering (e.g., 'deposit' matches 'topup' or 'deposit')
+      if (typeFilter !== 'all') {
+        const txType = (t.type || '').toLowerCase();
+        const f = typeFilter.toLowerCase();
+        if (f === 'deposit' && txType !== 'deposit' && txType !== 'topup') return false;
+        if (f === 'purchase' && txType !== 'purchase' && txType !== 'debit') return false;
+        if (f !== 'deposit' && f !== 'purchase' && txType !== f) return false;
+      }
+      if (search.trim()) {
+        const q = search.toLowerCase().trim();
+        const mEmail = (t.customer_email || t.email || '').toLowerCase().includes(q);
+        const mName = (t.customer_name || '').toLowerCase().includes(q);
+        const mDesc = (t.description || '').toLowerCase().includes(q);
+        const mId = (t.id || '').toLowerCase().includes(q);
+        const mGw = (t.gateway || '').toLowerCase().includes(q);
+        const mAmt = String(t.amount || '').includes(q);
+        if (!mEmail && !mName && !mDesc && !mId && !mGw && !mAmt) return false;
+      }
+      return true;
+    }).sort((a, b) => {
+      let comparison = 0;
+      if (sortField === 'date') {
+        comparison = new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+      } else if (sortField === 'amount') {
+        comparison = Number(a.amount || 0) - Number(b.amount || 0);
+      } else if (sortField === 'customer') {
+        comparison = (a.customer_name || a.customer_email || '').localeCompare(b.customer_name || b.customer_email || '');
+      } else if (sortField === 'type') {
+        comparison = (a.type || '').localeCompare(b.type || '');
+      } else if (sortField === 'balanceAfter') {
+        comparison = Number(a.balance_after || 0) - Number(b.balance_after || 0);
+      } else if (sortField === 'gateway') {
+        comparison = (a.gateway || '').localeCompare(b.gateway || '');
+      }
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  }, [transactions, search, typeFilter, sortField, sortOrder]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / rowsPerPage));
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const paginatedTxs = filteredTransactions.slice(startIndex, startIndex + rowsPerPage);
+
+  // Auto-clamp page boundary if rows shrink
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  // Robust Delete Transactions (Single, Batch, or All) with DELETE + POST fallback
+  const handleDeleteTransactions = async (idsToDelete: string[], isAll: boolean = false) => {
+    if (!isAll && idsToDelete.length === 0) return;
+    const promptMsg = isAll
+      ? tr('confirmDeleteAllLedger', 'Are you sure you want to delete ALL {count} transaction records in the ledger? This permanent action cannot be undone.').replace('{count}', String(filteredTransactions.length))
+      : idsToDelete.length > 1
       ? tr('confirmDeleteSelected', 'Are you sure you want to delete {count} selected transaction record(s)? This cannot be undone.').replace('{count}', String(idsToDelete.length))
       : tr('confirmDeleteSingle', 'Are you sure you want to delete this transaction record? This cannot be undone.');
 
     if (!confirm(promptMsg)) return;
 
+    setDeleting(true);
     try {
-      const res = await fetch('/api/admin/wallet-settings', {
+      let res = await fetch('/api/admin/wallet-settings', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: idsToDelete })
+        body: JSON.stringify({ ids: idsToDelete, all: isAll })
       });
+
+      // Seamless fallback to POST action if proxy strips DELETE body
+      if (!res.ok) {
+        res = await fetch('/api/admin/wallet-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: isAll ? 'delete_all_transactions' : 'delete_transactions',
+            ids: idsToDelete,
+            all: isAll
+          })
+        });
+      }
 
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
-        setTransactions(prev => prev.filter(t => !idsToDelete.includes(t.id)));
-        setSelectedTxIds(prev => prev.filter(id => !idsToDelete.includes(id)));
+        if (isAll) {
+          setTransactions([]);
+          setSelectedTxIds([]);
+          setIsSelectAllLedger(false);
+        } else {
+          setTransactions(prev => prev.filter(t => !idsToDelete.includes(t.id)));
+          setSelectedTxIds(prev => prev.filter(id => !idsToDelete.includes(id)));
+        }
         showToast('success', tr('toastDeleteSuccess', 'Transaction record(s) deleted successfully.'));
         window.dispatchEvent(new Event('zecratary_wallet_updated'));
         loadWalletData();
@@ -399,10 +490,58 @@ export default function AdminWalletSettingsPage() {
       }
     } catch (err: any) {
       showToast('error', err.message || 'Error deleting transactions.');
+    } finally {
+      setDeleting(false);
     }
   };
 
-  // Column Visibility Handlers
+  // Checkbox Selection Helpers
+  const pageIds = useMemo(() => paginatedTxs.map(t => t.id), [paginatedTxs]);
+  const isAllOnPageSelected = pageIds.length > 0 && pageIds.every(id => selectedTxIds.includes(id));
+  const isIndeterminate = pageIds.some(id => selectedTxIds.includes(id)) && !isAllOnPageSelected;
+
+  useEffect(() => {
+    if (selectAllCheckboxRef.current) {
+      selectAllCheckboxRef.current.indeterminate = isIndeterminate;
+    }
+  }, [isIndeterminate]);
+
+  const handleToggleSelectAllPage = () => {
+    if (isAllOnPageSelected) {
+      setSelectedTxIds(prev => prev.filter(id => !pageIds.includes(id)));
+      setIsSelectAllLedger(false);
+    } else {
+      setSelectedTxIds(prev => Array.from(new Set([...prev, ...pageIds])));
+    }
+  };
+
+  const handleSelectAllAcrossLedger = () => {
+    const allFilteredIds = filteredTransactions.map(t => t.id);
+    setSelectedTxIds(allFilteredIds);
+    setIsSelectAllLedger(true);
+  };
+
+  const toggleSelectTx = (id: string) => {
+    setSelectedTxIds(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      if (next.length < filteredTransactions.length) {
+        setIsSelectAllLedger(false);
+      }
+      return next;
+    });
+  };
+
+  // Sort toggle handler
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
+    }
+  };
+
+  // Column Visibility Handlers with Persistent Caching
   const toggleColumn = (colKey: string) => {
     const currentCols = settings.ledgerColumns || DEFAULT_SETTINGS.ledgerColumns;
     const activeCols = Object.values(currentCols).filter(Boolean).length;
@@ -413,43 +552,35 @@ export default function AdminWalletSettingsPage() {
       [colKey]: !currentCols[colKey]
     };
     setSettings({ ...settings, ledgerColumns: updatedCols });
+    try {
+      localStorage.setItem('zecratary_wallet_ledger_columns', JSON.stringify(updatedCols));
+    } catch (_) {}
   };
 
-  // Filtered & Paginated Ledger Slices
-  const filteredTransactions = useMemo(() => {
-    return transactions.filter(t => {
-      if (typeFilter !== 'all' && (t.type || '').toLowerCase() !== typeFilter.toLowerCase()) return false;
-      if (search.trim()) {
-        const q = search.toLowerCase().trim();
-        const mEmail = (t.customer_email || '').toLowerCase().includes(q);
-        const mName = (t.customer_name || '').toLowerCase().includes(q);
-        const mDesc = (t.description || '').toLowerCase().includes(q);
-        const mId = (t.id || '').toLowerCase().includes(q);
-        if (!mEmail && !mName && !mDesc && !mId) return false;
-      }
-      return true;
-    });
-  }, [transactions, search, typeFilter]);
+  // Export Transactions as CSV
+  const handleExportCSV = () => {
+    if (filteredTransactions.length === 0) return;
+    const headers = ['Transaction ID', 'Customer Name', 'Customer Email', 'Type', 'Amount', 'Currency', 'Balance After', 'Gateway', 'Date'];
+    const rows = filteredTransactions.map(t => [
+      t.id,
+      `"${(t.customer_name || 'Customer').replace(/"/g, '""')}"`,
+      t.customer_email || t.email || '',
+      t.type,
+      t.amount,
+      settings.currency,
+      t.balance_after ?? '',
+      t.gateway || 'System',
+      t.created_at
+    ]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / rowsPerPage));
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginatedTxs = filteredTransactions.slice(startIndex, startIndex + rowsPerPage);
-
-  // Checkbox Selection Helpers
-  const isAllOnPageSelected = paginatedTxs.length > 0 && paginatedTxs.every(t => selectedTxIds.includes(t.id));
-  const isIndeterminate = paginatedTxs.some(t => selectedTxIds.includes(t.id)) && !isAllOnPageSelected;
-
-  const handleToggleSelectAll = () => {
-    const pageIds = paginatedTxs.map(t => t.id);
-    if (isAllOnPageSelected) {
-      setSelectedTxIds(prev => prev.filter(id => !pageIds.includes(id)));
-    } else {
-      setSelectedTxIds(prev => Array.from(new Set([...prev, ...pageIds])));
-    }
-  };
-
-  const toggleSelectTx = (id: string) => {
-    setSelectedTxIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `wallet_transactions_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const activeColumnsCount = 1 + Object.values(settings.ledgerColumns || DEFAULT_SETTINGS.ledgerColumns).filter(Boolean).length;
@@ -626,7 +757,7 @@ export default function AdminWalletSettingsPage() {
           aria-label={tr('walletRegionLedger', 'Wallet Transactions Ledger')}
           className="space-y-4"
         >
-          {/* Search, Filter & Columns Popover Bar */}
+          {/* Search, Filter, Export & Columns Popover Bar */}
           <div 
             className="p-4 rounded-3xl border flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm transition-colors"
             style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
@@ -641,7 +772,7 @@ export default function AdminWalletSettingsPage() {
                 spellCheck={false}
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-                placeholder={tr('ledgerSearchPlaceholder', 'Search by customer email, name, description, or transaction ID...')}
+                placeholder={tr('ledgerSearchPlaceholder', 'Search by customer email, name, description, ID, gateway...')}
                 className="wallet-input w-full px-3.5 py-2 rounded-xl border text-xs outline-none"
                 style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
               />
@@ -661,6 +792,19 @@ export default function AdminWalletSettingsPage() {
                 <option value="adjustment">{tr('ledgerFilterAdjustment', 'Admin Adjustments')}</option>
                 <option value="refund">{tr('ledgerFilterRefund', 'Refunds')}</option>
               </select>
+
+              {/* Export CSV Button */}
+              <button
+                type="button"
+                onClick={handleExportCSV}
+                disabled={filteredTransactions.length === 0}
+                className="px-3 py-2 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-40"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                title="Export transactions as CSV"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span>{tr('exportBtn', 'Export CSV')}</span>
+              </button>
 
               {/* Columns Popover Toggle */}
               <div className="relative" ref={columnsPopoverRef}>
@@ -683,7 +827,10 @@ export default function AdminWalletSettingsPage() {
                       <span className="font-bold text-[11px]" style={{ color: 'var(--color-text)' }}>{tr('columnsPopoverTitle', 'Toggle Visible Columns')}</span>
                       <button
                         type="button"
-                        onClick={() => setSettings({ ...settings, ledgerColumns: DEFAULT_SETTINGS.ledgerColumns })}
+                        onClick={() => {
+                          setSettings({ ...settings, ledgerColumns: DEFAULT_SETTINGS.ledgerColumns });
+                          try { localStorage.removeItem('zecratary_wallet_ledger_columns'); } catch (_) {}
+                        }}
                         className="text-[10px] text-[var(--color-primary)] font-bold hover:underline cursor-pointer"
                       >
                         {tr('resetColumnsBtn', 'Reset All')}
@@ -714,22 +861,46 @@ export default function AdminWalletSettingsPage() {
                   </div>
                 )}
               </div>
+
+              {/* Global Delete All Ledger Records Button */}
+              <button
+                type="button"
+                onClick={() => handleDeleteTransactions([], true)}
+                disabled={deleting || transactions.length === 0}
+                className="px-3.5 py-2 rounded-xl border border-red-500/40 text-red-400 bg-red-500/10 hover:bg-red-500/20 font-bold transition flex items-center gap-1.5 cursor-pointer text-xs disabled:opacity-40"
+                title={tr('deleteAllLedgerTitle', 'Delete all records in ledger')}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>{tr('btnDeleteAll', 'Delete All')}</span>
+              </button>
             </div>
           </div>
 
           {/* Floating Selected Action Bar */}
           {selectedTxIds.length > 0 && (
             <div 
-              className="p-3.5 px-5 rounded-2xl flex items-center justify-between text-xs border shadow-lg animate-in fade-in"
+              className="p-3.5 px-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs border shadow-lg animate-in fade-in"
               style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-primary)', color: 'var(--color-text)' }}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <span className="font-bold">
                   {tr('itemsSelectedBanner', '{count} transaction(s) selected').replace('{count}', String(selectedTxIds.length))}
                 </span>
+
+                {/* Select All in Ledger Scope Helper */}
+                {!isSelectAllLedger && filteredTransactions.length > selectedTxIds.length && (
+                  <button
+                    type="button"
+                    onClick={handleSelectAllAcrossLedger}
+                    className="text-[11px] font-bold text-[var(--color-primary)] hover:underline cursor-pointer"
+                  >
+                    {tr('selectAllLedgerCount', 'Select all {count} transactions across all pages').replace('{count}', String(filteredTransactions.length))}
+                  </button>
+                )}
+
                 <button
                   type="button"
-                  onClick={() => setSelectedTxIds([])}
+                  onClick={() => { setSelectedTxIds([]); setIsSelectAllLedger(false); }}
                   className="text-[11px] underline cursor-pointer hover:opacity-80"
                   style={{ color: 'var(--color-text-secondary)' }}
                 >
@@ -737,18 +908,25 @@ export default function AdminWalletSettingsPage() {
                 </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => handleDeleteTransactions(selectedTxIds)}
-                className="px-3.5 py-1.5 rounded-xl border border-red-500/40 text-red-400 bg-red-500/10 hover:bg-red-500/20 font-bold transition flex items-center gap-1.5 cursor-pointer text-xs"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span>{tr('btnDeleteSelected', 'Delete Selected ({count})').replace('{count}', String(selectedTxIds.length))}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => handleDeleteTransactions(selectedTxIds, isSelectAllLedger)}
+                  className="px-4 py-2 rounded-xl border border-red-500/40 text-red-400 bg-red-500/10 hover:bg-red-500/20 font-bold transition flex items-center gap-1.5 cursor-pointer text-xs disabled:opacity-40"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>
+                    {isSelectAllLedger
+                      ? tr('btnDeleteAllSelectedLedger', 'Delete All ({count})').replace('{count}', String(filteredTransactions.length))
+                      : tr('btnDeleteSelected', 'Delete Selected ({count})').replace('{count}', String(selectedTxIds.length))}
+                  </span>
+                </button>
+              </div>
             </div>
           )}
 
-          {/* Transactions Table (Description column removed) */}
+          {/* Transactions Table with Sort Headers */}
           <div 
             className="border rounded-3xl overflow-hidden shadow-xl transition-colors duration-200"
             style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
@@ -764,17 +942,67 @@ export default function AdminWalletSettingsPage() {
                       <input
                         type="checkbox"
                         checked={isAllOnPageSelected}
-                        ref={(el) => { if (el) el.indeterminate = isIndeterminate; }}
-                        onChange={handleToggleSelectAll}
+                        ref={selectAllCheckboxRef}
+                        onChange={handleToggleSelectAllPage}
                         className="rounded cursor-pointer"
+                        title={isAllOnPageSelected ? tr('unselectAllPage', 'Unselect page') : tr('selectAllPage', 'Select all on page')}
                       />
                     </th>
-                    {settings.ledgerColumns?.customer && <th className="px-5 py-4">{tr('colCustomer', 'Customer')}</th>}
-                    {settings.ledgerColumns?.type && <th className="px-5 py-4">{tr('colType', 'Type')}</th>}
-                    {settings.ledgerColumns?.amount && <th className="px-5 py-4">{tr('colAmount', 'Amount')}</th>}
-                    {settings.ledgerColumns?.balanceAfter && <th className="px-5 py-4">{tr('colBalanceAfter', 'Balance After')}</th>}
-                    {settings.ledgerColumns?.gateway && <th className="px-5 py-4">{tr('colGateway', 'Gateway / Ref')}</th>}
-                    {settings.ledgerColumns?.date && <th className="px-5 py-4">{tr('colDate', 'Timestamp')}</th>}
+
+                    {settings.ledgerColumns?.customer && (
+                      <th className="px-5 py-4 cursor-pointer select-none" onClick={() => handleSort('customer')}>
+                        <div className="flex items-center gap-1 hover:text-[var(--color-primary)] transition">
+                          <span>{tr('colCustomer', 'Customer')}</span>
+                          {sortField === 'customer' ? (sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+                        </div>
+                      </th>
+                    )}
+
+                    {settings.ledgerColumns?.type && (
+                      <th className="px-5 py-4 cursor-pointer select-none" onClick={() => handleSort('type')}>
+                        <div className="flex items-center gap-1 hover:text-[var(--color-primary)] transition">
+                          <span>{tr('colType', 'Type')}</span>
+                          {sortField === 'type' ? (sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+                        </div>
+                      </th>
+                    )}
+
+                    {settings.ledgerColumns?.amount && (
+                      <th className="px-5 py-4 cursor-pointer select-none" onClick={() => handleSort('amount')}>
+                        <div className="flex items-center gap-1 hover:text-[var(--color-primary)] transition">
+                          <span>{tr('colAmount', 'Amount')}</span>
+                          {sortField === 'amount' ? (sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+                        </div>
+                      </th>
+                    )}
+
+                    {settings.ledgerColumns?.balanceAfter && (
+                      <th className="px-5 py-4 cursor-pointer select-none" onClick={() => handleSort('balanceAfter')}>
+                        <div className="flex items-center gap-1 hover:text-[var(--color-primary)] transition">
+                          <span>{tr('colBalanceAfter', 'Balance After')}</span>
+                          {sortField === 'balanceAfter' ? (sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+                        </div>
+                      </th>
+                    )}
+
+                    {settings.ledgerColumns?.gateway && (
+                      <th className="px-5 py-4 cursor-pointer select-none" onClick={() => handleSort('gateway')}>
+                        <div className="flex items-center gap-1 hover:text-[var(--color-primary)] transition">
+                          <span>{tr('colGateway', 'Gateway / Ref')}</span>
+                          {sortField === 'gateway' ? (sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+                        </div>
+                      </th>
+                    )}
+
+                    {settings.ledgerColumns?.date && (
+                      <th className="px-5 py-4 cursor-pointer select-none" onClick={() => handleSort('date')}>
+                        <div className="flex items-center gap-1 hover:text-[var(--color-primary)] transition">
+                          <span>{tr('colDate', 'Timestamp')}</span>
+                          {sortField === 'date' ? (sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+                        </div>
+                      </th>
+                    )}
+
                     {settings.ledgerColumns?.actions && <th className="px-5 py-4 text-right">{tr('colActions', 'Actions')}</th>}
                   </tr>
                 </thead>
@@ -829,7 +1057,7 @@ export default function AdminWalletSettingsPage() {
                                 {tx.customer_name || 'Customer'}
                               </div>
                               <div className="font-mono text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
-                                {tx.customer_email || '—'}
+                                {tx.customer_email || tx.email || '—'}
                               </div>
                             </td>
                           )}
@@ -879,8 +1107,9 @@ export default function AdminWalletSettingsPage() {
                             <td className="px-5 py-4 text-right">
                               <button
                                 type="button"
+                                disabled={deleting}
                                 onClick={() => handleDeleteTransactions([tx.id])}
-                                className="p-1.5 rounded-xl border text-red-400 border-red-500/30 hover:bg-red-500/10 transition cursor-pointer"
+                                className="p-1.5 rounded-xl border text-red-400 border-red-500/30 hover:bg-red-500/10 transition cursor-pointer disabled:opacity-40"
                                 title={tr('btnDeleteTransaction', 'Delete Transaction')}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -1002,7 +1231,7 @@ export default function AdminWalletSettingsPage() {
           aria-label={tr('walletRegionConfig', 'Wallet Configuration and Rules')}
           className="space-y-6"
         >
-          {/* Section 1: General Wallet Controls with Reset Defaults button on the right */}
+          {/* Section 1: General Wallet Controls */}
           <div 
             className="p-6 rounded-3xl border shadow-sm space-y-5 transition-colors duration-200"
             style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
@@ -1018,7 +1247,6 @@ export default function AdminWalletSettingsPage() {
                 </p>
               </div>
 
-              {/* Reset Defaults button relocated to the right corner of General Wallet Controls */}
               <button
                 type="button"
                 onClick={handleResetDefaults}
@@ -1272,6 +1500,7 @@ export default function AdminWalletSettingsPage() {
                     spellCheck={false}
                     value={newTierThreshold}
                     onChange={(e) => setNewTierThreshold(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddBonusRule(); }}
                     placeholder="150"
                     className="wallet-input w-full px-3 py-1.5 rounded-xl border text-xs font-mono font-bold outline-none"
                     style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
@@ -1293,6 +1522,7 @@ export default function AdminWalletSettingsPage() {
                     spellCheck={false}
                     value={newTierBonus}
                     onChange={(e) => setNewTierBonus(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddBonusRule(); }}
                     placeholder="15"
                     className="wallet-input w-full px-3 py-1.5 rounded-xl border text-xs font-mono font-bold outline-none"
                     style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
@@ -1312,7 +1542,7 @@ export default function AdminWalletSettingsPage() {
             </div>
           </div>
 
-          {/* Section 3: Manual Customer Balance Adjustment (Sanitized string quoting) */}
+          {/* Section 3: Manual Customer Balance Adjustment */}
           <div 
             className="p-6 rounded-3xl border shadow-sm space-y-4 transition-colors duration-200"
             style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
