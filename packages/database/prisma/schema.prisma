@@ -33,6 +33,7 @@ model User {
 }
 
 model SubscriptionPlan {
+  price_monthly Float? @default(0) @map("price_monthly")
   id                 String         @id @default(cuid())
   name               String         // e.g. "Taster", "Nutrition Pro"
   slug               String         @unique
