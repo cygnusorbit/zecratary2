@@ -22,9 +22,21 @@ export interface WalletTransactionRecord {
   description: string;
   transfer_reference?: string;
   transferReference?: string;
+  confirmed_at?: string;
+  confirmedAt?: string;
+  confirmed_amount?: number;
+  confirmedAmount?: number;
+  failure_reason?: string;
+  failureReason?: string;
+  notes?: string;
+  test_mode?: boolean;
+  testMode?: boolean;
   created_at: string;
   createdAt?: string;
+  [key: string]: any;
 }
+
+export type WalletTransactionItem = WalletTransactionRecord;
 
 function getCandidateTxPaths(): string[] {
   const cwd = process.cwd();
@@ -119,10 +131,32 @@ export async function autoHarmonizeTransactionSchema(): Promise<void> {
           status VARCHAR(50) DEFAULT 'completed',
           description TEXT,
           transfer_reference VARCHAR(255),
+          confirmed_at DATETIME NULL,
+          confirmed_amount DECIMAL(10,2) NULL,
+          failure_reason TEXT NULL,
+          notes TEXT NULL,
+          test_mode TINYINT(1) DEFAULT 0,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
       `);
+
+      const checkCols = ['confirmed_at', 'confirmed_amount', 'failure_reason', 'notes', 'test_mode'];
+      for (const col of checkCols) {
+        try {
+          const colInfo: any = await mysqlModule.query(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'payment_transactions' AND COLUMN_NAME = ?",
+            [col]
+          );
+          if (!Array.isArray(colInfo) || colInfo.length === 0) {
+            let colDef = 'TEXT NULL';
+            if (col === 'confirmed_at') colDef = 'DATETIME NULL';
+            else if (col === 'confirmed_amount') colDef = 'DECIMAL(10,2) NULL';
+            else if (col === 'test_mode') colDef = 'TINYINT(1) DEFAULT 0';
+            await mysqlModule.query(`ALTER TABLE payment_transactions ADD COLUMN ${col} ${colDef}`);
+          }
+        } catch (_) {}
+      }
     }
   } catch (_) {}
 }
@@ -163,6 +197,11 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
               status: row.status || 'completed',
               description: row.description || row.plan_name || 'Wallet deposit',
               transfer_reference: row.transfer_reference || row.transferReference || '',
+              confirmed_at: row.confirmed_at || row.confirmedAt || undefined,
+              confirmed_amount: row.confirmed_amount ?? row.confirmedAmount ?? undefined,
+              failure_reason: row.failure_reason || row.failureReason || undefined,
+              notes: row.notes || undefined,
+              test_mode: row.test_mode !== undefined ? Boolean(row.test_mode) : undefined,
               created_at: row.created_at || row.createdAt || new Date().toISOString()
             });
           }
@@ -197,6 +236,11 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
               status: row.status || 'completed',
               description: row.description || row.plan_name || 'Wallet deposit',
               transfer_reference: row.transfer_reference || '',
+              confirmed_at: row.confirmed_at ? new Date(row.confirmed_at).toISOString() : undefined,
+              confirmed_amount: row.confirmed_amount !== null && row.confirmed_amount !== undefined ? Number(row.confirmed_amount) : undefined,
+              failure_reason: row.failure_reason || undefined,
+              notes: row.notes || undefined,
+              test_mode: row.test_mode !== undefined ? Boolean(row.test_mode) : undefined,
               created_at: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString()
             });
           }
@@ -213,15 +257,31 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
     }
   }
 
-  const result = Array.from(combinedMap.values()).sort((a, b) => {
+  return Array.from(combinedMap.values()).sort((a, b) => {
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
-
-  return result;
 }
 
-export async function calculateAuthoritativeUserBalance(userId: string, email: string, defaultBal: number = 0): Promise<number> {
+export async function calculateAuthoritativeUserBalance(
+  arg1?: string | WalletTransactionRecord[],
+  arg2?: string | number,
+  arg3?: number
+): Promise<number> {
+  if (Array.isArray(arg1)) {
+    const fallbackBal = typeof arg2 === 'number' ? arg2 : 0;
+    if (arg1.length === 0) return fallbackBal;
+    const sorted = [...arg1].sort((a, b) => new Date(b.created_at || b.createdAt || 0).getTime() - new Date(a.created_at || a.createdAt || 0).getTime());
+    const latest = sorted[0];
+    if (typeof latest.balance_after === 'number') return Number(latest.balance_after);
+    if (typeof latest.balanceAfter === 'number') return Number(latest.balanceAfter);
+    return fallbackBal;
+  }
+
+  const userId = typeof arg1 === 'string' ? arg1 : '';
+  const email = typeof arg2 === 'string' ? arg2 : '';
+  const defaultBal = typeof arg3 === 'number' ? arg3 : (typeof arg2 === 'number' ? arg2 : 0);
   const normEmail = (email || '').toLowerCase().trim();
+
   const allTxs = await getAllAuthoritativeTransactions();
   const userTxs = allTxs.filter(t => 
     (normEmail && ((t.email && t.email.toLowerCase() === normEmail) || (t.customer_email && t.customer_email.toLowerCase() === normEmail))) ||
@@ -232,6 +292,9 @@ export async function calculateAuthoritativeUserBalance(userId: string, email: s
     const latest = userTxs[0];
     if (typeof latest.balance_after === 'number') {
       return Number(latest.balance_after);
+    }
+    if (typeof latest.balanceAfter === 'number') {
+      return Number(latest.balanceAfter);
     }
   }
 
@@ -299,7 +362,7 @@ export async function recordAuthoritativeTransaction(tx: WalletTransactionRecord
         .from('payment_transactions')
         .upsert({
           id: tx.id,
-          user_id: tx.user_id || 'usr_admin_1',
+          user_id: tx.user_id || tx.userId || 'usr_admin_1',
           email: tx.email || tx.customer_email || 'admin@zecratary.com',
           customer_email: tx.customer_email || tx.email || 'admin@zecratary.com',
           customer_name: tx.customer_name || 'Customer',
@@ -311,7 +374,12 @@ export async function recordAuthoritativeTransaction(tx: WalletTransactionRecord
           gateway: tx.gateway || 'stripe',
           status: tx.status || 'completed',
           description: tx.description || 'Wallet deposit',
-          transfer_reference: tx.transfer_reference || tx.id,
+          transfer_reference: tx.transfer_reference || tx.transferReference || tx.id,
+          confirmed_at: tx.confirmed_at || tx.confirmedAt || null,
+          confirmed_amount: tx.confirmed_amount ?? tx.confirmedAmount ?? null,
+          failure_reason: tx.failure_reason || tx.failureReason || null,
+          notes: tx.notes || null,
+          test_mode: tx.test_mode ?? tx.testMode ?? false,
           created_at: tx.created_at || new Date().toISOString()
         }, { onConflict: 'id' });
     } catch (_) {}
@@ -323,15 +391,20 @@ export async function recordAuthoritativeTransaction(tx: WalletTransactionRecord
     if (mysqlModule && typeof mysqlModule.query === 'function') {
       await mysqlModule.query(
         `INSERT INTO payment_transactions 
-         (id, user_id, email, customer_email, customer_name, plan_name, amount, balance_after, currency, type, gateway, status, description, transfer_reference, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+         (id, user_id, email, customer_email, customer_name, plan_name, amount, balance_after, currency, type, gateway, status, description, transfer_reference, confirmed_at, confirmed_amount, failure_reason, notes, test_mode, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
          ON DUPLICATE KEY UPDATE 
          balance_after = VALUES(balance_after),
          status = VALUES(status),
+         confirmed_at = VALUES(confirmed_at),
+         confirmed_amount = VALUES(confirmed_amount),
+         failure_reason = VALUES(failure_reason),
+         notes = VALUES(notes),
+         test_mode = VALUES(test_mode),
          updated_at = NOW()`,
         [
           tx.id,
-          tx.user_id || 'usr_admin_1',
+          tx.user_id || tx.userId || 'usr_admin_1',
           tx.email || tx.customer_email || 'admin@zecratary.com',
           tx.customer_email || tx.email || 'admin@zecratary.com',
           tx.customer_name || 'Customer',
@@ -343,7 +416,12 @@ export async function recordAuthoritativeTransaction(tx: WalletTransactionRecord
           tx.gateway || 'stripe',
           tx.status || 'completed',
           tx.description || 'Wallet deposit',
-          tx.transfer_reference || tx.id
+          tx.transfer_reference || tx.transferReference || tx.id,
+          tx.confirmed_at || tx.confirmedAt || null,
+          tx.confirmed_amount ?? tx.confirmedAmount ?? null,
+          tx.failure_reason || tx.failureReason || null,
+          tx.notes || null,
+          tx.test_mode ? 1 : 0
         ]
       );
     }
@@ -387,10 +465,8 @@ export async function deleteAuthoritativeTransactions(ids: string[]): Promise<bo
 }
 
 export async function deleteAllAuthoritativeTransactions(): Promise<boolean> {
-  // 1. Disk Mirror
   writeDiskTransactions([]);
 
-  // 2. PostgreSQL (Supabase)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (supabaseUrl && supabaseKey) {
@@ -401,7 +477,6 @@ export async function deleteAllAuthoritativeTransactions(): Promise<boolean> {
     } catch (_) {}
   }
 
-  // 3. MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
     if (mysqlModule && typeof mysqlModule.query === 'function') {
@@ -414,6 +489,11 @@ export async function deleteAllAuthoritativeTransactions(): Promise<boolean> {
 
 export const deleteAllTransactions = deleteAllAuthoritativeTransactions;
 export const getUserAuthoritativeBalance = calculateAuthoritativeUserBalance;
+export const getUserBalance = calculateAuthoritativeUserBalance;
+export const getWalletBalance = calculateAuthoritativeUserBalance;
 export const getAuthoritativeTransactions = getAllAuthoritativeTransactions;
 export const recordTransaction = recordAuthoritativeTransaction;
+export const deleteTransaction = async (id: string) => deleteAuthoritativeTransactions([id]);
+export const deleteTransactions = deleteAuthoritativeTransactions;
 export const deleteAuthoritativeTransaction = async (id: string) => deleteAuthoritativeTransactions([id]);
+export const harmonizeTransactionSchema = autoHarmonizeTransactionSchema;
