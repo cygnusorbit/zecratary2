@@ -47,7 +47,6 @@ function getDatabaseConfig(): { postgresUrl?: string; mysqlUrl?: string } {
  */
 async function harmonizePostgreSql(connectionString: string): Promise<boolean> {
   try {
-    // Dynamic import to prevent bundling issues in environments where pg is not required
     const { Client } = await import('pg');
     const client = new Client({
       connectionString,
@@ -59,22 +58,42 @@ async function harmonizePostgreSql(connectionString: string): Promise<boolean> {
     await client.connect();
 
     const statements = [
+      // Ensure base tables exist
       `CREATE TABLE IF NOT EXISTS subscription_plans (id VARCHAR(255) PRIMARY KEY, name VARCHAR(255));`,
       `CREATE TABLE IF NOT EXISTS token_packages (id VARCHAR(255) PRIMARY KEY, name VARCHAR(255));`,
+      `CREATE TABLE IF NOT EXISTS payment_transactions (id VARCHAR(255) PRIMARY KEY, description VARCHAR(255));`,
       `CREATE TABLE IF NOT EXISTS token_settings (id VARCHAR(255) PRIMARY KEY);`,
+      `CREATE TABLE IF NOT EXISTS user_tokens (id VARCHAR(255) PRIMARY KEY);`,
+      `CREATE TABLE IF NOT EXISTS tokens (id VARCHAR(255) PRIMARY KEY);`,
       `CREATE TABLE IF NOT EXISTS currencies (code VARCHAR(10) PRIMARY KEY, name VARCHAR(255));`,
       `CREATE TABLE IF NOT EXISTS saved_recipes (id VARCHAR(255) PRIMARY KEY, name VARCHAR(255), title VARCHAR(255));`,
       `CREATE TABLE IF NOT EXISTS recipes (id VARCHAR(255) PRIMARY KEY, name VARCHAR(255), title VARCHAR(255));`,
-      
-      // Missing column definitions
+
+      // Missing price & price_monthly columns
+      `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) DEFAULT 0;`,
       `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS price_monthly NUMERIC(10,2) DEFAULT 0;`,
+      `ALTER TABLE token_packages ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) DEFAULT 0;`,
       `ALTER TABLE token_packages ADD COLUMN IF NOT EXISTS price_monthly NUMERIC(10,2) DEFAULT 0;`,
+      `ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) DEFAULT 0;`,
+      `ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS amount NUMERIC(10,2) DEFAULT 0;`,
+
+      // Missing expiry_date columns
       `ALTER TABLE token_settings ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMPTZ;`,
+      `ALTER TABLE user_tokens ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMPTZ;`,
+      `ALTER TABLE tokens ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMPTZ;`,
+
+      // Missing created_by columns
       `ALTER TABLE currencies ADD COLUMN IF NOT EXISTS created_by VARCHAR(255) DEFAULT 'system';`,
+      `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS created_by VARCHAR(255) DEFAULT 'system';`,
+      `ALTER TABLE token_packages ADD COLUMN IF NOT EXISTS created_by VARCHAR(255) DEFAULT 'system';`,
+
+      // Missing recipe_name columns
       `ALTER TABLE saved_recipes ADD COLUMN IF NOT EXISTS recipe_name VARCHAR(255);`,
       `ALTER TABLE recipes ADD COLUMN IF NOT EXISTS recipe_name VARCHAR(255);`,
-      
-      // Populate recipe_name from name or title
+
+      // Backfill default values
+      `UPDATE subscription_plans SET price = COALESCE(price_monthly, 0) WHERE price IS NULL OR price = 0;`,
+      `UPDATE token_packages SET price = COALESCE(price_monthly, 0) WHERE price IS NULL OR price = 0;`,
       `UPDATE saved_recipes SET recipe_name = COALESCE(name, title, 'Delicious Recipe') WHERE recipe_name IS NULL;`,
       `UPDATE recipes SET recipe_name = COALESCE(name, title, 'Delicious Recipe') WHERE recipe_name IS NULL;`
     ];
@@ -82,15 +101,14 @@ async function harmonizePostgreSql(connectionString: string): Promise<boolean> {
     for (const sql of statements) {
       try {
         await client.query(sql);
-      } catch (e: any) {
-        // Quietly continue if table does not exist or column is already added
+      } catch (_) {
+        // Quietly continue if already exists or table structure differs
       }
     }
 
     await client.end();
     return true;
-  } catch (err: any) {
-    // PostgreSQL direct connection skipped or completed
+  } catch (_) {
     return false;
   }
 }
@@ -104,8 +122,12 @@ async function harmonizeMySql(connectionString: string): Promise<boolean> {
     const connection = await mysql.createConnection(connectionString);
 
     const checks = [
+      { table: 'subscription_plans', column: 'price', ddl: 'DECIMAL(10,2) DEFAULT 0' },
       { table: 'subscription_plans', column: 'price_monthly', ddl: 'DECIMAL(10,2) DEFAULT 0' },
+      { table: 'token_packages', column: 'price', ddl: 'DECIMAL(10,2) DEFAULT 0' },
       { table: 'token_packages', column: 'price_monthly', ddl: 'DECIMAL(10,2) DEFAULT 0' },
+      { table: 'payment_transactions', column: 'price', ddl: 'DECIMAL(10,2) DEFAULT 0' },
+      { table: 'payment_transactions', column: 'amount', ddl: 'DECIMAL(10,2) DEFAULT 0' },
       { table: 'token_settings', column: 'expiry_date', ddl: 'DATETIME NULL' },
       { table: 'currencies', column: 'created_by', ddl: "VARCHAR(255) DEFAULT 'system'" },
       { table: 'saved_recipes', column: 'recipe_name', ddl: 'VARCHAR(255) NULL' },
@@ -125,6 +147,8 @@ async function harmonizeMySql(connectionString: string): Promise<boolean> {
     }
 
     try {
+      await connection.query(`UPDATE subscription_plans SET price = COALESCE(price_monthly, 0) WHERE price IS NULL`);
+      await connection.query(`UPDATE token_packages SET price = COALESCE(price_monthly, 0) WHERE price IS NULL`);
       await connection.query(`UPDATE saved_recipes SET recipe_name = COALESCE(name, title, 'Delicious Recipe') WHERE recipe_name IS NULL`);
       await connection.query(`UPDATE recipes SET recipe_name = COALESCE(name, title, 'Delicious Recipe') WHERE recipe_name IS NULL`);
     } catch (_) {}
