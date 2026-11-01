@@ -1,0 +1,61 @@
+{
+  "tokenName": "Foodie Token",
+  "tokenSymbol": "💎",
+  "tokenIcon": "",
+  "startingBalance": 100,
+  "isEnabled": true,
+  "importUrlCost": 5,
+  "importTextCost": 2,
+  "importPhotoCost": 10,
+  "aiChefCost": 2,
+  "chefCost": 2,
+  "mealPlannerCost": 5,
+  "macroAnalysisCost": 3,
+  "planAllocations": {
+    "free": 50,
+    "nutrition-pro": 750,
+    "vip-chef": 3000
+  },
+  "packages": [
+    {
+      "id": "pkg_starter",
+      "name": "Starter Spark",
+      "tokens": 250,
+      "tokenAmount": 250,
+      "price": 4.99,
+      "priceDollars": 4.99,
+      "badge": "Popular",
+      "bonusTokens": 0,
+      "isPopular": true,
+      "bestValue": false,
+      "description": "Perfect for light exploration."
+    },
+    {
+      "id": "pkg_chef",
+      "name": "Culinary Master",
+      "tokens": 1000,
+      "tokenAmount": 1000,
+      "price": 14.99,
+      "priceDollars": 14.99,
+      "badge": "Best Value",
+      "bonusTokens": 150,
+      "isPopular": false,
+      "bestValue": true,
+      "description": "Our most popular bundle with generous bonus tokens."
+    },
+    {
+      "id": "pkg_executive",
+      "name": "Kitchen Enterprise",
+      "tokens": 5000,
+      "tokenAmount": 5000,
+      "price": 49.99,
+      "priceDollars": 49.99,
+      "badge": "VIP",
+      "bonusTokens": 1000,
+      "isPopular": false,
+      "bestValue": false,
+      "description": "High-volume throughput."
+    }
+  ],
+  "updated_at": "2026-11-01T18:59:33.107Z"
+}

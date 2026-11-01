@@ -1,0 +1,12 @@
+[
+  {
+    "id": "tx_tok_1793560165502_t5ri6",
+    "user_id": "usr_admin_1",
+    "user_email": "admin@zecratary.com",
+    "amount": 250,
+    "balance_after": 250,
+    "type": "purchase",
+    "description": "Purchased Starter Spark (+250 tokens)",
+    "created_at": "2026-11-01T19:09:25.515Z"
+  }
+]
