@@ -10,7 +10,8 @@ import {
 import { useTranslation } from '@/components/LanguageProvider';
 import { 
   fetchSiteConfig, saveSiteConfig, updateFavicon, 
-  DEFAULT_SITE_NAME, DEFAULT_SITE_TAGLINE, DEFAULT_TITLEBAR_EMOJI, DEFAULT_FAVICON_EMOJI 
+  DEFAULT_SITE_NAME, DEFAULT_SITE_TAGLINE, DEFAULT_TITLEBAR_EMOJI, DEFAULT_FAVICON_EMOJI,
+  DEFAULT_FONT_FAMILY
 } from '@/lib/siteConfig';
 
 const FONT_OPTIONS = [
@@ -132,12 +133,12 @@ export default function AdminSettingsPage() {
   const [faviconImage, setFaviconImage] = useState('');
   const [fontFamily, setFontFamily] = useState('Inter, sans-serif');
 
-  // Basic SEO States (Task 3)
+  // Basic SEO States
   const [metaDescription, setMetaDescription] = useState('Autonomous culinary intelligence, precision meal planning, and pantry inventory tracking.');
   const [metaKeywords, setMetaKeywords] = useState('culinary ai, recipe generator, meal planner, pantry management');
   const [metaAuthor, setMetaAuthor] = useState('Zecratary Culinary Intelligence Inc.');
 
-  // Theme Elements Colors State (Multi-Element Variation)
+  // Theme Elements Colors State
   const [themeColors, setThemeColors] = useState({
     primary: '#E05638',
     primaryHover: '#c94529',
@@ -159,7 +160,11 @@ export default function AdminSettingsPage() {
   const titlebarFileInputRef = useRef<HTMLInputElement>(null);
   const faviconFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Dynamic Header Title String: <Display Name> - <Tagline> (Task 2)
+  // Mutex locks to permanently avoid server looping after save
+  const isSavingRef = useRef(false);
+  const isLoadingRef = useRef(false);
+
+  // Dynamic Header Title String: <Display Name> - <Tagline>
   const dynamicHeaderTitle = `${siteName.trim() || DEFAULT_SITE_NAME} - ${siteTagline.trim() || DEFAULT_SITE_TAGLINE}`;
 
   // Synchronize document.title dynamically
@@ -187,41 +192,65 @@ export default function AdminSettingsPage() {
   }, []);
 
   const loadSettings = useCallback(async () => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
     try {
+      // 1. Resolve local cache
       const data = await fetchSiteConfig();
       if (data) {
         if (data.siteName) setSiteName(data.siteName);
         if (data.siteTagline || data.tagline) setSiteTagline(data.siteTagline || data.tagline || '');
         if (data.titlebarEmoji) setTitlebarEmoji(data.titlebarEmoji);
-        if (data.titlebarImage) setTitlebarImage(data.titlebarImage);
+        if (data.titlebarImage !== undefined) setTitlebarImage(data.titlebarImage || '');
         if (data.faviconEmoji) setFaviconEmoji(data.faviconEmoji);
-        if (data.faviconImage) setFaviconImage(data.faviconImage);
+        if (data.faviconImage !== undefined) setFaviconImage(data.faviconImage || '');
         if (data.fontFamily) setFontFamily(data.fontFamily);
         if (data.metaDescription) setMetaDescription(data.metaDescription);
         if (data.metaKeywords) setMetaKeywords(data.metaKeywords);
         if (data.metaAuthor) setMetaAuthor(data.metaAuthor);
       }
 
+      // 2. Fetch authoritative server settings
       const res = await fetch(`/api/admin/settings?t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
         const s = json.settings || json;
-        const colors = s.themeColors || s.theme_colors;
-        if (colors) {
-          const merged = { ...PRESET_THEMES[0], ...colors };
-          setThemeColors(merged);
-          applyThemeVariables(merged, s.fontFamily || s.font_family);
+        if (s) {
+          if (s.siteName || s.site_name) setSiteName(s.siteName || s.site_name);
+          if (s.siteTagline || s.site_tagline || s.tagline) setSiteTagline(s.siteTagline || s.site_tagline || s.tagline);
+          if (s.titlebarEmoji || s.titlebar_emoji) setTitlebarEmoji(s.titlebarEmoji || s.titlebar_emoji);
+          if (s.titlebarImage !== undefined || s.titlebar_image !== undefined) setTitlebarImage(s.titlebarImage || s.titlebar_image || '');
+          if (s.faviconEmoji || s.favicon_emoji) setFaviconEmoji(s.faviconEmoji || s.favicon_emoji);
+          if (s.faviconImage !== undefined || s.favicon_image !== undefined) setFaviconImage(s.faviconImage || s.favicon_image || '');
+          if (s.fontFamily || s.font_family) setFontFamily(s.fontFamily || s.font_family);
+          if (s.metaDescription || s.meta_description) setMetaDescription(s.metaDescription || s.meta_description);
+          if (s.metaKeywords || s.meta_keywords) setMetaKeywords(s.metaKeywords || s.meta_keywords);
+          if (s.metaAuthor || s.meta_author) setMetaAuthor(s.metaAuthor || s.meta_author);
+
+          const colors = s.themeColors || s.theme_colors;
+          if (colors) {
+            const merged = { ...PRESET_THEMES[0], ...colors };
+            setThemeColors(merged);
+            applyThemeVariables(merged, s.fontFamily || s.font_family);
+          }
         }
       }
     } catch (err) {
       console.warn('Failed to load admin settings:', err);
+    } finally {
+      isLoadingRef.current = false;
     }
   }, [applyThemeVariables]);
 
   useEffect(() => {
     loadSettings();
 
-    const handleSync = () => loadSettings();
+    const handleSync = () => {
+      // Discard sync events dispatched during or immediately after saving
+      if (isSavingRef.current) return;
+      loadSettings();
+    };
+
     window.addEventListener('zecratary_site_config_updated', handleSync);
     window.addEventListener('zecratary_site_settings_changed', handleSync);
     window.addEventListener('storage', handleSync);
@@ -269,7 +298,6 @@ export default function AdminSettingsPage() {
           msg: `${type === 'titlebar' ? 'Brand logo' : 'Favicon'} uploaded successfully!`
         });
       } else {
-        // Fallback to local Base64 data URL
         const reader = new FileReader();
         reader.onload = () => {
           const base64 = reader.result as string;
@@ -283,7 +311,6 @@ export default function AdminSettingsPage() {
         reader.readAsDataURL(file);
       }
     } catch (uploadErr) {
-      // Offline / fallback Base64
       const reader = new FileReader();
       reader.onload = () => {
         const base64 = reader.result as string;
@@ -324,7 +351,9 @@ export default function AdminSettingsPage() {
   };
 
   const handleSave = async () => {
+    if (saving || isSavingRef.current) return;
     setSaving(true);
+    isSavingRef.current = true;
     setStatus(null);
 
     const payload = {
@@ -376,6 +405,10 @@ export default function AdminSettingsPage() {
       });
     } finally {
       setSaving(false);
+      // Cooldown timer to prevent self-triggered sync loops
+      setTimeout(() => {
+        isSavingRef.current = false;
+      }, 600);
     }
   };
 
@@ -386,7 +419,7 @@ export default function AdminSettingsPage() {
     setTitlebarImage('');
     setFaviconEmoji(DEFAULT_FAVICON_EMOJI);
     setFaviconImage('');
-    setFontFamily(DEFAULT_FONT_FAMILY);
+    setFontFamily(DEFAULT_FONT_FAMILY || 'Inter, sans-serif');
     setMetaDescription('Autonomous culinary intelligence, precision meal planning, and pantry inventory tracking.');
     setMetaKeywords('culinary ai, recipe generator, meal planner, pantry management');
     setMetaAuthor('Zecratary Culinary Intelligence Inc.');
@@ -421,7 +454,7 @@ export default function AdminSettingsPage() {
         onChange={(e) => handleFileUpload(e, 'favicon')}
       />
 
-      {/* Dynamic Header: <Display Name> - <Tagline> (Task 2) */}
+      {/* Dynamic Header: <Display Name> - <Tagline> */}
       <div 
         className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b pb-5 pt-2 mb-6"
         style={{ borderColor: 'var(--color-border)' }}
@@ -533,7 +566,7 @@ export default function AdminSettingsPage() {
         })}
       </div>
 
-      {/* TAB 1: IDENTITY & BRAND LOGO UPLOAD (RESTORED & ENHANCED) */}
+      {/* TAB 1: IDENTITY & BRAND LOGO UPLOAD */}
       {activeTab === 'branding' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div 
@@ -546,7 +579,6 @@ export default function AdminSettingsPage() {
               <Sparkles className="h-4 w-4" /> Application Identity & Naming
             </h2>
 
-            {/* Display Name Input */}
             <div>
               <label className="block text-xs font-bold mb-1.5" style={{ color: 'var(--color-text)' }}>
                 Application Display Name *
@@ -571,7 +603,6 @@ export default function AdminSettingsPage() {
               />
             </div>
 
-            {/* Application Tagline & Subtitle */}
             <div>
               <label className="block text-xs font-bold mb-1.5" style={{ color: 'var(--color-text)' }}>
                 {t('adminAppTagline', 'Application Tagline & Subtitle')} *
@@ -599,7 +630,7 @@ export default function AdminSettingsPage() {
               </p>
             </div>
 
-            {/* Titlebar / Sidebar Brand Icon Section (Emoji + File Upload) */}
+            {/* Titlebar / Sidebar Brand Icon */}
             <div 
               className="p-4 rounded-2xl border space-y-3"
               style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
@@ -680,7 +711,7 @@ export default function AdminSettingsPage() {
               </div>
             </div>
 
-            {/* Browser Favicon Section (Emoji + File Upload) */}
+            {/* Browser Favicon */}
             <div 
               className="p-4 rounded-2xl border space-y-3"
               style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
@@ -776,7 +807,6 @@ export default function AdminSettingsPage() {
               <ExternalLink className="h-4 w-4" /> Live Header & Brand Simulator
             </h2>
 
-            {/* Document Title Tab Simulation */}
             <div 
               className="p-4 rounded-2xl border space-y-1.5"
               style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
@@ -796,7 +826,6 @@ export default function AdminSettingsPage() {
               </div>
             </div>
 
-            {/* Navigation Brand Header Component */}
             <div 
               className="p-4 rounded-2xl border space-y-2"
               style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
@@ -826,7 +855,6 @@ export default function AdminSettingsPage() {
               </div>
             </div>
 
-            {/* Topbar Token Capsule Preview */}
             <div 
               className="p-4 rounded-2xl border space-y-2"
               style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
@@ -862,10 +890,9 @@ export default function AdminSettingsPage() {
         </div>
       )}
 
-      {/* TAB 2: THEME & MULTI-ELEMENT COLOR VARIATION (RESTORED & ENHANCED) */}
+      {/* TAB 2: THEME & MULTI-ELEMENT COLOR VARIATION */}
       {activeTab === 'theme' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Preset Palettes (8 Variations) */}
           <div 
             role="region"
             data-lpignore="true"
@@ -911,7 +938,6 @@ export default function AdminSettingsPage() {
             </div>
           </div>
 
-          {/* Granular Element Colors (9 Discrete Elements) */}
           <div 
             role="region"
             data-lpignore="true"
@@ -969,7 +995,6 @@ export default function AdminSettingsPage() {
               ))}
             </div>
 
-            {/* Live Interactive UI Element Preview */}
             <div 
               className="p-4 rounded-2xl border space-y-3 mt-4"
               style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
@@ -1011,7 +1036,7 @@ export default function AdminSettingsPage() {
         </div>
       )}
 
-      {/* TAB 3: BASIC SEO FIELDS (Task 3) */}
+      {/* TAB 3: BASIC SEO FIELDS */}
       {activeTab === 'seo' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div 
@@ -1029,7 +1054,6 @@ export default function AdminSettingsPage() {
               </p>
             </div>
 
-            {/* Meta Description */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
@@ -1059,7 +1083,6 @@ export default function AdminSettingsPage() {
               />
             </div>
 
-            {/* Meta Keywords */}
             <div>
               <label className="block text-xs font-bold mb-1.5" style={{ color: 'var(--color-text)' }}>
                 {t('adminMetaKeywordsLabel', 'Meta Keywords (Comma separated)')}
@@ -1103,7 +1126,6 @@ export default function AdminSettingsPage() {
               </div>
             </div>
 
-            {/* Meta Author */}
             <div>
               <label className="block text-xs font-bold mb-1.5" style={{ color: 'var(--color-text)' }}>
                 {t('adminMetaAuthorLabel', 'Site Author / Organization')}
@@ -1129,7 +1151,6 @@ export default function AdminSettingsPage() {
             </div>
           </div>
 
-          {/* Google Search Snippet Preview */}
           <div 
             role="region"
             data-lpignore="true"
@@ -1175,7 +1196,7 @@ export default function AdminSettingsPage() {
                 <ShieldCheck className="h-4 w-4" /> SEO Indexing Guardrail
               </div>
               <p className="text-[11px] leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
-                These values are persisted to PostgreSQL `admin_settings`, synchronized to server configuration caches, and consumed by Next.js `generateMetadata()` for search crawlers and social OpenGraph tags.
+                These values are persisted to PostgreSQL/MySQL `admin_settings`, synchronized to server caches, and consumed by Next.js `generateMetadata()` for crawlers and social OpenGraph tags.
               </p>
             </div>
           </div>
