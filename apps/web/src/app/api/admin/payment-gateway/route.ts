@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 import { getAuthoritativeGatewaySettings, saveAuthoritativeGatewaySettings } from '@/lib/paymentGatewayService';
 import { 
   getAllAuthoritativeTransactions, 
@@ -81,7 +79,7 @@ export async function POST(req: NextRequest) {
       const currentBalance = await calculateAuthoritativeUserBalance(userId, userEmail, 0);
       const newBalance = currentBalance + amountToCredit;
 
-      // Persist balance in Supabase PostgreSQL
+      // Supabase PostgreSQL
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
       if (supabaseUrl && supabaseKey) {
@@ -95,7 +93,7 @@ export async function POST(req: NextRequest) {
         } catch (_) {}
       }
 
-      // Persist balance in MySQL
+      // MySQL
       try {
         const mysqlModule = await import('@/lib/mysql').catch(() => null);
         if (mysqlModule && typeof mysqlModule.query === 'function') {
@@ -106,7 +104,7 @@ export async function POST(req: NextRequest) {
         }
       } catch (_) {}
 
-      // Persist balance to disk users.json
+      // Disk users.json
       const diskUsersPath = path.join(process.cwd(), 'apps/web/data/users.json');
       try {
         if (fs.existsSync(diskUsersPath)) {
@@ -122,7 +120,6 @@ export async function POST(req: NextRequest) {
         }
       } catch (_) {}
 
-      // Update Transaction status to 'succeeded' and record balance_after
       const updatedTx: WalletTransactionRecord = {
         ...targetTx,
         status: 'succeeded',
@@ -140,7 +137,7 @@ export async function POST(req: NextRequest) {
       }, { headers: CORS_HEADERS });
     }
 
-    // 2. Authoritative Reject Manual Wire Transfer
+    // 2. Reject Manual Wire Transfer
     if (action === 'reject_manual_settlement') {
       const txId = body.id;
       const reason = body.failureReason || 'Wire transfer rejected by administrator.';
@@ -174,7 +171,7 @@ export async function POST(req: NextRequest) {
           amount: body.amount !== undefined ? Number(body.amount) : targetTx.amount,
           transfer_reference: body.transfer_reference ?? targetTx.transfer_reference,
           status: body.status ?? targetTx.status,
-          notes: body.notes ?? (targetTx as any).notes,
+          notes: body.notes ?? targetTx.notes,
           failure_reason: body.failure_reason ?? targetTx.failure_reason
         };
         await recordAuthoritativeTransaction(updatedTx);
@@ -185,7 +182,6 @@ export async function POST(req: NextRequest) {
 
     // 4. Verify Stripe Keys
     if (action === 'verify_stripe_keys') {
-      const isTest = body.testMode !== undefined ? Boolean(body.testMode) : true;
       let secretKey = (body.secretKey || '').trim();
       let publishableKey = (body.publishableKey || '').trim();
       const webhookSecret = (body.webhookSecret || '').trim();
