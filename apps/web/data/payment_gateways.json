@@ -1,0 +1,34 @@
+{
+  "currency": "USD",
+  "gateways": {
+    "stripe": {
+      "enabled": true,
+      "title": "Stripe",
+      "mode": "test",
+      "publishableKey": "pk_test_sample",
+      "secretKey": ""
+    },
+    "paypal": {
+      "enabled": true,
+      "title": "PayPal",
+      "mode": "sandbox",
+      "clientId": "sandbox_sample_client_id"
+    },
+    "manualSettlement": {
+      "enabled": true,
+      "title": "Bank Wire / Manual Settlement",
+      "bankName": "Silicon Valley Commercial Bank",
+      "accountHolder": "Zecratary Inc.",
+      "accountNumber": "9842103891",
+      "routingNumber": "121000358",
+      "swiftBic": "SVCBUS6S",
+      "instructions": "Please include your Transfer Reference ID in the transfer memo for prompt crediting.",
+      "requireReference": true
+    }
+  },
+  "allowed_gateways": [
+    "stripe",
+    "paypal",
+    "manual"
+  ]
+}

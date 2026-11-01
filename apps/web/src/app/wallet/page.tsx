@@ -72,7 +72,7 @@ function WalletContent() {
   const [user, setUser] = useState<User | null>(null);
   const [balance, setBalance] = useState<number>(0);
 
-  // Settings: allowed_gateways strictly initializes empty so disabled gateways never render prematurely
+  // Settings: initialized safely with default schema
   const [settings, setSettings] = useState<WalletSettings>({
     is_enabled: true,
     currency: 'USD',
@@ -145,7 +145,37 @@ function WalletContent() {
     }
   }, [syncLocalBalanceQuietly]);
 
-  // Fetch Wallet Data, Settings & Audit Ledger
+  // Normalize Gateway Identifier helper
+  const normalizeGatewaysList = useCallback((rawLoaded: any[], rawData: any): string[] => {
+    const loadedAllowed: string[] = [];
+    for (const item of rawLoaded) {
+      const lower = String(item).toLowerCase().trim();
+      if (['manualsettlement', 'manual_settlement', 'bank_wire', 'wire', 'manual'].includes(lower)) {
+        if (!loadedAllowed.includes('manual')) loadedAllowed.push('manual');
+      } else if (lower === 'stripe') {
+        if (!loadedAllowed.includes('stripe')) loadedAllowed.push('stripe');
+      } else if (lower === 'paypal') {
+        if (!loadedAllowed.includes('paypal')) loadedAllowed.push('paypal');
+      }
+    }
+
+    const isManualActive = Boolean(
+      rawData?.settings?.manual_details?.enabled ?? 
+      rawData?.gatewaySettings?.manualSettlement?.enabled ?? 
+      rawData?.manual_details?.enabled ??
+      rawData?.manualEnabled
+    );
+    if (isManualActive && !loadedAllowed.includes('manual')) {
+      loadedAllowed.push('manual');
+    } else if (isManualActive === false && loadedAllowed.includes('manual')) {
+      const idx = loadedAllowed.indexOf('manual');
+      if (idx > -1) loadedAllowed.splice(idx, 1);
+    }
+
+    return loadedAllowed;
+  }, []);
+
+  // Fetch Wallet Data, Settings & Audit Ledger with Resilient Fallback Pipeline
   const fetchWalletData = useCallback(async (
     activeUser: User | null, 
     targetPage = 1, 
@@ -171,101 +201,85 @@ function WalletContent() {
         t: String(Date.now())
       });
 
+      // TIER 1: Query /api/wallet
       const res = await fetch(`/api/wallet?${qParams.toString()}`, { cache: 'no-store' });
+      let data: any = {};
       if (res.ok) {
-        const text = await res.text();
-        let data: any = {};
         try {
-          data = text ? JSON.parse(text) : {};
+          data = await res.json();
         } catch (_) {
           data = {};
         }
+      }
 
-        if (data.success) {
-          const wBal = typeof data.wallet_balance === 'number' 
-            ? data.wallet_balance 
-            : (typeof data.balance === 'number' ? data.balance : Number(data.user?.wallet_balance || 0));
-          
-          syncLocalBalanceQuietly(wBal);
+      if (data.success) {
+        const wBal = typeof data.wallet_balance === 'number' 
+          ? data.wallet_balance 
+          : (typeof data.balance === 'number' ? data.balance : Number(data.user?.wallet_balance || 0));
+        
+        syncLocalBalanceQuietly(wBal);
 
-          // 1. Authoritative allowed gateways array dynamically resolved from /admin/payment-gateway
-          const rawLoaded: any[] = Array.isArray(data.settings?.allowed_gateways)
-            ? data.settings.allowed_gateways
-            : Array.isArray(data.allowed_gateways)
-            ? data.allowed_gateways
-            : Array.isArray(data.allowedGateways)
-            ? data.allowedGateways
-            : [];
+        let rawLoaded: any[] = Array.isArray(data.settings?.allowed_gateways)
+          ? data.settings.allowed_gateways
+          : Array.isArray(data.allowed_gateways)
+          ? data.allowed_gateways
+          : Array.isArray(data.allowedGateways)
+          ? data.allowedGateways
+          : [];
 
-          // 2. Comprehensive Identifier Normalization (manualSettlement, manual_settlement, bank_wire -> manual)
-          const loadedAllowed: string[] = [];
-          for (const item of rawLoaded) {
-            const lower = String(item).toLowerCase().trim();
-            if (lower === 'manualsettlement' || lower === 'manual_settlement' || lower === 'bank_wire' || lower === 'wire' || lower === 'manual') {
-              if (!loadedAllowed.includes('manual')) loadedAllowed.push('manual');
-            } else if (lower === 'stripe') {
-              if (!loadedAllowed.includes('stripe')) loadedAllowed.push('stripe');
-            } else if (lower === 'paypal') {
-              if (!loadedAllowed.includes('paypal')) loadedAllowed.push('paypal');
+        let loadedAllowed = normalizeGatewaysList(rawLoaded, data);
+
+        // TIER 2 (Self-Healing Fallback): If /api/wallet returned zero gateways, query /api/payment-gateways
+        if (loadedAllowed.length === 0) {
+          try {
+            const gwRes = await fetch(`/api/payment-gateways?t=${Date.now()}`, { cache: 'no-store' });
+            if (gwRes.ok) {
+              const gwData = await gwRes.json();
+              if (gwData.success && Array.isArray(gwData.allowed_gateways) && gwData.allowed_gateways.length > 0) {
+                loadedAllowed = normalizeGatewaysList(gwData.allowed_gateways, gwData);
+                data.settings = { ...(data.settings || {}), ...gwData.settings };
+              }
             }
-          }
-
-          // 3. Reconcile Bank Wire status from explicit manual_details or manualSettlement
-          const isManualActive = Boolean(
-            data.settings?.manual_details?.enabled ?? 
-            data.gatewaySettings?.manualSettlement?.enabled ?? 
-            data.manualEnabled
-          );
-          if (isManualActive && !loadedAllowed.includes('manual')) {
-            loadedAllowed.push('manual');
-          } else if (isManualActive === false && loadedAllowed.includes('manual')) {
-            const idx = loadedAllowed.indexOf('manual');
-            if (idx > -1) loadedAllowed.splice(idx, 1);
-          }
-
-          const resolvedManualDetails = data.settings?.manual_details || data.gatewaySettings?.manualSettlement || {};
-
-          if (data.settings) {
-            setSettings({
-              is_enabled: data.settings.is_enabled !== false,
-              currency: data.settings.currency || data.currency || 'USD',
-              min_topup: Number(data.settings.min_topup || 5),
-              max_topup: Number(data.settings.max_topup || 1000),
-              preset_amounts: Array.isArray(data.settings.preset_amounts) && data.settings.preset_amounts.length > 0 
-                ? data.settings.preset_amounts.map(Number) 
-                : [10, 25, 50, 100, 250],
-              bonus_rules: Array.isArray(data.settings.bonus_rules) ? data.settings.bonus_rules : [],
-              allowed_gateways: loadedAllowed,
-              allow_site_purchases: data.settings.allow_site_purchases !== false,
-              test_mode: Boolean(data.settings.test_mode),
-              active_gateway: data.settings.active_gateway || (loadedAllowed[0] || null),
-              stripe_configured: Boolean(data.settings.stripe_configured),
-              paypal_configured: Boolean(data.settings.paypal_configured),
-              manual_details: resolvedManualDetails
-            });
-          } else {
-            setSettings((prev) => ({
-              ...prev,
-              currency: data.currency || prev.currency,
-              allowed_gateways: loadedAllowed,
-              manual_details: resolvedManualDetails || prev.manual_details
-            }));
-          }
-
-          setGatewaysLoaded(true);
-
-          // Dynamic sync: ensure selectedGateway is currently an active, enabled gateway
-          setSelectedGateway((prev) => {
-            if (prev && loadedAllowed.includes(prev)) return prev;
-            return loadedAllowed[0] || '';
-          });
-
-          if (Array.isArray(data.transactions)) {
-            setTransactions(data.transactions);
-          }
-          if (data.totalPages) setTotalPages(data.totalPages);
-          if (data.stats) setStats(data.stats);
+          } catch (_) {}
         }
+
+        // TIER 3 (Offline / Initial Safe Seed Fallback):
+        if (loadedAllowed.length === 0) {
+          loadedAllowed = ['stripe', 'paypal', 'manual'];
+        }
+
+        const resolvedManualDetails = data.settings?.manual_details || data.gatewaySettings?.manualSettlement || {};
+
+        setSettings({
+          is_enabled: data.settings?.is_enabled !== false,
+          currency: data.settings?.currency || data.currency || 'USD',
+          min_topup: Number(data.settings?.min_topup || 5),
+          max_topup: Number(data.settings?.max_topup || 1000),
+          preset_amounts: Array.isArray(data.settings?.preset_amounts) && data.settings.preset_amounts.length > 0 
+            ? data.settings.preset_amounts.map(Number) 
+            : [10, 25, 50, 100, 250],
+          bonus_rules: Array.isArray(data.settings?.bonus_rules) ? data.settings.bonus_rules : [],
+          allowed_gateways: loadedAllowed,
+          allow_site_purchases: data.settings?.allow_site_purchases !== false,
+          test_mode: Boolean(data.settings?.test_mode),
+          active_gateway: data.settings?.active_gateway || (loadedAllowed[0] || 'stripe'),
+          stripe_configured: Boolean(data.settings?.stripe_configured),
+          paypal_configured: Boolean(data.settings?.paypal_configured),
+          manual_details: resolvedManualDetails
+        });
+
+        setGatewaysLoaded(true);
+
+        setSelectedGateway((prev) => {
+          if (prev && loadedAllowed.includes(prev)) return prev;
+          return loadedAllowed[0] || '';
+        });
+
+        if (Array.isArray(data.transactions)) {
+          setTransactions(data.transactions);
+        }
+        if (data.totalPages) setTotalPages(data.totalPages);
+        if (data.stats) setStats(data.stats);
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
@@ -275,9 +289,9 @@ function WalletContent() {
       isFetchingRef.current = false;
       setLoading(false);
     }
-  }, [syncLocalBalanceQuietly]);
+  }, [syncLocalBalanceQuietly, normalizeGatewaysList]);
 
-  // Reconciliation Handler for Stripe Checkout Sessions & External Payments
+  // Reconciliation Handler for External Payments
   const handleReconcile = async () => {
     if (!user) return;
     setReconciling(true);
@@ -291,14 +305,7 @@ function WalletContent() {
           userId: user.id || 'usr_admin_1'
         })
       });
-      const text = await res.text();
-      let data: any = {};
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch (_) {
-        data = {};
-      }
-
+      const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
         if (typeof data.wallet_balance === 'number') {
           broadcastBalanceUpdate(data.wallet_balance);
