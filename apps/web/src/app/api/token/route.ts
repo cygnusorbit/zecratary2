@@ -1,3 +1,2 @@
-export { GET, POST, OPTIONS } from '../tokens/route';
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// Re-export all handlers and config from plural route for backward compatibility
+export { GET, POST, OPTIONS, dynamic } from '../tokens/route';

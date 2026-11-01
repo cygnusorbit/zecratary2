@@ -3,6 +3,22 @@ import { harmonizeDatabaseSchema } from '@/lib/dbSchemaHarmonizer';
 
 export const dynamic = 'force-dynamic';
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
+};
+
+/**
+ * CORS Preflight Handler (Fixes TS2305 in /api/token/route.ts)
+ */
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: CORS_HEADERS
+  });
+}
+
 export async function GET(req: NextRequest) {
   // Execute self-healing migration in the background
   harmonizeDatabaseSchema().catch(() => {});
@@ -28,6 +44,8 @@ export async function GET(req: NextRequest) {
     tokens: tokenData,
     balance: tokenData.balance,
     price_monthly: tokenData.price_monthly
+  }, {
+    headers: CORS_HEADERS
   });
 }
 
@@ -39,8 +57,10 @@ export async function POST(req: NextRequest) {
       success: true,
       message: 'Tokens updated successfully',
       data: body
+    }, {
+      headers: CORS_HEADERS
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: err.message }, { status: 500, headers: CORS_HEADERS });
   }
 }
