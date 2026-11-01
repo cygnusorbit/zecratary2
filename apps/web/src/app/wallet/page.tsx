@@ -730,7 +730,7 @@ function WalletContent() {
       window.removeEventListener('zecratary_wallet_settings_updated', debouncedSync);
       window.removeEventListener('zecratary_wallet_updated', debouncedSync);
       if (bc) bc.close();
-      if (gwBc) gwBc.close(); clearTimeout(safetyTimer);
+      if (gwBc) gwBc.close(); 
     };
   }, [resolveAllowedChannels]);
 
@@ -960,30 +960,20 @@ function WalletContent() {
             {activeCurrencySymbol}{(typeof balance === 'number' && !isNaN(balance) ? balance : 0).toFixed(2)}
           </div>
 
-          {/* Dynamic Stats with Shadow Pulse Loaders */}
+          {/* Dynamic Stats with Instant Display */}
           <div className="pt-3 border-t space-y-2 text-xs" style={{ borderColor: 'var(--color-border)' }}>
-            {initialLoading ? (
-              <div className="space-y-2 pt-1">
-                <div className="h-4 w-full rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
-                <div className="h-4 w-full rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
-                <div className="h-4 w-full rounded-lg animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
-              </div>
-            ) : (
-              <>
-                <div className="flex justify-between items-center opacity-80">
-                  <span>{t('totalDeposited', 'Total Deposited')}:</span>
-                  <span className="font-bold font-mono text-emerald-400">+{activeCurrencySymbol}{stats.totalDeposited.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center opacity-80">
-                  <span>{t('totalSpent', 'Total Spent')}:</span>
-                  <span className="font-bold font-mono text-rose-400">-{activeCurrencySymbol}{stats.totalSpent.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center opacity-80">
-                  <span>{t('totalEvents', 'Total Events')}:</span>
-                  <span className="font-bold font-mono">{stats.totalEvents}</span>
-                </div>
-              </>
-            )}
+            <div className="flex justify-between items-center opacity-80">
+              <span>{t('totalDeposited', 'Total Deposited')}:</span>
+              <span className="font-bold font-mono text-emerald-400">+{activeCurrencySymbol}{(stats.totalDeposited || balance || 0).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center opacity-80">
+              <span>{t('totalSpent', 'Total Spent')}:</span>
+              <span className="font-bold font-mono text-rose-400">-{activeCurrencySymbol}{(stats.totalSpent || 0).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center opacity-80">
+              <span>{t('totalEvents', 'Total Events')}:</span>
+              <span className="font-bold font-mono">{stats.totalEvents || transactions.length || 0}</span>
+            </div>
           </div>
         </div>
 

@@ -251,7 +251,6 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
     }
   }
 
-  // Ensure default seed if completely empty
   if (combinedMap.size === 0) {
     for (const seed of DEFAULT_SEED_TRANSACTIONS) {
       combinedMap.set(seed.id, seed);
@@ -371,6 +370,33 @@ export async function deleteAuthoritativeTransactions(ids: string[]): Promise<bo
         `DELETE FROM payment_transactions WHERE id IN (${placeholders})`,
         ids
       );
+    }
+  } catch (_) {}
+
+  return true;
+}
+
+/**
+ * Authoritatively deletes all wallet transactions across PostgreSQL, MySQL, and disk mirror.
+ */
+export async function deleteAllAuthoritativeTransactions(): Promise<boolean> {
+  writeDiskTransactions([]);
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  if (supabaseUrl && supabaseKey) {
+    try {
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      await supabase.from('payment_transactions').delete().neq('id', 'placeholder_impossible_id');
+    } catch (_) {}
+  }
+
+  try {
+    const mysqlModule = await import('@/lib/mysql').catch(() => null);
+    if (mysqlModule && typeof mysqlModule.query === 'function') {
+      await mysqlModule.query("DELETE FROM payment_transactions");
     }
   } catch (_) {}
 
@@ -532,6 +558,7 @@ export const recordTransaction = recordAuthoritativeTransaction;
 export const deleteAuthoritativeTransaction = async (id: string) => deleteAuthoritativeTransactions([id]);
 export const deleteTransaction = deleteAuthoritativeTransaction;
 export const deleteTransactions = deleteAuthoritativeTransactions;
+export const deleteAllTransactions = deleteAllAuthoritativeTransactions;
 export const getUserAuthoritativeBalance = calculateAuthoritativeUserBalance;
 export const getUserBalance = calculateAuthoritativeUserBalance;
 export const getWalletBalance = calculateAuthoritativeUserBalance;
