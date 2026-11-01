@@ -451,20 +451,35 @@ function WalletContent() {
         });
       }
 
-      if (walletData && walletData.success) {
-        const wBal = typeof walletData.wallet_balance === 'number' 
-          ? walletData.wallet_balance 
-          : (typeof walletData.balance === 'number' ? walletData.balance : undefined);
-        
-        if (typeof wBal === 'number') {
-          syncLocalBalanceQuietly(wBal);
+      if (walletData && (walletData.success || walletData.wallet || walletData.user || walletData.wallet_balance !== undefined || walletData.balance !== undefined)) {
+        const candidateBal = 
+          walletData.wallet_balance ?? 
+          walletData.balance ?? 
+          walletData.walletBalance ?? 
+          walletData.wallet?.balance ?? 
+          walletData.wallet?.wallet_balance ?? 
+          walletData.user?.wallet_balance ?? 
+          walletData.user?.balance;
+
+        if (candidateBal !== undefined && candidateBal !== null) {
+          const parsedBal = Number(candidateBal);
+          if (!isNaN(parsedBal)) {
+            syncLocalBalanceQuietly(parsedBal);
+          }
         }
 
-        if (Array.isArray(walletData.transactions)) {
-          setTransactions(walletData.transactions);
+        const txList = walletData.transactions || walletData.wallet?.transactions || [];
+        if (Array.isArray(txList)) {
+          setTransactions(txList);
         }
-        if (walletData.totalPages) setTotalPages(walletData.totalPages);
-        if (walletData.stats) setStats(walletData.stats);
+        if (walletData.totalPages) setTotalPages(Number(walletData.totalPages));
+        if (walletData.stats) {
+          setStats({
+            totalDeposited: Number(walletData.stats.totalDeposited || 0),
+            totalSpent: Number(walletData.stats.totalSpent || 0),
+            totalEvents: Number(walletData.stats.totalEvents || 0)
+          });
+        }
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
@@ -528,14 +543,24 @@ function WalletContent() {
 
   useEffect(() => {
     initAuthStorage();
+    const safetyTimer = setTimeout(() => {
+      setInitialLoading(false);
+    }, 1200);
+
     const u = getCurrentUser();
     if (!u) {
       router.replace('/login');
       return;
     }
     setUser(u);
-    if (typeof u.wallet_balance === 'number') {
-      setBalance(u.wallet_balance);
+    const initialRawBal = u.wallet_balance !== undefined ? u.wallet_balance : (u.balance !== undefined ? u.balance : null);
+    if (initialRawBal !== null && !isNaN(Number(initialRawBal))) {
+      setBalance(Number(initialRawBal));
+    } else if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('zecratary_wallet_balance');
+      if (cached && !isNaN(Number(cached))) {
+        setBalance(Number(cached));
+      }
     }
 
     const paramAmount = searchParams?.get('amount');
@@ -676,7 +701,7 @@ function WalletContent() {
       window.removeEventListener('zecratary_wallet_settings_updated', debouncedSync);
       window.removeEventListener('zecratary_wallet_updated', debouncedSync);
       if (bc) bc.close();
-      if (gwBc) gwBc.close();
+      if (gwBc) gwBc.close(); clearTimeout(safetyTimer);
     };
   }, [resolveAllowedChannels]);
 
@@ -906,7 +931,7 @@ function WalletContent() {
             <div className="h-9 w-40 rounded-2xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
           ) : (
             <div className="text-3xl font-black font-mono text-emerald-400">
-              {activeCurrencySymbol}{balance.toFixed(2)}
+              {activeCurrencySymbol}{(typeof balance === 'number' && !isNaN(balance) ? balance : 0).toFixed(2)}
             </div>
           )}
 
