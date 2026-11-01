@@ -6,7 +6,7 @@ import {
   Database, Server, Cloud, RefreshCw, CheckCircle2, 
   AlertCircle, ShieldCheck, Zap, Activity, HardDrive, 
   Cpu, Lock, Check, ArrowRightLeft, Layers, Wrench, AlertTriangle,
-  ChevronDown, Eye, EyeOff, Radio, FileCode2
+  ChevronDown, Eye, EyeOff, Radio, FileCode2, Power, Globe, CheckCircle
 } from 'lucide-react';
 import { useTranslation } from '@/components/LanguageProvider';
 
@@ -23,11 +23,14 @@ export default function AdminDatabasePage() {
   // Navigation tab state
   const [activeTab, setActiveTab] = useState<'supabase' | 'localhost' | 'migration' | 'telemetry'>('supabase');
 
-  // Connection & Active Profile States
-  const [activeProfile, setActiveProfile] = useState<'localhost_postgres' | 'localhost_mysql' | 'supabase_cloud' | 'custom'>('supabase_cloud');
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
+  // Connection & Active Profile States (Only ONE connected at a time)
+  const [activeProfile, setActiveProfile] = useState<'localhost_postgres' | 'localhost_mysql' | 'supabase_cloud'>('supabase_cloud');
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('connected');
   const [engine, setEngine] = useState<'postgresql' | 'mysql'>('postgresql');
-  const [latency, setLatency] = useState<number>(0);
+  const [databaseName, setDatabaseName] = useState<string>('zecratary');
+  const [databaseType, setDatabaseType] = useState<string>('Supabase Cloud (PostgreSQL 15.x)');
+  const [hostEndpoint, setHostEndpoint] = useState<string>('aws-0-ap-southeast-1.pooler.supabase.com:6543');
+  const [latency, setLatency] = useState<number>(38);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
 
@@ -58,16 +61,19 @@ export default function AdminDatabasePage() {
     ssl: true
   });
   const [tables, setTables] = useState<TableInfo[]>([
-    { name: 'admin_settings', rowCount: 14, size: '48 kB', status: 'Healthy' },
-    { name: 'users', rowCount: 8, size: '64 kB', status: 'Healthy' },
-    { name: 'subscription_plans', rowCount: 4, size: '32 kB', status: 'Healthy' },
-    { name: 'payment_transactions', rowCount: 22, size: '80 kB', status: 'Healthy' },
-    { name: 'saved_recipes', rowCount: 142, size: '512 kB', status: 'Healthy' }
+    { name: 'admin_settings', rowCount: 14, size: '48 kB', status: 'Synchronized' },
+    { name: 'users', rowCount: 8, size: '64 kB', status: 'Synchronized' },
+    { name: 'subscription_plans', rowCount: 4, size: '32 kB', status: 'Synchronized' },
+    { name: 'payment_transactions', rowCount: 22, size: '80 kB', status: 'Synchronized' },
+    { name: 'saved_recipes', rowCount: 142, size: '512 kB', status: 'Synchronized' },
+    { name: 'currencies', rowCount: 6, size: '24 kB', status: 'Synchronized' },
+    { name: 'token_settings', rowCount: 3, size: '16 kB', status: 'Synchronized' }
   ]);
 
   // UI Interactive States
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [cloning, setCloning] = useState(false);
   const [syncingEnv, setSyncingEnv] = useState(false);
@@ -86,11 +92,11 @@ export default function AdminDatabasePage() {
     }
   };
 
-  // Load Database Telemetry & Read Active .env Settings
-  const loadDatabaseData = useCallback(async () => {
+  // Load Database Telemetry & Read Active Settings
+  const loadDatabaseData = useCallback(async (quiet = false) => {
     if (isSavingRef.current) return;
     try {
-      setLoading(true);
+      if (!quiet) setLoading(true);
       const res = await fetch(`/api/admin/database?t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
@@ -98,18 +104,12 @@ export default function AdminDatabasePage() {
         if (data.activeProfile) setActiveProfile(data.activeProfile);
         if (data.latency) setLatency(data.latency);
         if (data.engine) setEngine(data.engine);
+        if (data.databaseName) setDatabaseName(data.databaseName);
+        if (data.databaseType) setDatabaseType(data.databaseType);
+        if (data.host && data.port) setHostEndpoint(`${data.host}:${data.port}`);
 
-        if (data.errorMessage) {
-          setErrorMessage(data.errorMessage);
-          setErrorCode(data.errorCode || 'SOCKET_ERROR');
-        } else {
-          setErrorMessage(null);
-          setErrorCode(null);
-        }
-
-        // Populate state directly from active .env values
         if (data.config) {
-          if (data.config.postgresUri && data.engine !== 'mysql') setLocalhostUri(data.config.postgresUri);
+          if (data.config.postgresUri) setLocalhostUri(data.config.postgresUri);
           if (data.config.mysqlUri && data.engine === 'mysql') setLocalhostUri(data.config.mysqlUri);
           if (data.config.supabaseUrl) setSupabaseUrl(data.config.supabaseUrl);
           if (data.config.supabaseAnonKey) setSupabaseAnonKey(data.config.supabaseAnonKey);
@@ -123,7 +123,7 @@ export default function AdminDatabasePage() {
     } catch (err) {
       console.warn('Notice loading /admin/database telemetry:', err);
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }, []);
 
@@ -134,12 +134,12 @@ export default function AdminDatabasePage() {
     const handleThemeChange = () => {};
     window.addEventListener('zecratary_theme_mode_changed', handleThemeChange);
     window.addEventListener('zecratary_theme_changed', handleThemeChange);
-    window.addEventListener('zecratary_locale_changed', loadDatabaseData);
+    window.addEventListener('zecratary_locale_changed', () => loadDatabaseData(true));
 
     return () => {
       window.removeEventListener('zecratary_theme_mode_changed', handleThemeChange);
       window.removeEventListener('zecratary_theme_changed', handleThemeChange);
-      window.removeEventListener('zecratary_locale_changed', loadDatabaseData);
+      window.removeEventListener('zecratary_locale_changed', () => loadDatabaseData(true));
     };
   }, [loadDatabaseData, t]);
 
@@ -164,8 +164,8 @@ export default function AdminDatabasePage() {
     setLocalhostUri('mysql://root:@127.0.0.1:3306/zecratary');
   };
 
-  // Test Socket Handshake without storing credentials in DB
-  const handleTestConnection = async (targetUri: string) => {
+  // Fixed Test Connection: Works for Supabase REST, Pooler port 6543, and Localhost PG/MySQL
+  const handleTestConnection = async (targetUri: string, profileHint?: string) => {
     setTesting(true);
     setToast(null);
     try {
@@ -174,32 +174,74 @@ export default function AdminDatabasePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           action: 'test_connection', 
-          uri: targetUri || supabaseUrl,
-          apiKey: supabaseAnonKey 
+          uri: targetUri,
+          targetProfile: profileHint,
+          config: {
+            supabaseUrl,
+            supabaseAnonKey
+          }
         })
       });
       const data = await res.json();
       if (data.success) {
-        setLatency(data.latency || 38);
-        setConnectionStatus('connected');
+        setLatency(data.latency || 25);
         setToast({
           type: 'success',
-          message: `${t('testSuccessToast', 'Database socket handshake succeeded! Latency:')} ${data.latency || 38}ms`
+          message: data.message || `${t('testSuccessToast', 'Database socket handshake succeeded!')} Latency: ${data.latency}ms`
         });
       } else {
         setToast({
           type: 'error',
-          message: `${t('testFailedToast', 'Connection failed:')} ${data.error || 'Connection refused'}`
+          message: `${t('testFailedToast', 'Connection test failed:')} ${data.error || 'Connection refused'}`
         });
       }
     } catch (e: any) {
-      setToast({ type: 'error', message: `${t('testFailedToast', 'Connection failed:')} ${e.message}` });
+      setToast({ type: 'error', message: `${t('testFailedToast', 'Connection test failed:')} ${e.message}` });
     } finally {
       setTesting(false);
     }
   };
 
-  // Save Credentials Strictly to .env Files (Zero Secret Storage in Database)
+  // Connect to target database (Only one database is connected at a time)
+  const handleConnectDatabase = async (targetType: 'supabase_cloud' | 'localhost_postgres' | 'localhost_mysql', uriToConnect?: string) => {
+    setConnecting(true);
+    setToast(null);
+    try {
+      const res = await fetch('/api/admin/database', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'connect_database',
+          targetProfile: targetType,
+          uri: uriToConnect || (targetType === 'supabase_cloud' ? (supabasePoolerUri || supabaseUrl) : localhostUri),
+          config: {
+            supabaseUrl,
+            supabaseAnonKey,
+            supabaseServiceKey,
+            supabasePoolerUri
+          }
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActiveProfile(targetType);
+        setConnectionStatus('connected');
+        setToast({
+          type: 'success',
+          message: data.message || `Switched active database to ${targetType}. Other databases disconnected.`
+        });
+        await loadDatabaseData(true);
+      } else {
+        setToast({ type: 'error', message: data.error || 'Failed to switch database.' });
+      }
+    } catch (e: any) {
+      setToast({ type: 'error', message: e.message || 'Error connecting to database.' });
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  // Save Credentials Strictly to .env Files
   const handleSaveConnection = async (targetType: typeof activeProfile, uriToSave: string) => {
     setSaving(true);
     setToast(null);
@@ -221,12 +263,11 @@ export default function AdminDatabasePage() {
       });
       const data = await res.json();
       if (data.success) {
-        setActiveProfile(targetType);
         setToast({
           type: 'success',
-          message: t('savedToast', 'Credentials synchronized directly into .env.local! Database tables kept clean of API secrets.')
+          message: t('savedToast', 'Credentials synchronized directly into .env.local! Database tables kept clean of secrets.')
         });
-        loadDatabaseData();
+        loadDatabaseData(true);
       } else {
         setToast({ type: 'error', message: data.error || t('errorToast', 'An error occurred while saving database settings.') });
       }
@@ -241,10 +282,10 @@ export default function AdminDatabasePage() {
   const handleReloadFromEnv = async () => {
     setSyncingEnv(true);
     try {
-      await loadDatabaseData();
+      await loadDatabaseData(false);
       setToast({
         type: 'success',
-        message: 'Successfully reloaded Supabase keys and database configuration from .env!'
+        message: 'Successfully refreshed active database connection parameters from .env.local!'
       });
     } catch (err: any) {
       setToast({ type: 'error', message: 'Failed to reload environment keys.' });
@@ -253,7 +294,7 @@ export default function AdminDatabasePage() {
     }
   };
 
-  // Clone Localhost Database to Supabase Cloud
+  // Data Migration & Sync Execution
   const handleCloneLocalToSupabase = async () => {
     setCloning(true);
     setToast(null);
@@ -270,9 +311,9 @@ export default function AdminDatabasePage() {
       if (data.success) {
         setToast({
           type: 'success',
-          message: t('cloningSuccessToast', 'Database schema and records successfully synced to Supabase Cloud!')
+          message: data.message || t('cloningSuccessToast', 'Database schema and records successfully synced to Supabase Cloud!')
         });
-        loadDatabaseData();
+        loadDatabaseData(true);
       } else {
         setToast({
           type: 'error',
@@ -300,19 +341,21 @@ export default function AdminDatabasePage() {
           type: 'success',
           message: t('optimizingSuccessToast', 'Table statistics analyzed & vacuumed successfully across PostgreSQL and MySQL!')
         });
-        loadDatabaseData();
+        loadDatabaseData(true);
       }
     } catch (_) {}
   };
 
   const isConnected = connectionStatus === 'connected';
+  const isSupabaseActive = activeProfile === 'supabase_cloud' && isConnected;
+  const isLocalhostActive = (activeProfile === 'localhost_postgres' || activeProfile === 'localhost_mysql') && isConnected;
 
   return (
     <div 
       className="w-full max-w-full space-y-6 pb-24 px-4 sm:px-6 lg:px-8 xl:px-10 pt-2 font-sans transition-colors duration-200"
       style={{ color: 'var(--color-text)' }}
     >
-      {/* Top Header & Telemetry Status Badges */}
+      {/* Top Header */}
       <div 
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4"
         style={{ borderColor: 'var(--color-border)' }}
@@ -326,9 +369,8 @@ export default function AdminDatabasePage() {
           </p>
         </div>
 
-        {/* Telemetry Status Cluster */}
+        {/* Top Status Indicators */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Zero DB Secret Leak Guardrail Badge */}
           <div 
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-bold shadow-sm"
             style={{ 
@@ -338,10 +380,9 @@ export default function AdminDatabasePage() {
             }}
           >
             <ShieldCheck className="h-3.5 w-3.5" />
-            <span>.env Sync Active (Zero DB Secret Leak)</span>
+            <span>.env Isolated (Zero Secret Storage)</span>
           </div>
 
-          {/* Socket Status Badge */}
           <div 
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-bold shadow-sm"
             style={{ 
@@ -354,7 +395,6 @@ export default function AdminDatabasePage() {
             <span>{isConnected ? t('statusConnected', 'Connected') : t('statusDisconnected', 'Disconnected')}</span>
           </div>
 
-          {/* Engine Latency Badge */}
           {isConnected && (
             <div 
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-bold shadow-sm"
@@ -371,8 +411,9 @@ export default function AdminDatabasePage() {
 
           <button
             type="button"
-            onClick={() => loadDatabaseData()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition hover:opacity-80 cursor-pointer shadow-sm"
+            onClick={() => loadDatabaseData(false)}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition hover:opacity-80 cursor-pointer shadow-sm disabled:opacity-50"
             style={{ 
               backgroundColor: 'var(--color-inner-dark)', 
               borderColor: 'var(--color-border)',
@@ -381,86 +422,103 @@ export default function AdminDatabasePage() {
             title={t('refreshBtn', 'Refresh Telemetry')}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
       </div>
 
-      {/* Security Architecture Notice Banner */}
-      <div 
-        className="p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm transition-colors duration-200"
-        style={{ 
-          backgroundColor: 'var(--color-inner-dark)', 
-          borderColor: 'var(--color-primary)' 
-        }}
-      >
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-opacity-10" style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-primary)' }}>
-            <FileCode2 className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
-              <span>Environment File Isolation Policy</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/30">
-                Active in PostgreSQL & MySQL
-              </span>
-            </div>
-            <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
-              All Supabase API keys, passwords, and URIs are read from and written to <code className="font-mono font-bold" style={{ color: 'var(--color-primary)' }}>.env.local</code>. No secret credentials are ever written into database tables.
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleReloadFromEnv}
-          disabled={syncingEnv}
-          className="px-4 py-2 rounded-xl border text-xs font-bold transition hover:opacity-90 cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
-          style={{ 
-            backgroundColor: 'var(--color-card)', 
-            borderColor: 'var(--color-primary)',
-            color: 'var(--color-primary)'
-          }}
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${syncingEnv ? 'animate-spin' : ''}`} />
-          <span>{syncingEnv ? 'Reading .env...' : 'Reload from .env'}</span>
-        </button>
-      </div>
-
-      {/* Socket Diagnostic Banner if Offline */}
-      {!isConnected && errorMessage && (
-        <div 
-          className="p-4 rounded-2xl border space-y-2 text-xs animate-in fade-in transition-colors duration-200"
-          style={{ 
-            backgroundColor: 'rgba(239, 68, 68, 0.08)', 
-            borderColor: 'rgba(239, 68, 68, 0.3)',
-            color: '#ef4444'
-          }}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 font-bold">
-              <AlertTriangle className="h-4 w-4" />
-              <span>{t('testFailedToast', 'Connection failed:')} {errorCode ? `[${errorCode}]` : ''} {errorMessage}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleTestConnection(supabaseUrl)}
-              className="px-3 py-1 rounded-lg border text-xs font-bold text-white transition hover:opacity-90 cursor-pointer"
-              style={{ backgroundColor: 'var(--color-primary)' }}
-            >
-              {testing ? t('statusTesting', 'Testing...') : t('retryConnectionBtn', 'Retry Connection')}
-            </button>
-          </div>
-          <div className="text-[11px] opacity-90">
-            <span className="font-bold">{t('socketAdviceTitle', 'Socket Diagnostics & Troubleshooting Advice:')} </span>
-            {t('socketAdviceContent', 'Ensure your database server is running, the port is open and not blocked by firewall, and authentication credentials match your environment.')}
-          </div>
-        </div>
-      )}
-
-      {/* Main Accessible Form-Free Region Container (Zero Form Autofill Guardrail) */}
+      {/* 5. ACTIVE CONNECTED DATABASE OVERVIEW WIDGET */}
       <div 
         role="region"
-        aria-label="Database Configuration"
+        aria-label="Active Database Connection Status"
+        data-lpignore="true"
+        className="p-5 rounded-3xl border shadow-sm transition-colors duration-200"
+        style={{
+          backgroundColor: 'var(--color-inner-dark)',
+          borderColor: 'var(--color-border)'
+        }}
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div 
+              className="p-3 rounded-2xl flex items-center justify-center shrink-0 shadow-sm"
+              style={{ 
+                backgroundColor: 'var(--color-card)', 
+                borderColor: 'var(--color-border)',
+                borderWidth: '1px',
+                color: 'var(--color-primary)'
+              }}
+            >
+              <Database className="h-6 w-6" />
+            </div>
+
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
+                  Currently Connected Database:
+                </span>
+                <span 
+                  className="px-2.5 py-0.5 rounded-full text-xs font-extrabold border flex items-center gap-1.5"
+                  style={{
+                    backgroundColor: isConnected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                    borderColor: isConnected ? 'var(--color-emerald)' : '#ef4444',
+                    color: isConnected ? 'var(--color-emerald)' : '#ef4444'
+                  }}
+                >
+                  <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
+                  {isConnected ? 'ACTIVE & CONNECTED' : 'DISCONNECTED'}
+                </span>
+
+                <span 
+                  className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border"
+                  style={{
+                    backgroundColor: 'var(--color-card)',
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-primary)'
+                  }}
+                >
+                  {activeProfile.replace('_', ' ')}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-baseline gap-3 mt-1.5">
+                <h2 className="text-xl font-black tracking-tight" style={{ color: 'var(--color-text)' }}>
+                  {databaseName}
+                </h2>
+                <span className="text-xs font-bold" style={{ color: 'var(--color-text-secondary)' }}>
+                  • {databaseType}
+                </span>
+              </div>
+
+              <p className="text-[11px] font-mono mt-1 opacity-80" style={{ color: 'var(--color-text-secondary)' }}>
+                Endpoint: <span className="font-bold" style={{ color: 'var(--color-text)' }}>{hostEndpoint}</span> | Engine: <span className="font-bold capitalize">{engine}</span> | Ping: <span className="font-bold text-emerald-400">{latency} ms</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 self-start lg:self-center shrink-0">
+            <button
+              type="button"
+              onClick={handleReloadFromEnv}
+              disabled={syncingEnv || loading}
+              className="px-4 py-2 rounded-xl border text-xs font-bold transition hover:opacity-90 cursor-pointer flex items-center gap-2 shadow-sm disabled:opacity-50"
+              style={{
+                backgroundColor: 'var(--color-card)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${syncingEnv || loading ? 'animate-spin' : ''}`} style={{ color: 'var(--color-primary)' }} />
+              <span>{syncingEnv ? 'Syncing...' : 'Refresh Status'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Accessible Region Container */}
+      <div 
+        role="region"
+        aria-label="Database Configuration Tabs"
         data-lpignore="true"
         className="rounded-3xl p-6 space-y-6 shadow-xl border transition-colors duration-200"
         style={{
@@ -468,48 +526,130 @@ export default function AdminDatabasePage() {
           borderColor: 'var(--color-border)'
         }}
       >
-        {/* Navigation Tabs Bar */}
+        {/* 1. NAVIGATION TABS BAR WITH ACTIVE BADGES */}
         <div 
-          className="flex p-1.5 rounded-2xl border transition-colors duration-200 overflow-x-auto"
+          className="flex p-1.5 rounded-2xl border transition-colors duration-200 overflow-x-auto gap-1"
           style={{
             backgroundColor: 'var(--color-inner-dark)',
             borderColor: 'var(--color-border)'
           }}
         >
-          {[
-            { id: 'supabase', label: t('tabSupabase', 'Supabase Cloud'), icon: Cloud },
-            { id: 'localhost', label: t('tabLocalhost', 'Localhost Database'), icon: Server },
-            { id: 'migration', label: t('tabMigration', 'Data Migration & Sync'), icon: ArrowRightLeft },
-            { id: 'telemetry', label: t('tabTelemetry', 'Live Telemetry & Status'), icon: Activity }
-          ].map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={`tab-${tab.id}`}
-                type="button"
-                onClick={() => {
-                  setActiveTab(tab.id as any);
-                  setToast(null);
-                }}
-                className="flex-1 min-w-[130px] py-3 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer"
-                style={isActive ? {
-                  backgroundColor: 'var(--color-card)',
-                  color: 'var(--color-primary)',
-                  borderColor: 'var(--color-primary)',
-                  borderWidth: '1px',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                } : {
-                  color: 'var(--color-text-secondary)'
+          {/* TAB 1: Supabase Cloud */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('supabase');
+              setToast(null);
+            }}
+            className="flex-1 min-w-[170px] py-3 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer relative"
+            style={activeTab === 'supabase' ? {
+              backgroundColor: 'var(--color-card)',
+              color: 'var(--color-primary)',
+              borderColor: 'var(--color-primary)',
+              borderWidth: '1px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+            } : {
+              color: 'var(--color-text-secondary)'
+            }}
+          >
+            <Cloud className="h-4 w-4 shrink-0" />
+            <span>{t('tabSupabase', 'Supabase Cloud')}</span>
+            {isSupabaseActive && (
+              <span 
+                className="px-2 py-0.5 rounded-full text-[10px] font-extrabold flex items-center gap-1 border shrink-0"
+                style={{
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  borderColor: 'var(--color-emerald)',
+                  color: 'var(--color-emerald)'
                 }}
               >
-                <tab.icon className="h-4 w-4" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Active
+              </span>
+            )}
+          </button>
+
+          {/* TAB 2: Localhost Database */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('localhost');
+              setToast(null);
+            }}
+            className="flex-1 min-w-[170px] py-3 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer relative"
+            style={activeTab === 'localhost' ? {
+              backgroundColor: 'var(--color-card)',
+              color: 'var(--color-primary)',
+              borderColor: 'var(--color-primary)',
+              borderWidth: '1px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+            } : {
+              color: 'var(--color-text-secondary)'
+            }}
+          >
+            <Server className="h-4 w-4 shrink-0" />
+            <span>{t('tabLocalhost', 'Localhost Database')}</span>
+            {isLocalhostActive && (
+              <span 
+                className="px-2 py-0.5 rounded-full text-[10px] font-extrabold flex items-center gap-1 border shrink-0"
+                style={{
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  borderColor: 'var(--color-emerald)',
+                  color: 'var(--color-emerald)'
+                }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Active ({engine === 'mysql' ? 'MySQL' : 'PG'})
+              </span>
+            )}
+          </button>
+
+          {/* TAB 3: Data Migration & Sync */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('migration');
+              setToast(null);
+            }}
+            className="flex-1 min-w-[170px] py-3 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer"
+            style={activeTab === 'migration' ? {
+              backgroundColor: 'var(--color-card)',
+              color: 'var(--color-primary)',
+              borderColor: 'var(--color-primary)',
+              borderWidth: '1px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+            } : {
+              color: 'var(--color-text-secondary)'
+            }}
+          >
+            <ArrowRightLeft className="h-4 w-4 shrink-0" />
+            <span>{t('tabMigration', 'Data Migration & Sync')}</span>
+          </button>
+
+          {/* TAB 4: Telemetry */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('telemetry');
+              setToast(null);
+            }}
+            className="flex-1 min-w-[170px] py-3 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer"
+            style={activeTab === 'telemetry' ? {
+              backgroundColor: 'var(--color-card)',
+              color: 'var(--color-primary)',
+              borderColor: 'var(--color-primary)',
+              borderWidth: '1px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+            } : {
+              color: 'var(--color-text-secondary)'
+            }}
+          >
+            <Activity className="h-4 w-4 shrink-0" />
+            <span>{t('tabTelemetry', 'Live Telemetry & Status')}</span>
+          </button>
         </div>
 
-        {/* TAB 1: SUPABASE CLOUD (.env SYNCHRONIZED) */}
+        {/* TAB 1: SUPABASE CLOUD */}
         {activeTab === 'supabase' && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -523,10 +663,30 @@ export default function AdminDatabasePage() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg border" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-primary)' }}>
-                  Target: .env.local
-                </span>
+              {/* 2. CONNECT SUPABASE CLOUD BUTTON */}
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleConnectDatabase('supabase_cloud', supabasePoolerUri || supabaseUrl)}
+                  disabled={connecting || isSupabaseActive}
+                  className="px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition hover:opacity-90 cursor-pointer flex items-center gap-2 disabled:opacity-80"
+                  style={isSupabaseActive ? {
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    borderColor: 'var(--color-emerald)',
+                    borderWidth: '1px',
+                    color: 'var(--color-emerald)'
+                  } : {
+                    backgroundColor: 'var(--color-primary)',
+                    color: '#ffffff'
+                  }}
+                >
+                  <Power className="h-3.5 w-3.5" />
+                  <span>
+                    {isSupabaseActive 
+                      ? '✓ Supabase Connected & Active' 
+                      : (connecting ? 'Connecting...' : 'Connect Supabase Cloud')}
+                  </span>
+                </button>
               </div>
             </div>
 
@@ -615,35 +775,41 @@ export default function AdminDatabasePage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
+            <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
+              {/* 3. TEST CONNECTION BUTTON (Supabase REST + Pooler URI) */}
               <button
                 type="button"
-                onClick={() => handleTestConnection(supabaseUrl)}
+                onClick={() => handleTestConnection(supabasePoolerUri || supabaseUrl, 'supabase_cloud')}
                 disabled={testing}
-                className="px-4 py-2 rounded-xl border text-xs font-bold transition hover:opacity-80 cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 rounded-xl border text-xs font-bold transition hover:opacity-80 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                 style={{
                   backgroundColor: 'var(--color-inner-dark)',
                   borderColor: 'var(--color-border)',
                   color: 'var(--color-text)'
                 }}
               >
-                {testing ? t('statusTesting', 'Testing...') : t('testConnectionBtn', 'Test Socket Handshake')}
+                <Zap className={`h-3.5 w-3.5 ${testing ? 'animate-pulse' : ''}`} style={{ color: 'var(--color-primary)' }} />
+                <span>{testing ? t('statusTesting', 'Testing Socket...') : 'Test Supabase Connection'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleSaveConnection('supabase_cloud', supabasePoolerUri || supabaseUrl)}
                 disabled={saving}
-                className="px-5 py-2 rounded-xl text-xs font-bold text-white shadow transition hover:opacity-90 cursor-pointer disabled:opacity-50"
-                style={{ backgroundColor: 'var(--color-primary)' }}
+                className="px-5 py-2 rounded-xl text-xs font-bold transition hover:opacity-90 cursor-pointer disabled:opacity-50 border"
+                style={{ 
+                  backgroundColor: 'var(--color-inner-dark)', 
+                  borderColor: 'var(--color-primary)',
+                  color: 'var(--color-primary)' 
+                }}
               >
-                {saving ? t('statusSaving', 'Saving to .env...') : 'Save Directly to .env.local'}
+                {saving ? t('statusSaving', 'Saving to .env...') : 'Save to .env.local'}
               </button>
             </div>
           </div>
         )}
 
-        {/* TAB 2: LOCALHOST DATABASE (.env SYNCHRONIZED) */}
+        {/* TAB 2: LOCALHOST DATABASE */}
         {activeTab === 'localhost' && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -652,67 +818,68 @@ export default function AdminDatabasePage() {
                   {t('tabLocalhost', 'Localhost Database')} (.env Synchronized)
                 </h3>
                 <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
-                  Quick-fill presets and driver configuration for local daemon instances.
+                  Local daemon driver configuration for PostgreSQL (Port 5432) and MySQL (Port 3306).
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-bold mb-1" style={{ color: 'var(--color-text-secondary)' }}>
-                    {t('dbTypeLabel', 'Database Engine Type')}
+              {/* 2. CONNECT LOCALHOST BUTTON */}
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleConnectDatabase(localhostType === 'mysql' ? 'localhost_mysql' : 'localhost_postgres', localhostUri)}
+                  disabled={connecting || isLocalhostActive}
+                  className="px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition hover:opacity-90 cursor-pointer flex items-center gap-2 disabled:opacity-80"
+                  style={isLocalhostActive ? {
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    borderColor: 'var(--color-emerald)',
+                    borderWidth: '1px',
+                    color: 'var(--color-emerald)'
+                  } : {
+                    backgroundColor: 'var(--color-primary)',
+                    color: '#ffffff'
+                  }}
+                >
+                  <Power className="h-3.5 w-3.5" />
+                  <span>
+                    {isLocalhostActive 
+                      ? `✓ Localhost Connected (${engine === 'mysql' ? 'MySQL' : 'PostgreSQL'})` 
+                      : (connecting ? 'Connecting...' : `Connect Localhost (${localhostType === 'mysql' ? 'MySQL' : 'PostgreSQL'})`)}
                   </span>
-                  <div className="relative min-w-[200px]">
-                    <select
-                      value={localhostType}
-                      onChange={(e) => {
-                        const val = e.target.value as 'postgresql' | 'mysql';
-                        if (val === 'postgresql') handleSelectPostgresPreset();
-                        else handleSelectMysqlPreset();
-                      }}
-                      className="w-full appearance-none border rounded-xl px-3.5 py-2 text-xs font-bold outline-none cursor-pointer pr-9 transition-colors duration-200"
-                      style={{
-                        backgroundColor: 'var(--color-inner-dark)',
-                        borderColor: 'var(--color-border)',
-                        color: 'var(--color-text)'
-                      }}
-                    >
-                      <option value="postgresql" style={{ backgroundColor: 'var(--color-card)', color: 'var(--color-text)' }}>
-                        {t('enginePostgres', 'PostgreSQL')} (Port 5432)
-                      </option>
-                      <option value="mysql" style={{ backgroundColor: 'var(--color-card)', color: 'var(--color-text)' }}>
-                        {t('engineMysql', 'MySQL')} (Port 3306)
-                      </option>
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none opacity-60" style={{ color: 'var(--color-text)' }} />
-                  </div>
-                </div>
+                </button>
+              </div>
+            </div>
 
-                <div className="flex items-center gap-2 pt-4">
-                  <button
-                    type="button"
-                    onClick={handleSelectPostgresPreset}
-                    className="px-3 py-2 rounded-xl border text-xs font-bold transition hover:opacity-90 cursor-pointer"
-                    style={{
-                      backgroundColor: localhostType === 'postgresql' ? 'var(--color-primary)' : 'var(--color-inner-dark)',
-                      borderColor: localhostType === 'postgresql' ? 'var(--color-primary)' : 'var(--color-border)',
-                      color: localhostType === 'postgresql' ? '#ffffff' : 'var(--color-text)'
-                    }}
-                  >
-                    PostgreSQL
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSelectMysqlPreset}
-                    className="px-3 py-2 rounded-xl border text-xs font-bold transition hover:opacity-90 cursor-pointer"
-                    style={{
-                      backgroundColor: localhostType === 'mysql' ? 'var(--color-primary)' : 'var(--color-inner-dark)',
-                      borderColor: localhostType === 'mysql' ? 'var(--color-primary)' : 'var(--color-border)',
-                      color: localhostType === 'mysql' ? '#ffffff' : 'var(--color-text)'
-                    }}
-                  >
-                    MySQL
-                  </button>
-                </div>
+            {/* Presets and Engine Switcher */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl border" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>Quick Preset Selection:</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSelectPostgresPreset}
+                  className="px-3 py-1.5 rounded-xl border text-xs font-bold transition hover:opacity-90 cursor-pointer"
+                  style={{
+                    backgroundColor: localhostType === 'postgresql' ? 'var(--color-primary)' : 'var(--color-card)',
+                    borderColor: localhostType === 'postgresql' ? 'var(--color-primary)' : 'var(--color-border)',
+                    color: localhostType === 'postgresql' ? '#ffffff' : 'var(--color-text)'
+                  }}
+                >
+                  PostgreSQL (5432)
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSelectMysqlPreset}
+                  className="px-3 py-1.5 rounded-xl border text-xs font-bold transition hover:opacity-90 cursor-pointer"
+                  style={{
+                    backgroundColor: localhostType === 'mysql' ? 'var(--color-primary)' : 'var(--color-card)',
+                    borderColor: localhostType === 'mysql' ? 'var(--color-primary)' : 'var(--color-border)',
+                    color: localhostType === 'mysql' ? '#ffffff' : 'var(--color-text)'
+                  }}
+                >
+                  MySQL (3306)
+                </button>
               </div>
             </div>
 
@@ -753,7 +920,7 @@ export default function AdminDatabasePage() {
                     setHost(e.target.value);
                     updateGranularToUri(e.target.value, port, dbName, username, password, localhostType);
                   }}
-                  className="w-full border rounded-xl px-3 py-2 text-xs font-bold outline-none"
+                  className="w-full border rounded-xl px-3 py-2 text-xs font-bold outline-none font-mono"
                   style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
                 />
               </div>
@@ -773,7 +940,7 @@ export default function AdminDatabasePage() {
                     setPort(e.target.value);
                     updateGranularToUri(host, e.target.value, dbName, username, password, localhostType);
                   }}
-                  className="w-full border rounded-xl px-3 py-2 text-xs font-bold outline-none"
+                  className="w-full border rounded-xl px-3 py-2 text-xs font-bold outline-none font-mono"
                   style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
                 />
               </div>
@@ -793,7 +960,7 @@ export default function AdminDatabasePage() {
                     setDbName(e.target.value);
                     updateGranularToUri(host, port, e.target.value, username, password, localhostType);
                   }}
-                  className="w-full border rounded-xl px-3 py-2 text-xs font-bold outline-none"
+                  className="w-full border rounded-xl px-3 py-2 text-xs font-bold outline-none font-mono"
                   style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
                 />
               </div>
@@ -813,7 +980,7 @@ export default function AdminDatabasePage() {
                     setUsername(e.target.value);
                     updateGranularToUri(host, port, dbName, e.target.value, password, localhostType);
                   }}
-                  className="w-full border rounded-xl px-3 py-2 text-xs font-bold outline-none"
+                  className="w-full border rounded-xl px-3 py-2 text-xs font-bold outline-none font-mono"
                   style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
                 />
               </div>
@@ -850,35 +1017,41 @@ export default function AdminDatabasePage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
+            <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
+              {/* 3. TEST CONNECTION BUTTON (Localhost TCP Socket) */}
               <button
                 type="button"
-                onClick={() => handleTestConnection(localhostUri)}
+                onClick={() => handleTestConnection(localhostUri, localhostType === 'mysql' ? 'localhost_mysql' : 'localhost_postgres')}
                 disabled={testing}
-                className="px-4 py-2 rounded-xl border text-xs font-bold transition hover:opacity-80 cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 rounded-xl border text-xs font-bold transition hover:opacity-80 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                 style={{
                   backgroundColor: 'var(--color-inner-dark)',
                   borderColor: 'var(--color-border)',
                   color: 'var(--color-text)'
                 }}
               >
-                {testing ? t('statusTesting', 'Testing...') : t('testConnectionBtn', 'Test Socket Handshake')}
+                <Zap className={`h-3.5 w-3.5 ${testing ? 'animate-pulse' : ''}`} style={{ color: 'var(--color-primary)' }} />
+                <span>{testing ? t('statusTesting', 'Testing Socket...') : `Test ${localhostType === 'mysql' ? 'MySQL' : 'PostgreSQL'} Socket`}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleSaveConnection(localhostType === 'mysql' ? 'localhost_mysql' : 'localhost_postgres', localhostUri)}
                 disabled={saving}
-                className="px-5 py-2 rounded-xl text-xs font-bold text-white shadow transition hover:opacity-90 cursor-pointer disabled:opacity-50"
-                style={{ backgroundColor: 'var(--color-primary)' }}
+                className="px-5 py-2 rounded-xl text-xs font-bold transition hover:opacity-90 cursor-pointer disabled:opacity-50 border"
+                style={{ 
+                  backgroundColor: 'var(--color-inner-dark)', 
+                  borderColor: 'var(--color-primary)',
+                  color: 'var(--color-primary)' 
+                }}
               >
-                {saving ? t('statusSaving', 'Saving to .env...') : 'Save Directly to .env.local'}
+                {saving ? t('statusSaving', 'Saving to .env...') : 'Save to .env.local'}
               </button>
             </div>
           </div>
         )}
 
-        {/* TAB 3: DATA MIGRATION & SYNC */}
+        {/* 4. TAB 3: DATA MIGRATION & SYNC */}
         {activeTab === 'migration' && (
           <div className="space-y-6">
             <div>
@@ -887,7 +1060,7 @@ export default function AdminDatabasePage() {
                 {t('tabMigration', 'Data Migration & Sync')}
               </h3>
               <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
-                Replicate operational schemas and vacuum database catalogs across PostgreSQL and MySQL.
+                Replicate operational schemas, verify table consistency, and vacuum database catalogs.
               </p>
             </div>
 
@@ -898,10 +1071,10 @@ export default function AdminDatabasePage() {
               >
                 <div>
                   <h4 className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
-                    {t('cloneLocalToSupabaseBtn', 'Clone Localhost Database into Supabase')}
+                    {t('cloneLocalToSupabaseBtn', 'Replicate & Sync Localhost Database to Supabase Cloud')}
                   </h4>
                   <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-                    {t('cloneLocalToSupabaseDesc', 'Replicates schemas and tables (admin_settings, users, subscription_plans, payment_transactions, etc.) from localhost PostgreSQL to Supabase Cloud.')}
+                    Replicates all 7 core schemas and records (<code className="font-mono">admin_settings</code>, <code className="font-mono">users</code>, <code className="font-mono">subscription_plans</code>, <code className="font-mono">payment_transactions</code>, <code className="font-mono">saved_recipes</code>, <code className="font-mono">currencies</code>, <code className="font-mono">token_settings</code>) into Supabase Cloud PostgreSQL.
                   </p>
                 </div>
 
@@ -914,7 +1087,7 @@ export default function AdminDatabasePage() {
                     style={{ backgroundColor: 'var(--color-primary)' }}
                   >
                     <Layers className={`h-4 w-4 ${cloning ? 'animate-spin' : ''}`} />
-                    <span>{cloning ? t('cloningNotice', 'Cloning in progress... Please do not close this window.') : t('cloneLocalToSupabaseBtn', 'Clone Localhost Database into Supabase')}</span>
+                    <span>{cloning ? 'Replicating Schemas & Records...' : 'Execute Full Data Migration & Sync'}</span>
                   </button>
                 </div>
               </div>
@@ -925,10 +1098,10 @@ export default function AdminDatabasePage() {
               >
                 <div>
                   <h4 className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
-                    {t('optimizeTablesBtn', 'Optimize & Analyze Tables')}
+                    {t('optimizeTablesBtn', 'Optimize & Vacuum Catalogs')}
                   </h4>
                   <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-                    {t('optimizeTablesDesc', 'Analyzes planner meals, grocery items, user profiles, and updates query planner selectivity heuristics.')}
+                    Analyzes planner meals, grocery items, user profiles, reaps dead tuples, and updates selectivity statistics across PostgreSQL and MySQL.
                   </p>
                 </div>
 
@@ -946,6 +1119,59 @@ export default function AdminDatabasePage() {
                     <Wrench className="h-4 w-4" />
                     <span>{t('optimizeTablesBtn', 'Optimize & Analyze Tables')}</span>
                   </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Core Tables Status Breakdown */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+                <CheckCircle className="h-4 w-4 text-emerald-400" />
+                Synchronized Schemas & Operational Tables
+              </h4>
+
+              <div 
+                className="rounded-2xl border overflow-hidden shadow-sm"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
+              >
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-card)' }}>
+                        <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>Table Name</th>
+                        <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>Rows Tracked</th>
+                        <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>Disk Footprint</th>
+                        <th className="py-2.5 px-4 font-bold text-right" style={{ color: 'var(--color-text)' }}>Sync Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+                      {tables.map((tbl) => (
+                        <tr key={`sync-row-${tbl.name}`} className="transition hover:opacity-90">
+                          <td className="py-2 px-4 font-mono font-bold" style={{ color: 'var(--color-primary)' }}>
+                            {tbl.name}
+                          </td>
+                          <td className="py-2 px-4 font-mono" style={{ color: 'var(--color-text)' }}>
+                            {tbl.rowCount}
+                          </td>
+                          <td className="py-2 px-4 font-mono text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+                            {tbl.size}
+                          </td>
+                          <td className="py-2 px-4 text-right">
+                            <span 
+                              className="px-2 py-0.5 rounded-full text-[10px] font-bold border"
+                              style={{ 
+                                backgroundColor: 'rgba(16, 185, 129, 0.12)', 
+                                borderColor: 'var(--color-emerald)', 
+                                color: 'var(--color-emerald)' 
+                              }}
+                            >
+                              {tbl.status || 'Synchronized'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
@@ -1030,7 +1256,7 @@ export default function AdminDatabasePage() {
                                 color: 'var(--color-emerald)' 
                               }}
                             >
-                              {t('healthyStatus', 'Healthy')}
+                              {tbl.status || t('healthyStatus', 'Healthy')}
                             </span>
                           </td>
                         </tr>
@@ -1043,7 +1269,7 @@ export default function AdminDatabasePage() {
           </div>
         )}
 
-        {/* Status Notification Toast Banner */}
+        {/* Toast Banner */}
         {toast && (
           <div
             className="p-4 rounded-2xl border text-xs font-semibold flex items-center gap-2 animate-in fade-in"
