@@ -36,7 +36,7 @@ function getCandidateTxPaths(): string[] {
   ];
 }
 
-export const DEFAULT_SEED_TRANSACTIONS: WalletTransactionRecord[] = [
+const DEFAULT_SEED_TRANSACTIONS: WalletTransactionRecord[] = [
   {
     id: 'tx_seed_init_101',
     user_id: 'usr_admin_1',
@@ -52,22 +52,6 @@ export const DEFAULT_SEED_TRANSACTIONS: WalletTransactionRecord[] = [
     status: 'completed',
     description: 'Initial account balance allocation',
     created_at: new Date(Date.now() - 86400000 * 2).toISOString()
-  },
-  {
-    id: 'tx_seed_init_100',
-    user_id: 'usr_admin_1',
-    email: 'admin@zecratary.com',
-    customer_email: 'admin@zecratary.com',
-    customer_name: 'Administrator',
-    plan_name: 'Token Package Activation',
-    amount: 100.00,
-    balance_after: 250.00,
-    currency: 'USD',
-    type: 'topup',
-    gateway: 'stripe',
-    status: 'completed',
-    description: 'Account activation credit deposit',
-    created_at: new Date(Date.now() - 86400000 * 5).toISOString()
   }
 ];
 
@@ -159,7 +143,7 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
         .from('payment_transactions')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(200);
 
       if (!error && Array.isArray(data)) {
         for (const row of data) {
@@ -172,7 +156,7 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
               customer_name: row.customer_name || row.customerName || 'Customer',
               plan_name: row.plan_name || row.planName || 'Wallet Deposit',
               amount: Number(row.amount || 0),
-              balance_after: Number(row.balance_after ?? row.balanceAfter ?? 150.00),
+              balance_after: Number(row.balance_after ?? row.balanceAfter ?? 0),
               currency: row.currency || 'USD',
               type: row.type || 'topup',
               gateway: row.gateway || 'stripe',
@@ -192,7 +176,7 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
     if (mysqlModule && typeof mysqlModule.query === 'function') {
       const rows: any = await mysqlModule.query(
-        "SELECT * FROM payment_transactions ORDER BY created_at DESC LIMIT 100"
+        "SELECT * FROM payment_transactions ORDER BY created_at DESC LIMIT 200"
       );
       if (Array.isArray(rows) && rows.length > 0) {
         for (const row of rows) {
@@ -206,7 +190,7 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
               customer_name: row.customer_name || 'Customer',
               plan_name: row.plan_name || 'Wallet Deposit',
               amount: Number(row.amount || 0),
-              balance_after: Number(row.balance_after || 150.00),
+              balance_after: Number(row.balance_after || 0),
               currency: row.currency || 'USD',
               type: row.type || 'topup',
               gateway: row.gateway || 'stripe',
@@ -221,17 +205,11 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
     }
   } catch (_) {}
 
-  // 3. Disk Buffer Integration
+  // 3. Fallback Disk Merge
   const diskRecords = readDiskTransactions();
   for (const r of diskRecords) {
     if (r.id && !combinedMap.has(r.id)) {
       combinedMap.set(r.id, r);
-    }
-  }
-
-  if (combinedMap.size === 0) {
-    for (const r of DEFAULT_SEED_TRANSACTIONS) {
-      if (r.id) combinedMap.set(r.id, r);
     }
   }
 
@@ -243,46 +221,13 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
   return result;
 }
 
-/**
- * Calculates authoritative balance by summing all verified credit/debit transactions
- */
-export async function calculateAuthoritativeUserBalance(userId: string, email: string): Promise<number> {
-  const allTx = await getAllAuthoritativeTransactions();
-  const userTx = allTx.filter(t => {
-    const tEmail = (t.email || t.customer_email || '').toLowerCase().trim();
-    const tUser = String(t.user_id || t.userId || '').trim();
-    return tEmail === email.toLowerCase().trim() || tUser === userId || (!tEmail && !tUser);
-  });
-
-  if (userTx.length === 0) return 150.00;
-
-  // Running sum calculation
-  let running = 0;
-  // Sort oldest to newest to replay
-  const sorted = [...userTx].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  for (const tx of sorted) {
-    if (tx.status === 'completed' || tx.status === 'succeeded') {
-      const amt = Number(tx.amount || 0);
-      const isDebit = tx.type === 'purchase' || tx.type === 'withdrawal' || amt < 0;
-      if (isDebit) {
-        running -= Math.abs(amt);
-      } else {
-        running += Math.abs(amt);
-      }
-    }
-  }
-
-  return running > 0 ? running : (userTx[0]?.balance_after ?? 150.00);
-}
-
 export async function recordAuthoritativeTransaction(tx: WalletTransactionRecord): Promise<void> {
-  // 1. Immediately mirror to disk buffer
   const current = readDiskTransactions();
   const filtered = current.filter(t => t.id !== tx.id);
   const updated = [tx, ...filtered];
   writeDiskTransactions(updated);
 
-  // 2. Persist to PostgreSQL (Supabase)
+  // PostgreSQL (Supabase)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
@@ -310,22 +255,10 @@ export async function recordAuthoritativeTransaction(tx: WalletTransactionRecord
           transfer_reference: tx.transfer_reference || tx.id,
           created_at: tx.created_at || new Date().toISOString()
         }, { onConflict: 'id' });
-
-      // Synchronize users table balance
-      if (tx.balance_after !== undefined) {
-        await supabase
-          .from('users')
-          .update({
-            wallet_balance: tx.balance_after,
-            balance: tx.balance_after,
-            updated_at: new Date().toISOString()
-          })
-          .or(`id.eq.${tx.user_id},email.eq.${tx.email}`);
-      }
     } catch (_) {}
   }
 
-  // 3. Persist to MySQL
+  // MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
     if (mysqlModule && typeof mysqlModule.query === 'function') {
@@ -354,13 +287,42 @@ export async function recordAuthoritativeTransaction(tx: WalletTransactionRecord
           tx.transfer_reference || tx.id
         ]
       );
-
-      if (tx.balance_after !== undefined) {
-        await mysqlModule.query(
-          "UPDATE users SET wallet_balance = ?, balance = ?, updated_at = NOW() WHERE id = ? OR email = ?",
-          [tx.balance_after, tx.balance_after, tx.user_id, tx.email]
-        );
-      }
     }
   } catch (_) {}
+}
+
+export async function deleteAuthoritativeTransactions(ids: string[]): Promise<boolean> {
+  if (!ids || ids.length === 0) return true;
+  const idSet = new Set(ids.map(String));
+
+  // 1. Disk Mirror
+  const current = readDiskTransactions();
+  const updated = current.filter(t => !idSet.has(String(t.id)));
+  writeDiskTransactions(updated);
+
+  // 2. PostgreSQL (Supabase)
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  if (supabaseUrl && supabaseKey) {
+    try {
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      await supabase.from('payment_transactions').delete().in('id', Array.from(idSet));
+    } catch (_) {}
+  }
+
+  // 3. MySQL
+  try {
+    const mysqlModule = await import('@/lib/mysql').catch(() => null);
+    if (mysqlModule && typeof mysqlModule.query === 'function') {
+      const placeholders = ids.map(() => '?').join(',');
+      await mysqlModule.query(
+        `DELETE FROM payment_transactions WHERE id IN (${placeholders})`,
+        ids
+      );
+    }
+  } catch (_) {}
+
+  return true;
 }

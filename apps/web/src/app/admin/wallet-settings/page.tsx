@@ -79,7 +79,6 @@ const DEFAULT_SETTINGS: WalletSettingsConfig = {
     amount: true,
     balanceAfter: true,
     gateway: true,
-    description: true,
     date: true,
     actions: true
   }
@@ -96,7 +95,8 @@ export default function AdminWalletSettingsPage() {
     return fallback;
   }, [t]);
 
-  const [activeTab, setActiveTab] = useState<'config' | 'ledger'>('config');
+  // Set Wallet Transactions Ledger as default active tab on first load
+  const [activeTab, setActiveTab] = useState<'config' | 'ledger'>('ledger');
   const [settings, setSettings] = useState<WalletSettingsConfig>(DEFAULT_SETTINGS);
   const [transactions, setTransactions] = useState<WalletTransactionItem[]>([]);
   const [users, setUsers] = useState<AppUserOption[]>([]);
@@ -190,29 +190,21 @@ export default function AdminWalletSettingsPage() {
     window.addEventListener('zecratary_theme_updated', handleSync);
     window.addEventListener('storage', handleSync);
 
-    
-    const handleWalletSync = () => {
-      fetchWalletConfig();
-    };
-    window.addEventListener('zecratary_wallet_updated', handleWalletSync);
-    window.addEventListener('zecratary_payment_updated', handleWalletSync);
-    window.addEventListener('zecratary_wallet_settings_updated', handleWalletSync);
+    window.addEventListener('zecratary_wallet_settings_updated', handleSync);
 
     let walletBc: BroadcastChannel | null = null;
     try {
       walletBc = new BroadcastChannel('zecratary_wallet_channel');
       walletBc.onmessage = () => {
-        fetchWalletConfig();
+        loadWalletData();
       };
     } catch (_) {}
 
     return () => {
-      window.removeEventListener('zecratary_wallet_updated', handleWalletSync);
-      window.removeEventListener('zecratary_payment_updated', handleWalletSync);
-      window.removeEventListener('zecratary_wallet_settings_updated', handleWalletSync);
-      if (walletBc) walletBc.close();
       window.removeEventListener('zecratary_wallet_updated', handleSync);
       window.removeEventListener('zecratary_payment_updated', handleSync);
+      window.removeEventListener('zecratary_wallet_settings_updated', handleSync);
+      if (walletBc) walletBc.close();
       window.removeEventListener('zecratary_languages_updated', handleSync);
       window.removeEventListener('zecratary_dictionary_updated', handleSync);
       window.removeEventListener('zecratary_locale_changed', handleSync);
@@ -236,27 +228,8 @@ export default function AdminWalletSettingsPage() {
     };
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
-    
-    const handleWalletSync = () => {
-      fetchWalletConfig();
-    };
-    window.addEventListener('zecratary_wallet_updated', handleWalletSync);
-    window.addEventListener('zecratary_payment_updated', handleWalletSync);
-    window.addEventListener('zecratary_wallet_settings_updated', handleWalletSync);
-
-    let walletBc: BroadcastChannel | null = null;
-    try {
-      walletBc = new BroadcastChannel('zecratary_wallet_channel');
-      walletBc.onmessage = () => {
-        fetchWalletConfig();
-      };
-    } catch (_) {}
 
     return () => {
-      window.removeEventListener('zecratary_wallet_updated', handleWalletSync);
-      window.removeEventListener('zecratary_payment_updated', handleWalletSync);
-      window.removeEventListener('zecratary_wallet_settings_updated', handleWalletSync);
-      if (walletBc) walletBc.close();
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -286,7 +259,7 @@ export default function AdminWalletSettingsPage() {
           window.dispatchEvent(new Event('zecratary_payment_updated'));
           localStorage.setItem('zecratary_wallet_updated_at', Date.now().toString());
         }
-        showToast('success', tr('toastWalletSaved', 'Wallet configurations saved and synchronized with PostgreSQL & MySQL!'));
+        showToast('success', tr('toastWalletSaved', 'Wallet configurations saved successfully!'));
       } else {
         throw new Error(data.error || 'Failed to save configurations.');
       }
@@ -399,7 +372,7 @@ export default function AdminWalletSettingsPage() {
     }
   };
 
-  // Delete Transactions (Single or Batch)
+  // Delete Transactions (Single or Batch) with full multi-tier removal
   const handleDeleteTransactions = async (idsToDelete: string[]) => {
     if (idsToDelete.length === 0) return;
     const promptMsg = idsToDelete.length > 1
@@ -421,6 +394,7 @@ export default function AdminWalletSettingsPage() {
         setSelectedTxIds(prev => prev.filter(id => !idsToDelete.includes(id)));
         showToast('success', tr('toastDeleteSuccess', 'Transaction record(s) deleted successfully.'));
         window.dispatchEvent(new Event('zecratary_wallet_updated'));
+        loadWalletData();
       } else {
         throw new Error(data.error || 'Failed to delete transactions.');
       }
@@ -498,7 +472,7 @@ export default function AdminWalletSettingsPage() {
         }
       `}</style>
 
-      {/* 1. Header & Quick Actions */}
+      {/* 1. Header & Save Action */}
       <div 
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4" 
         style={{ borderColor: 'var(--color-border)' }}
@@ -514,55 +488,15 @@ export default function AdminWalletSettingsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <div 
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-bold shadow-sm"
-            style={{ 
-              backgroundColor: 'var(--color-inner-dark)', 
-              borderColor: 'var(--color-border)', 
-              color: 'var(--color-text)' 
-            }}
-          >
-            <Database className="h-3.5 w-3.5" style={{ color: 'var(--color-emerald, #10b981)' }} />
-            <span>{tr('syncStatusPostgres', 'Synced with PostgreSQL & MySQL')}</span>
-          </div>
-
-          <button
-            type="button"
-            onClick={loadWalletData}
-            disabled={loading}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition hover:opacity-80 cursor-pointer shadow-sm disabled:opacity-50"
-            style={{ 
-              backgroundColor: 'var(--color-inner-dark)', 
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-text)'
-            }}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>{tr('btnReload', 'Reload')}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleResetDefaults}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition hover:opacity-80 cursor-pointer shadow-sm"
-            style={{ 
-              backgroundColor: 'var(--color-inner-dark)', 
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-text-secondary)'
-            }}
-          >
-            <span>{tr('btnResetDefaults', 'Reset Defaults')}</span>
-          </button>
-
           <button
             type="button"
             onClick={handleSaveSettings}
             disabled={saving}
-            className="flex items-center gap-2 px-5 py-1.5 rounded-xl text-xs font-bold text-white shadow-lg transition hover:opacity-90 cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white shadow-lg transition hover:opacity-90 cursor-pointer disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-primary)' }}
           >
             <Save className={`h-4 w-4 ${saving ? 'animate-spin' : ''}`} />
-            <span>{saving ? tr('btnSaving', 'Saving...') : tr('btnSaveWalletConfig', 'Save Wallet Configurations')}</span>
+            <span>{saving ? tr('btnSaving', 'Saving...') : tr('btnSave', 'Save')}</span>
           </button>
         </div>
       </div>
@@ -648,27 +582,11 @@ export default function AdminWalletSettingsPage() {
         </div>
       </div>
 
-      {/* 3. Workspace Sub-Tabs */}
+      {/* 3. Workspace Sub-Tabs (Ledger placed first) */}
       <div 
         className="flex p-1.5 rounded-2xl border transition-colors duration-200"
         style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
       >
-        <button
-          type="button"
-          onClick={() => setActiveTab('config')}
-          className="flex-1 py-2.5 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer"
-          style={activeTab === 'config' ? {
-            backgroundColor: 'var(--color-card)',
-            color: 'var(--color-primary)',
-            borderColor: 'var(--color-primary)',
-            borderWidth: '1px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-          } : { color: 'var(--color-text-secondary)' }}
-        >
-          <Sliders className="h-4 w-4" />
-          <span>{tr('tabWalletConfig', 'Configuration & Rules')}</span>
-        </button>
-
         <button
           type="button"
           onClick={() => setActiveTab('ledger')}
@@ -684,28 +602,436 @@ export default function AdminWalletSettingsPage() {
           <History className="h-4 w-4" />
           <span>{tr('tabWalletLedger', 'Wallet Transactions Ledger')}</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('config')}
+          className="flex-1 py-2.5 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer"
+          style={activeTab === 'config' ? {
+            backgroundColor: 'var(--color-card)',
+            color: 'var(--color-primary)',
+            borderColor: 'var(--color-primary)',
+            borderWidth: '1px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+          } : { color: 'var(--color-text-secondary)' }}
+        >
+          <Sliders className="h-4 w-4" />
+          <span>{tr('tabWalletConfig', 'Configuration & Rules')}</span>
+        </button>
       </div>
 
-      {/* TAB 1: CONFIGURATION & RULES */}
+      {/* TAB 1: WALLET TRANSACTIONS LEDGER (Default First View) */}
+      {activeTab === 'ledger' && (
+        <div 
+          role="region"
+          aria-label={tr('walletRegionLedger', 'Wallet Transactions Ledger')}
+          className="space-y-4"
+        >
+          {/* Search, Filter & Columns Popover Bar */}
+          <div 
+            className="p-4 rounded-3xl border flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm transition-colors"
+            style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+          >
+            <div className="relative w-full md:w-96">
+              <input
+                type="text"
+                autoComplete="off"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                data-form-type="other"
+                spellCheck={false}
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+                placeholder={tr('ledgerSearchPlaceholder', 'Search by customer email, name, description, or transaction ID...')}
+                className="wallet-input w-full px-3.5 py-2 rounded-xl border text-xs outline-none"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto relative">
+              <select
+                value={typeFilter}
+                onChange={(e) => { setTypeFilter(e.target.value); setCurrentPage(1); }}
+                className="wallet-input px-3 py-2 rounded-xl border text-xs font-bold outline-none cursor-pointer"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+              >
+                <option value="all">{tr('ledgerFilterAll', 'All Types')}</option>
+                <option value="deposit">{tr('ledgerFilterDeposit', 'Top-Up Deposits')}</option>
+                <option value="purchase">{tr('ledgerFilterPurchase', 'Purchases & Debits')}</option>
+                <option value="bonus">{tr('ledgerFilterBonus', 'Bonus Credits')}</option>
+                <option value="adjustment">{tr('ledgerFilterAdjustment', 'Admin Adjustments')}</option>
+                <option value="refund">{tr('ledgerFilterRefund', 'Refunds')}</option>
+              </select>
+
+              {/* Columns Popover Toggle */}
+              <div className="relative" ref={columnsPopoverRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowColumnsPopover(!showColumnsPopover)}
+                  className="px-3 py-2 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                >
+                  <Columns3 className="h-3.5 w-3.5" />
+                  <span>{tr('columnsBtn', 'Columns')}</span>
+                </button>
+
+                {showColumnsPopover && (
+                  <div 
+                    className="absolute right-0 top-11 z-30 w-56 rounded-2xl border p-3 shadow-2xl space-y-2 text-xs animate-in fade-in"
+                    style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+                  >
+                    <div className="flex items-center justify-between border-b pb-1.5">
+                      <span className="font-bold text-[11px]" style={{ color: 'var(--color-text)' }}>{tr('columnsPopoverTitle', 'Toggle Visible Columns')}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSettings({ ...settings, ledgerColumns: DEFAULT_SETTINGS.ledgerColumns })}
+                        className="text-[10px] text-[var(--color-primary)] font-bold hover:underline cursor-pointer"
+                      >
+                        {tr('resetColumnsBtn', 'Reset All')}
+                      </button>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {[
+                        { key: 'customer', label: tr('colCustomer', 'Customer') },
+                        { key: 'type', label: tr('colType', 'Type') },
+                        { key: 'amount', label: tr('colAmount', 'Amount') },
+                        { key: 'balanceAfter', label: tr('colBalanceAfter', 'Balance After') },
+                        { key: 'gateway', label: tr('colGateway', 'Gateway / Ref') },
+                        { key: 'date', label: tr('colDate', 'Timestamp') },
+                        { key: 'actions', label: tr('colActions', 'Actions') }
+                      ].map(col => (
+                        <label key={col.key} className="flex items-center justify-between cursor-pointer py-0.5">
+                          <span style={{ color: 'var(--color-text)' }}>{col.label}</span>
+                          <input
+                            type="checkbox"
+                            checked={settings.ledgerColumns?.[col.key] ?? true}
+                            onChange={() => toggleColumn(col.key)}
+                            className="rounded cursor-pointer"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Floating Selected Action Bar */}
+          {selectedTxIds.length > 0 && (
+            <div 
+              className="p-3.5 px-5 rounded-2xl flex items-center justify-between text-xs border shadow-lg animate-in fade-in"
+              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-primary)', color: 'var(--color-text)' }}
+            >
+              <div className="flex items-center gap-3">
+                <span className="font-bold">
+                  {tr('itemsSelectedBanner', '{count} transaction(s) selected').replace('{count}', String(selectedTxIds.length))}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTxIds([])}
+                  className="text-[11px] underline cursor-pointer hover:opacity-80"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
+                  {tr('btnClearSelection', 'Clear selection')}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleDeleteTransactions(selectedTxIds)}
+                className="px-3.5 py-1.5 rounded-xl border border-red-500/40 text-red-400 bg-red-500/10 hover:bg-red-500/20 font-bold transition flex items-center gap-1.5 cursor-pointer text-xs"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>{tr('btnDeleteSelected', 'Delete Selected ({count})').replace('{count}', String(selectedTxIds.length))}</span>
+              </button>
+            </div>
+          )}
+
+          {/* Transactions Table (Description column removed) */}
+          <div 
+            className="border rounded-3xl overflow-hidden shadow-xl transition-colors duration-200"
+            style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead 
+                  className="border-b uppercase font-bold text-[10px] tracking-wider"
+                  style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+                >
+                  <tr>
+                    <th className="w-10 px-4 py-4 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isAllOnPageSelected}
+                        ref={(el) => { if (el) el.indeterminate = isIndeterminate; }}
+                        onChange={handleToggleSelectAll}
+                        className="rounded cursor-pointer"
+                      />
+                    </th>
+                    {settings.ledgerColumns?.customer && <th className="px-5 py-4">{tr('colCustomer', 'Customer')}</th>}
+                    {settings.ledgerColumns?.type && <th className="px-5 py-4">{tr('colType', 'Type')}</th>}
+                    {settings.ledgerColumns?.amount && <th className="px-5 py-4">{tr('colAmount', 'Amount')}</th>}
+                    {settings.ledgerColumns?.balanceAfter && <th className="px-5 py-4">{tr('colBalanceAfter', 'Balance After')}</th>}
+                    {settings.ledgerColumns?.gateway && <th className="px-5 py-4">{tr('colGateway', 'Gateway / Ref')}</th>}
+                    {settings.ledgerColumns?.date && <th className="px-5 py-4">{tr('colDate', 'Timestamp')}</th>}
+                    {settings.ledgerColumns?.actions && <th className="px-5 py-4 text-right">{tr('colActions', 'Actions')}</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}>
+                  {paginatedTxs.length === 0 ? (
+                    <tr>
+                      <td colSpan={activeColumnsCount} className="text-center py-10" style={{ color: 'var(--color-text-secondary)' }}>
+                        {tr('noLedgerTransactions', 'No wallet transactions found matching your criteria.')}
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedTxs.map((tx) => {
+                      const isSelected = selectedTxIds.includes(tx.id);
+                      const rawAmt = Number(tx.amount || 0);
+                      const isTypeDebit = ['debit', 'purchase', 'withdrawal', 'fee'].includes((tx.type || '').toLowerCase());
+                      const isNegative = rawAmt < 0 || (isTypeDebit && rawAmt > 0);
+                      const displayAmt = Math.abs(rawAmt);
+
+                      let formattedDate = '—';
+                      if (tx.created_at) {
+                        try {
+                          const d = new Date(tx.created_at);
+                          if (!isNaN(d.getTime())) {
+                            formattedDate = d.toLocaleDateString(locale === 'th' ? 'th-TH' : (locale || 'en-US'), {
+                              year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                            });
+                          }
+                        } catch (_) {}
+                      }
+
+                      return (
+                        <tr 
+                          key={tx.id}
+                          className="transition"
+                          style={{
+                            borderColor: 'var(--color-border)',
+                            backgroundColor: isSelected ? 'var(--color-inner-dark)' : undefined
+                          }}
+                        >
+                          <td className="w-10 px-4 py-4 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSelectTx(tx.id)}
+                              className="rounded cursor-pointer"
+                            />
+                          </td>
+
+                          {settings.ledgerColumns?.customer && (
+                            <td className="px-5 py-4">
+                              <div className="font-bold text-xs" style={{ color: 'var(--color-text)' }}>
+                                {tx.customer_name || 'Customer'}
+                              </div>
+                              <div className="font-mono text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+                                {tx.customer_email || '—'}
+                              </div>
+                            </td>
+                          )}
+
+                          {settings.ledgerColumns?.type && (
+                            <td className="px-5 py-4">
+                              <span 
+                                className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border"
+                                style={{
+                                  backgroundColor: 'var(--color-inner-dark)',
+                                  borderColor: isNegative ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)',
+                                  color: isNegative ? '#ef4444' : 'var(--color-emerald, #10b981)'
+                                }}
+                              >
+                                {tx.type}
+                              </span>
+                            </td>
+                          )}
+
+                          {settings.ledgerColumns?.amount && (
+                            <td className="px-5 py-4 font-mono font-black text-sm" style={{ color: isNegative ? '#ef4444' : 'var(--color-emerald, #10b981)' }}>
+                              {isNegative ? `-${activeCurrencySymbol}${displayAmt.toFixed(2)}` : `+${activeCurrencySymbol}${displayAmt.toFixed(2)}`}
+                            </td>
+                          )}
+
+                          {settings.ledgerColumns?.balanceAfter && (
+                            <td className="px-5 py-4 font-mono font-bold" style={{ color: 'var(--color-text)' }}>
+                              {tx.balance_after !== undefined ? `${activeCurrencySymbol}${Number(tx.balance_after).toFixed(2)}` : '—'}
+                            </td>
+                          )}
+
+                          {settings.ledgerColumns?.gateway && (
+                            <td className="px-5 py-4">
+                              <span className="px-2 py-0.5 rounded border text-[10px] font-mono font-bold uppercase" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}>
+                                {tx.gateway || 'System'}
+                              </span>
+                            </td>
+                          )}
+
+                          {settings.ledgerColumns?.date && (
+                            <td className="px-5 py-4 text-[11px] font-mono" style={{ color: 'var(--color-text-secondary)' }}>
+                              {formattedDate}
+                            </td>
+                          )}
+
+                          {settings.ledgerColumns?.actions && (
+                            <td className="px-5 py-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTransactions([tx.id])}
+                                className="p-1.5 rounded-xl border text-red-400 border-red-500/30 hover:bg-red-500/10 transition cursor-pointer"
+                                title={tr('btnDeleteTransaction', 'Delete Transaction')}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls Bar */}
+            <div 
+              className="px-5 py-3.5 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-xs transition-colors"
+              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+            >
+              <div className="flex items-center gap-3">
+                <span>
+                  {tr('showingTransactions', 'Showing {start} to {end} of {total} transactions')
+                    .replace('{start}', String(filteredTransactions.length === 0 ? 0 : startIndex + 1))
+                    .replace('{end}', String(Math.min(startIndex + rowsPerPage, filteredTransactions.length)))
+                    .replace('{total}', String(filteredTransactions.length))}
+                </span>
+
+                <div className="flex items-center gap-1.5 pl-2 border-l" style={{ borderColor: 'var(--color-border)' }}>
+                  <span className="text-[11px]">{tr('rowsPerPageLabel', 'Rows per page:')}</span>
+                  <select
+                    value={rowsPerPage}
+                    onChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setCurrentPage(1); }}
+                    className="wallet-input px-2 py-1 rounded-lg border text-xs font-bold outline-none cursor-pointer"
+                    style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Page Number Pills */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(1)}
+                  className="p-1.5 rounded-lg border disabled:opacity-40 cursor-pointer"
+                  style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                >
+                  <ChevronsLeft className="h-3.5 w-3.5" />
+                </button>
+
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  className="p-1.5 rounded-lg border disabled:opacity-40 cursor-pointer"
+                  style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                  .map((pageNum, idx, arr) => (
+                    <React.Fragment key={pageNum}>
+                      {idx > 0 && arr[idx - 1] !== pageNum - 1 && <span className="px-1 opacity-50">...</span>}
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className="min-w-[28px] h-7 px-2 rounded-lg text-xs font-bold border transition cursor-pointer"
+                        style={currentPage === pageNum ? {
+                          backgroundColor: 'var(--color-primary)',
+                          borderColor: 'var(--color-primary)',
+                          color: '#ffffff'
+                        } : {
+                          backgroundColor: 'var(--color-card)',
+                          borderColor: 'var(--color-border)',
+                          color: 'var(--color-text)'
+                        }}
+                      >
+                        {pageNum}
+                      </button>
+                    </React.Fragment>
+                  ))}
+
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  className="p-1.5 rounded-lg border disabled:opacity-40 cursor-pointer"
+                  style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(totalPages)}
+                  className="p-1.5 rounded-lg border disabled:opacity-40 cursor-pointer"
+                  style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                >
+                  <ChevronsRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: CONFIGURATION & RULES */}
       {activeTab === 'config' && (
         <div 
           role="region"
           aria-label={tr('walletRegionConfig', 'Wallet Configuration and Rules')}
           className="space-y-6"
         >
-          {/* Section 1: General Wallet Controls */}
+          {/* Section 1: General Wallet Controls with Reset Defaults button on the right */}
           <div 
             className="p-6 rounded-3xl border shadow-sm space-y-5 transition-colors duration-200"
             style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
           >
-            <div className="border-b pb-3" style={{ borderColor: 'var(--color-border)' }}>
-              <h2 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
-                <Wallet className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
-                {tr('generalControlsHeading', 'General Wallet Controls')}
-              </h2>
-              <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                {tr('generalControlsDesc', 'Toggle store credit operations, spending permissions, and currency parameters.')}
-              </p>
+            <div className="border-b pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3" style={{ borderColor: 'var(--color-border)' }}>
+              <div>
+                <h2 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+                  <Wallet className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
+                  {tr('generalControlsHeading', 'General Wallet Controls')}
+                </h2>
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  {tr('generalControlsDesc', 'Toggle store credit operations, spending permissions, and currency parameters.')}
+                </p>
+              </div>
+
+              {/* Reset Defaults button relocated to the right corner of General Wallet Controls */}
+              <button
+                type="button"
+                onClick={handleResetDefaults}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition hover:opacity-80 cursor-pointer shadow-sm shrink-0 self-start sm:self-center"
+                style={{ 
+                  backgroundColor: 'var(--color-inner-dark)', 
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text-secondary)'
+                }}
+              >
+                <span>{tr('btnResetDefaults', 'Reset Defaults')}</span>
+              </button>
             </div>
 
             {/* Slide Button Switch Controls */}
@@ -998,7 +1324,7 @@ export default function AdminWalletSettingsPage() {
                 {tr('manualAdjustmentHeading', 'Manual Customer Balance Adjustment')}
               </h2>
               <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                {tr('manualAdjustmentDesc', 'Directly credit or debit a user\'s store wallet balance with an audit record.')}
+                {tr('manualAdjustmentDesc', 'Directly credit or debit a user's store wallet balance with an audit record.')}
               </p>
             </div>
 
@@ -1095,389 +1421,6 @@ export default function AdminWalletSettingsPage() {
                 <Check className={`h-3.5 w-3.5 ${applyingAdjustment ? 'animate-spin' : ''}`} />
                 <span>{applyingAdjustment ? tr('applyingAdjustment', 'Applying Adjustment...') : tr('btnApplyAdjustment', 'Apply Balance Adjustment')}</span>
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: WALLET TRANSACTIONS LEDGER */}
-      {activeTab === 'ledger' && (
-        <div 
-          role="region"
-          aria-label={tr('walletRegionLedger', 'Wallet Transactions Ledger')}
-          className="space-y-4"
-        >
-          {/* Search, Filter & Columns Popover Bar */}
-          <div 
-            className="p-4 rounded-3xl border flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm transition-colors"
-            style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
-          >
-            <div className="relative w-full md:w-96">
-              <input
-                type="text"
-                autoComplete="off"
-                data-lpignore="true"
-                data-1p-ignore="true"
-                data-form-type="other"
-                spellCheck={false}
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-                placeholder={tr('ledgerSearchPlaceholder', 'Search by customer email, name, description, or transaction ID...')}
-                className="wallet-input w-full px-3.5 py-2 rounded-xl border text-xs outline-none"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto relative">
-              <select
-                value={typeFilter}
-                onChange={(e) => { setTypeFilter(e.target.value); setCurrentPage(1); }}
-                className="wallet-input px-3 py-2 rounded-xl border text-xs font-bold outline-none cursor-pointer"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              >
-                <option value="all">{tr('ledgerFilterAll', 'All Types')}</option>
-                <option value="deposit">{tr('ledgerFilterDeposit', 'Top-Up Deposits')}</option>
-                <option value="purchase">{tr('ledgerFilterPurchase', 'Purchases & Debits')}</option>
-                <option value="bonus">{tr('ledgerFilterBonus', 'Bonus Credits')}</option>
-                <option value="adjustment">{tr('ledgerFilterAdjustment', 'Admin Adjustments')}</option>
-                <option value="refund">{tr('ledgerFilterRefund', 'Refunds')}</option>
-              </select>
-
-              {/* Columns Popover Toggle */}
-              <div className="relative" ref={columnsPopoverRef}>
-                <button
-                  type="button"
-                  onClick={() => setShowColumnsPopover(!showColumnsPopover)}
-                  className="px-3 py-2 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
-                  style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-                >
-                  <Columns3 className="h-3.5 w-3.5" />
-                  <span>{tr('columnsBtn', 'Columns')}</span>
-                </button>
-
-                {showColumnsPopover && (
-                  <div 
-                    className="absolute right-0 top-11 z-30 w-56 rounded-2xl border p-3 shadow-2xl space-y-2 text-xs animate-in fade-in"
-                    style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
-                  >
-                    <div className="flex items-center justify-between border-b pb-1.5">
-                      <span className="font-bold text-[11px]" style={{ color: 'var(--color-text)' }}>{tr('columnsPopoverTitle', 'Toggle Visible Columns')}</span>
-                      <button
-                        type="button"
-                        onClick={() => setSettings({ ...settings, ledgerColumns: DEFAULT_SETTINGS.ledgerColumns })}
-                        className="text-[10px] text-[var(--color-primary)] font-bold hover:underline cursor-pointer"
-                      >
-                        {tr('resetColumnsBtn', 'Reset All')}
-                      </button>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      {[
-                        { key: 'customer', label: tr('colCustomer', 'Customer') },
-                        { key: 'type', label: tr('colType', 'Type') },
-                        { key: 'amount', label: tr('colAmount', 'Amount') },
-                        { key: 'balanceAfter', label: tr('colBalanceAfter', 'Balance After') },
-                        { key: 'gateway', label: tr('colGateway', 'Gateway / Ref') },
-                        { key: 'description', label: tr('colDescription', 'Description') },
-                        { key: 'date', label: tr('colDate', 'Timestamp') },
-                        { key: 'actions', label: tr('colActions', 'Actions') }
-                      ].map(col => (
-                        <label key={col.key} className="flex items-center justify-between cursor-pointer py-0.5">
-                          <span style={{ color: 'var(--color-text)' }}>{col.label}</span>
-                          <input
-                            type="checkbox"
-                            checked={settings.ledgerColumns?.[col.key] ?? true}
-                            onChange={() => toggleColumn(col.key)}
-                            className="rounded cursor-pointer"
-                          />
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Floating Selected Action Bar */}
-          {selectedTxIds.length > 0 && (
-            <div 
-              className="p-3.5 px-5 rounded-2xl flex items-center justify-between text-xs border shadow-lg animate-in fade-in"
-              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-primary)', color: 'var(--color-text)' }}
-            >
-              <div className="flex items-center gap-3">
-                <span className="font-bold">
-                  {tr('itemsSelectedBanner', '{count} transaction(s) selected').replace('{count}', String(selectedTxIds.length))}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTxIds([])}
-                  className="text-[11px] underline cursor-pointer hover:opacity-80"
-                  style={{ color: 'var(--color-text-secondary)' }}
-                >
-                  {tr('btnClearSelection', 'Clear selection')}
-                </button>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => handleDeleteTransactions(selectedTxIds)}
-                className="px-3.5 py-1.5 rounded-xl border border-red-500/40 text-red-400 bg-red-500/10 hover:bg-red-500/20 font-bold transition flex items-center gap-1.5 cursor-pointer text-xs"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span>{tr('btnDeleteSelected', 'Delete Selected ({count})').replace('{count}', String(selectedTxIds.length))}</span>
-              </button>
-            </div>
-          )}
-
-          {/* Transactions Table */}
-          <div 
-            className="border rounded-3xl overflow-hidden shadow-xl transition-colors duration-200"
-            style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
-          >
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead 
-                  className="border-b uppercase font-bold text-[10px] tracking-wider"
-                  style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
-                >
-                  <tr>
-                    <th className="w-10 px-4 py-4 text-center">
-                      <input
-                        type="checkbox"
-                        checked={isAllOnPageSelected}
-                        ref={(el) => { if (el) el.indeterminate = isIndeterminate; }}
-                        onChange={handleToggleSelectAll}
-                        className="rounded cursor-pointer"
-                      />
-                    </th>
-                    {settings.ledgerColumns?.customer && <th className="px-5 py-4">{tr('colCustomer', 'Customer')}</th>}
-                    {settings.ledgerColumns?.type && <th className="px-5 py-4">{tr('colType', 'Type')}</th>}
-                    {settings.ledgerColumns?.amount && <th className="px-5 py-4">{tr('colAmount', 'Amount')}</th>}
-                    {settings.ledgerColumns?.balanceAfter && <th className="px-5 py-4">{tr('colBalanceAfter', 'Balance After')}</th>}
-                    {settings.ledgerColumns?.gateway && <th className="px-5 py-4">{tr('colGateway', 'Gateway / Ref')}</th>}
-                    {settings.ledgerColumns?.description && <th className="px-5 py-4">{tr('colDescription', 'Description')}</th>}
-                    {settings.ledgerColumns?.date && <th className="px-5 py-4">{tr('colDate', 'Timestamp')}</th>}
-                    {settings.ledgerColumns?.actions && <th className="px-5 py-4 text-right">{tr('colActions', 'Actions')}</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}>
-                  {paginatedTxs.length === 0 ? (
-                    <tr>
-                      <td colSpan={activeColumnsCount} className="text-center py-10" style={{ color: 'var(--color-text-secondary)' }}>
-                        {tr('noLedgerTransactions', 'No wallet transactions found matching your criteria.')}
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedTxs.map((tx) => {
-                      const isSelected = selectedTxIds.includes(tx.id);
-                      const rawAmt = Number(tx.amount || 0);
-                      const isTypeDebit = ['debit', 'purchase', 'withdrawal', 'fee'].includes((tx.type || '').toLowerCase());
-                      const isNegative = rawAmt < 0 || (isTypeDebit && rawAmt > 0);
-                      const displayAmt = Math.abs(rawAmt);
-
-                      let formattedDate = '—';
-                      if (tx.created_at) {
-                        try {
-                          const d = new Date(tx.created_at);
-                          if (!isNaN(d.getTime())) {
-                            formattedDate = d.toLocaleDateString(locale === 'th' ? 'th-TH' : (locale || 'en-US'), {
-                              year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                            });
-                          }
-                        } catch (_) {}
-                      }
-
-                      return (
-                        <tr 
-                          key={tx.id}
-                          className="transition"
-                          style={{
-                            borderColor: 'var(--color-border)',
-                            backgroundColor: isSelected ? 'var(--color-inner-dark)' : undefined
-                          }}
-                        >
-                          <td className="w-10 px-4 py-4 text-center">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleSelectTx(tx.id)}
-                              className="rounded cursor-pointer"
-                            />
-                          </td>
-
-                          {settings.ledgerColumns?.customer && (
-                            <td className="px-5 py-4">
-                              <div className="font-bold text-xs" style={{ color: 'var(--color-text)' }}>
-                                {tx.customer_name || 'Customer'}
-                              </div>
-                              <div className="font-mono text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
-                                {tx.customer_email || '—'}
-                              </div>
-                            </td>
-                          )}
-
-                          {settings.ledgerColumns?.type && (
-                            <td className="px-5 py-4">
-                              <span 
-                                className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border"
-                                style={{
-                                  backgroundColor: 'var(--color-inner-dark)',
-                                  borderColor: isNegative ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)',
-                                  color: isNegative ? '#ef4444' : 'var(--color-emerald, #10b981)'
-                                }}
-                              >
-                                {tx.type}
-                              </span>
-                            </td>
-                          )}
-
-                          {settings.ledgerColumns?.amount && (
-                            <td className="px-5 py-4 font-mono font-black text-sm" style={{ color: isNegative ? '#ef4444' : 'var(--color-emerald, #10b981)' }}>
-                              {isNegative ? `-${activeCurrencySymbol}${displayAmt.toFixed(2)}` : `+${activeCurrencySymbol}${displayAmt.toFixed(2)}`}
-                            </td>
-                          )}
-
-                          {settings.ledgerColumns?.balanceAfter && (
-                            <td className="px-5 py-4 font-mono font-bold" style={{ color: 'var(--color-text)' }}>
-                              {tx.balance_after !== undefined ? `${activeCurrencySymbol}${Number(tx.balance_after).toFixed(2)}` : '—'}
-                            </td>
-                          )}
-
-                          {settings.ledgerColumns?.gateway && (
-                            <td className="px-5 py-4">
-                              <span className="px-2 py-0.5 rounded border text-[10px] font-mono font-bold uppercase" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}>
-                                {tx.gateway || 'System'}
-                              </span>
-                            </td>
-                          )}
-
-                          {settings.ledgerColumns?.description && (
-                            <td className="px-5 py-4 text-xs font-medium max-w-xs truncate" style={{ color: 'var(--color-text-secondary)' }}>
-                              {tx.description || '—'}
-                            </td>
-                          )}
-
-                          {settings.ledgerColumns?.date && (
-                            <td className="px-5 py-4 text-[11px] font-mono" style={{ color: 'var(--color-text-secondary)' }}>
-                              {formattedDate}
-                            </td>
-                          )}
-
-                          {settings.ledgerColumns?.actions && (
-                            <td className="px-5 py-4 text-right">
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteTransactions([tx.id])}
-                                className="p-1.5 rounded-xl border text-red-400 border-red-500/30 hover:bg-red-500/10 transition cursor-pointer"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination Controls Bar */}
-            <div 
-              className="px-5 py-3.5 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-xs transition-colors"
-              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
-            >
-              <div className="flex items-center gap-3">
-                <span>
-                  {tr('showingTransactions', 'Showing {start} to {end} of {total} transactions')
-                    .replace('{start}', String(filteredTransactions.length === 0 ? 0 : startIndex + 1))
-                    .replace('{end}', String(Math.min(startIndex + rowsPerPage, filteredTransactions.length)))
-                    .replace('{total}', String(filteredTransactions.length))}
-                </span>
-
-                <div className="flex items-center gap-1.5 pl-2 border-l" style={{ borderColor: 'var(--color-border)' }}>
-                  <span className="text-[11px]">{tr('rowsPerPageLabel', 'Rows per page:')}</span>
-                  <select
-                    value={rowsPerPage}
-                    onChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setCurrentPage(1); }}
-                    className="wallet-input px-2 py-1 rounded-lg border text-xs font-bold outline-none cursor-pointer"
-                    style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-                  >
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Page Number Pills */}
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage(1)}
-                  className="p-1.5 rounded-lg border disabled:opacity-40 cursor-pointer"
-                  style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-                >
-                  <ChevronsLeft className="h-3.5 w-3.5" />
-                </button>
-
-                <button
-                  type="button"
-                  disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  className="p-1.5 rounded-lg border disabled:opacity-40 cursor-pointer"
-                  style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </button>
-
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
-                  .map((pageNum, idx, arr) => (
-                    <React.Fragment key={pageNum}>
-                      {idx > 0 && arr[idx - 1] !== pageNum - 1 && <span className="px-1 opacity-50">...</span>}
-                      <button
-                        type="button"
-                        onClick={() => setCurrentPage(pageNum)}
-                        className="min-w-[28px] h-7 px-2 rounded-lg text-xs font-bold border transition cursor-pointer"
-                        style={currentPage === pageNum ? {
-                          backgroundColor: 'var(--color-primary)',
-                          borderColor: 'var(--color-primary)',
-                          color: '#ffffff'
-                        } : {
-                          backgroundColor: 'var(--color-card)',
-                          borderColor: 'var(--color-border)',
-                          color: 'var(--color-text)'
-                        }}
-                      >
-                        {pageNum}
-                      </button>
-                    </React.Fragment>
-                  ))}
-
-                <button
-                  type="button"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  className="p-1.5 rounded-lg border disabled:opacity-40 cursor-pointer"
-                  style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-
-                <button
-                  type="button"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setCurrentPage(totalPages)}
-                  className="p-1.5 rounded-lg border disabled:opacity-40 cursor-pointer"
-                  style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-                >
-                  <ChevronsRight className="h-3.5 w-3.5" />
-                </button>
-              </div>
             </div>
           </div>
         </div>
