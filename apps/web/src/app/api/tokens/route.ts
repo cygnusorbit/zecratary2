@@ -31,12 +31,17 @@ function getTransactionsFilePath(): string {
   return path.join(process.cwd(), 'data', 'token_transactions.json');
 }
 
+function getUsersFilePath(): string {
+  const p1 = path.join(process.cwd(), 'apps', 'web', 'data', 'users.json');
+  if (fs.existsSync(path.dirname(p1))) return p1;
+  return path.join(process.cwd(), 'data', 'users.json');
+}
+
 function readTokenSettings(): any {
   try {
     const fPath = getSettingsFilePath();
     if (fs.existsSync(fPath)) {
-      const raw = fs.readFileSync(fPath, 'utf8');
-      return JSON.parse(raw);
+      return JSON.parse(fs.readFileSync(fPath, 'utf8'));
     }
   } catch (_) {}
   return {
@@ -53,8 +58,7 @@ function readTokenTransactions(): any[] {
   try {
     const fPath = getTransactionsFilePath();
     if (fs.existsSync(fPath)) {
-      const raw = fs.readFileSync(fPath, 'utf8');
-      const parsed = JSON.parse(raw);
+      const parsed = JSON.parse(fs.readFileSync(fPath, 'utf8'));
       if (Array.isArray(parsed)) return parsed;
     }
   } catch (_) {}
@@ -70,7 +74,6 @@ function saveTokenTransactions(txs: any[]) {
   } catch (_) {}
 }
 
-// Authoritative CORS OPTIONS handler
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
@@ -82,23 +85,39 @@ export async function OPTIONS() {
   });
 }
 
-// GET /api/tokens: Load User Telemetry, Packages, and Audit Ledger
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get('userId') || 'usr_admin_1';
-    const email = searchParams.get('email') || 'admin@zecratary.com';
+    const email = (searchParams.get('email') || 'admin@zecratary.com').toLowerCase().trim();
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const limit = Math.max(1, parseInt(searchParams.get('limit') || '10', 10));
     const searchQuery = (searchParams.get('search') || '').toLowerCase().trim();
     const typeFilter = searchParams.get('type') || 'all';
 
     const settings = readTokenSettings();
-    const allTxs = readTokenTransactions();
+    let allTxs = readTokenTransactions();
 
-    // User-specific filtering
+    // Query Supabase for latest transactions
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (supabaseUrl && supabaseKey) {
+      try {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        const { data: tData } = await supabase.from('token_transactions').select('*').order('created_at', { ascending: false }).limit(250);
+        if (Array.isArray(tData) && tData.length > 0) {
+          const tMap = new Map();
+          allTxs.forEach(t => tMap.set(t.id, t));
+          tData.forEach(t => tMap.set(t.id, t));
+          allTxs = Array.from(tMap.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        }
+      } catch (_) {}
+    }
+
     const userTxs = allTxs.filter((tx: any) => {
-      const matchUser = !tx.user_id || tx.user_id === userId || !tx.user_email || tx.user_email.toLowerCase() === email.toLowerCase();
+      const txEmail = (tx.customer_email || tx.user_email || '').toLowerCase().trim();
+      const matchUser = !tx.user_id || tx.user_id === userId || txEmail === email;
       if (!matchUser) return false;
 
       if (typeFilter !== 'all' && tx.type && !tx.type.toLowerCase().includes(typeFilter.toLowerCase())) {
@@ -129,8 +148,25 @@ export async function GET(req: NextRequest) {
       else totalGranted += amt;
     });
 
-    // Default Token Balance calculation
-    const tokenBalance = Math.max(0, totalGranted - totalDeducted);
+    // Authoritative balance: Check newest transaction balance_after first
+    let tokenBalance = Math.max(0, totalGranted - totalDeducted);
+    if (userTxs.length > 0 && userTxs[0].balance_after !== undefined && userTxs[0].balance_after !== null && !isNaN(Number(userTxs[0].balance_after))) {
+      tokenBalance = Number(userTxs[0].balance_after);
+    } else {
+      // Check disk users fallback
+      try {
+        const uPath = getUsersFilePath();
+        if (fs.existsSync(uPath)) {
+          const uParsed = JSON.parse(fs.readFileSync(uPath, 'utf8'));
+          if (Array.isArray(uParsed)) {
+            const matched = uParsed.find((u: any) => u.email && u.email.toLowerCase().trim() === email);
+            if (matched && matched.token_balance !== undefined) {
+              tokenBalance = Number(matched.token_balance);
+            }
+          }
+        }
+      } catch (_) {}
+    }
 
     return NextResponse.json({
       success: true,
@@ -162,13 +198,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/tokens: Process atomic purchase, grant, or deduction
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const action = body.action || 'purchase';
     const userId = body.userId || 'usr_admin_1';
-    const userEmail = body.userEmail || 'admin@zecratary.com';
+    const userEmail = (body.userEmail || 'admin@zecratary.com').toLowerCase().trim();
 
     const allTxs = readTokenTransactions();
 
@@ -177,13 +212,18 @@ export async function POST(req: NextRequest) {
       const price = Number(body.price || body.priceDollars || 0);
       const pkgName = body.packageName || 'Token Bundle';
 
-      // Record transaction
+      // Find user current balance
+      const userPrevTx = allTxs.find((t: any) => (t.customer_email || t.user_email || '').toLowerCase().trim() === userEmail);
+      const prevBal = userPrevTx && userPrevTx.balance_after !== undefined ? Number(userPrevTx.balance_after) : 0;
+      const newBal = prevBal + tokens;
+
       const newTx = {
         id: `tx_tok_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         user_id: userId,
         user_email: userEmail,
+        customer_email: userEmail,
         amount: tokens,
-        balance_after: tokens, // Updated live
+        balance_after: newBal,
         type: 'purchase',
         description: `Purchased ${pkgName} (+${tokens.toLocaleString()} tokens)`,
         created_at: new Date().toISOString()
@@ -196,6 +236,7 @@ export async function POST(req: NextRequest) {
         success: true,
         message: 'Tokens purchased successfully',
         transaction: newTx,
+        balance: newBal,
         tokensAdded: tokens,
         priceDeducted: price
       });

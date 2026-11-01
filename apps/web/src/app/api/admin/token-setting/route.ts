@@ -81,14 +81,10 @@ function readDiskUsers(): any[] {
     if (fs.existsSync(fPath)) {
       const raw = fs.readFileSync(fPath, 'utf8');
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch (_) {}
-  return [
-    { id: 'usr_admin_1', email: 'admin@zecratary.com', name: 'Administrator', customer_name: 'Administrator', token_balance: 1500, tokens: 1500, role: 'admin' },
-    { id: 'usr_chef_demo', email: 'chef@zecratary.com', name: 'Executive Chef', customer_name: 'Executive Chef', token_balance: 750, tokens: 750, role: 'user' },
-    { id: 'usr_customer_demo', email: 'customer@zecratary.com', name: 'Jane Foodie', customer_name: 'Jane Foodie', token_balance: 250, tokens: 250, role: 'user' }
-  ];
+  return [];
 }
 
 function writeDiskUsers(users: any[]) {
@@ -129,10 +125,23 @@ export async function GET() {
   harmonizeDatabaseSchema().catch(() => {});
   try {
     const settings = readTokenSettings();
-    let usersList = readDiskUsers();
     let txList = readDiskTransactions();
+    const userMap = new Map<string, any>();
 
-    // 1. PostgreSQL (Supabase)
+    // 1. Seed with disk users (if any)
+    const diskUsers = readDiskUsers();
+    diskUsers.forEach(u => {
+      if (u.email) {
+        userMap.set(u.email.toLowerCase().trim(), {
+          ...u,
+          email: u.email.toLowerCase().trim(),
+          token_balance: Number(u.token_balance ?? u.tokens ?? 0),
+          tokens: Number(u.token_balance ?? u.tokens ?? 0)
+        });
+      }
+    });
+
+    // 2. Query Supabase PostgreSQL for users and transactions
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     if (supabaseUrl && supabaseKey) {
@@ -153,51 +162,161 @@ export async function GET() {
         const { data: uData } = await supabase
           .from('users')
           .select('id, email, name, customer_name, token_balance, tokens, wallet_balance, role')
-          .limit(200);
+          .limit(300);
 
         if (Array.isArray(uData) && uData.length > 0) {
-          const userMap = new Map();
-          usersList.forEach(u => userMap.set(u.email.toLowerCase(), u));
           uData.forEach(u => {
             if (u.email) {
-              const current = userMap.get(u.email.toLowerCase()) || {};
-              userMap.set(u.email.toLowerCase(), {
-                ...current,
+              const eKey = u.email.toLowerCase().trim();
+              const existing = userMap.get(eKey) || {};
+              const rawBal = u.token_balance !== undefined && u.token_balance !== null 
+                ? u.token_balance 
+                : (u.tokens !== undefined && u.tokens !== null ? u.tokens : existing.token_balance);
+              const numBal = rawBal !== undefined && rawBal !== null && !isNaN(Number(rawBal)) ? Number(rawBal) : 0;
+              userMap.set(eKey, {
+                ...existing,
                 ...u,
-                token_balance: Number(u.token_balance ?? u.tokens ?? current.token_balance ?? 100),
-                tokens: Number(u.token_balance ?? u.tokens ?? current.token_balance ?? 100)
+                email: eKey,
+                token_balance: numBal,
+                tokens: numBal
               });
             }
           });
-          usersList = Array.from(userMap.values());
         }
 
         const { data: tData } = await supabase
           .from('token_transactions')
           .select('*')
           .order('created_at', { ascending: false })
-          .limit(250);
+          .limit(300);
 
         if (Array.isArray(tData) && tData.length > 0) {
           const txMap = new Map();
           txList.forEach(t => txMap.set(t.id, t));
           tData.forEach(t => txMap.set(t.id, t));
-          txList = Array.from(txMap.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          txList = Array.from(txMap.values());
         }
       } catch (_) {}
     }
 
-    // 2. MySQL
+    // 3. Query MySQL for users and settings
     try {
       const mysqlModule = await import('@/lib/mysql').catch(() => null);
       if (mysqlModule && typeof mysqlModule.query === 'function') {
-        const rows: any = await mysqlModule.query("SELECT value FROM admin_settings WHERE `key` = 'token_settings' LIMIT 1");
-        if (Array.isArray(rows) && rows.length > 0 && rows[0].value) {
-          const dbObj = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
-          Object.assign(settings, dbObj);
+        const rows: any = await mysqlModule.query("SELECT value, setting_value FROM admin_settings WHERE `key` = 'token_settings' OR setting_key = 'token_settings' LIMIT 1");
+        if (Array.isArray(rows) && rows.length > 0) {
+          const val = rows[0].value || rows[0].setting_value;
+          if (val) {
+            const dbObj = typeof val === 'string' ? JSON.parse(val) : val;
+            Object.assign(settings, dbObj);
+          }
+        }
+
+        // Query MySQL users table
+        const myUsers: any = await mysqlModule.query("SELECT id, email, name, customer_name, token_balance, tokens, wallet_balance, role FROM users LIMIT 300").catch(() => null);
+        if (Array.isArray(myUsers) && myUsers.length > 0) {
+          myUsers.forEach((u: any) => {
+            if (u.email) {
+              const eKey = u.email.toLowerCase().trim();
+              const existing = userMap.get(eKey) || {};
+              const rawBal = u.token_balance !== undefined && u.token_balance !== null
+                ? u.token_balance
+                : (u.tokens !== undefined && u.tokens !== null ? u.tokens : existing.token_balance);
+              const numBal = rawBal !== undefined && rawBal !== null && !isNaN(Number(rawBal)) ? Number(rawBal) : 0;
+              userMap.set(eKey, {
+                ...existing,
+                ...u,
+                email: eKey,
+                token_balance: numBal,
+                tokens: numBal
+              });
+            }
+          });
+        }
+
+        // Query MySQL token_transactions table
+        const myTxs: any = await mysqlModule.query("SELECT * FROM token_transactions ORDER BY created_at DESC LIMIT 300").catch(() => null);
+        if (Array.isArray(myTxs) && myTxs.length > 0) {
+          const txMap = new Map();
+          txList.forEach(t => txMap.set(t.id, t));
+          myTxs.forEach((t: any) => txMap.set(t.id, t));
+          txList = Array.from(txMap.values());
         }
       }
     } catch (_) {}
+
+    // 4. Ensure default active administrators exist if directory is empty
+    if (userMap.size === 0) {
+      userMap.set('admin@zecratary.com', {
+        id: 'usr_admin_1',
+        email: 'admin@zecratary.com',
+        name: 'Administrator',
+        customer_name: 'Administrator',
+        token_balance: Number(settings.startingBalance || 100),
+        tokens: Number(settings.startingBalance || 100),
+        role: 'admin'
+      });
+    }
+
+    // Sort transactions by timestamp
+    txList.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    // 5. Authoritative Ledger Balance Reconciliation per Customer
+    // Scan all transactions for each user: the latest transaction's balance_after is the authoritative ledger balance
+    const userLatestBalance = new Map<string, number>();
+    const userLedgerSum = new Map<string, number>();
+
+    txList.forEach(tx => {
+      const emailKey = (tx.customer_email || tx.user_email || '').toLowerCase().trim();
+      if (!emailKey) return;
+
+      // Track ledger sum
+      const currentSum = userLedgerSum.get(emailKey) || 0;
+      userLedgerSum.set(emailKey, currentSum + Number(tx.amount || 0));
+
+      // Record latest balance_after if not yet set (since txList is sorted newest-to-oldest)
+      if (!userLatestBalance.has(emailKey) && tx.balance_after !== undefined && tx.balance_after !== null && !isNaN(Number(tx.balance_after))) {
+        userLatestBalance.set(emailKey, Number(tx.balance_after));
+      }
+
+      // If user is not yet in directory, discover them from ledger
+      if (!userMap.has(emailKey)) {
+        userMap.set(emailKey, {
+          id: 'usr_' + Math.random().toString(36).substring(2, 7),
+          email: emailKey,
+          customer_name: emailKey.split('@')[0],
+          name: emailKey.split('@')[0],
+          token_balance: 0,
+          tokens: 0,
+          role: 'user'
+        });
+      }
+    });
+
+    // 6. Harmonize each user's token balance with the authoritative system ledger
+    const finalUsersList = Array.from(userMap.values()).map(u => {
+      const eKey = u.email.toLowerCase().trim();
+      let authoritativeBalance = Number(u.token_balance ?? u.tokens ?? 0);
+
+      if (userLatestBalance.has(eKey)) {
+        authoritativeBalance = userLatestBalance.get(eKey)!;
+      } else if (userLedgerSum.has(eKey)) {
+        authoritativeBalance = Math.max(0, userLedgerSum.get(eKey)!);
+      }
+
+      return {
+        ...u,
+        token_balance: authoritativeBalance,
+        tokens: authoritativeBalance
+      };
+    });
+
+    // Sort alphabetically by email
+    finalUsersList.sort((a, b) => a.email.localeCompare(b.email));
+
+    // Mirror to disk
+    writeDiskUsers(finalUsersList);
+    writeDiskTransactions(txList);
 
     return NextResponse.json({
       success: true,
@@ -205,7 +324,7 @@ export async function GET() {
       settings: settings,
       currency: 'USD',
       currencySymbol: '$',
-      users: usersList,
+      users: finalUsersList,
       transactions: txList,
       plans: [
         { id: 'plan_free', name: 'Free Explorer', slug: 'free', price: 0, interval: 'month', token_limit: settings.planAllocations?.['free'] ?? 50 },
@@ -236,11 +355,66 @@ export async function POST(req: NextRequest) {
       const notes = body.notes || '';
       const tokenSym = body.token_symbol || '🪙';
 
-      // Find current user balance
-      const usersList = readDiskUsers();
-      const existingIdx = usersList.findIndex(u => u.email.toLowerCase() === customerEmail);
-      let currentBal = existingIdx >= 0 ? Number(usersList[existingIdx].token_balance ?? usersList[existingIdx].tokens ?? 0) : 0;
+      // 1. Authoritative Current Balance Discovery
+      let currentBal = 0;
+      let foundUser = false;
 
+      // Check existing transactions first for latest balance_after
+      const allTxs = readDiskTransactions();
+      const userLatestTx = allTxs.find(t => (t.customer_email || t.user_email || '').toLowerCase().trim() === customerEmail);
+      if (userLatestTx && userLatestTx.balance_after !== undefined && !isNaN(Number(userLatestTx.balance_after))) {
+        currentBal = Number(userLatestTx.balance_after);
+        foundUser = true;
+      }
+
+      // Check PostgreSQL (Supabase) users table
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+      if (!foundUser && supabaseUrl && supabaseKey) {
+        try {
+          const { createClient } = await import('@supabase/supabase-js');
+          const supabase = createClient(supabaseUrl, supabaseKey);
+          const { data: uDb } = await supabase.from('users').select('token_balance, tokens').eq('email', customerEmail).maybeSingle();
+          if (uDb) {
+            const raw = uDb.token_balance !== undefined ? uDb.token_balance : uDb.tokens;
+            if (raw !== null && raw !== undefined && !isNaN(Number(raw))) {
+              currentBal = Number(raw);
+              foundUser = true;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Check MySQL users table
+      if (!foundUser) {
+        try {
+          const mysqlModule = await import('@/lib/mysql').catch(() => null);
+          if (mysqlModule && typeof mysqlModule.query === 'function') {
+            const mRows: any = await mysqlModule.query("SELECT token_balance, tokens FROM users WHERE email = ? LIMIT 1", [customerEmail]);
+            if (Array.isArray(mRows) && mRows.length > 0) {
+              const raw = mRows[0].token_balance !== undefined ? mRows[0].token_balance : mRows[0].tokens;
+              if (raw !== null && raw !== undefined && !isNaN(Number(raw))) {
+                currentBal = Number(raw);
+                foundUser = true;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Check disk users fallback
+      if (!foundUser) {
+        const dUsers = readDiskUsers();
+        const dMatch = dUsers.find(u => u.email && u.email.toLowerCase().trim() === customerEmail);
+        if (dMatch) {
+          const raw = dMatch.token_balance !== undefined ? dMatch.token_balance : dMatch.tokens;
+          if (raw !== null && raw !== undefined && !isNaN(Number(raw))) {
+            currentBal = Number(raw);
+          }
+        }
+      }
+
+      // 2. Compute accurate adjustment delta & new balance
       let newBal = currentBal;
       let deltaAmount = 0;
 
@@ -255,23 +429,7 @@ export async function POST(req: NextRequest) {
         deltaAmount = newBal - currentBal;
       }
 
-      // Update disk users
-      if (existingIdx >= 0) {
-        usersList[existingIdx].token_balance = newBal;
-        usersList[existingIdx].tokens = newBal;
-      } else {
-        usersList.unshift({
-          id: 'usr_' + Date.now().toString(36),
-          email: customerEmail,
-          customer_name: customerEmail.split('@')[0],
-          token_balance: newBal,
-          tokens: newBal,
-          role: 'user'
-        });
-      }
-      writeDiskUsers(usersList);
-
-      // Create ledger transaction
+      // 3. Create authoritative ledger record
       const txRecord = {
         id: `tx_adj_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         customer_email: customerEmail,
@@ -283,13 +441,28 @@ export async function POST(req: NextRequest) {
         created_at: new Date().toISOString()
       };
 
-      const currentTxs = readDiskTransactions();
-      const updatedTxs = [txRecord, ...currentTxs];
+      // 4. Persist to disk
+      const updatedTxs = [txRecord, ...allTxs];
       writeDiskTransactions(updatedTxs);
 
-      // Persist to PostgreSQL (Supabase)
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+      const diskUsersList = readDiskUsers();
+      const existingUserIdx = diskUsersList.findIndex(u => u.email && u.email.toLowerCase().trim() === customerEmail);
+      if (existingUserIdx >= 0) {
+        diskUsersList[existingUserIdx].token_balance = newBal;
+        diskUsersList[existingUserIdx].tokens = newBal;
+      } else {
+        diskUsersList.unshift({
+          id: 'usr_' + Date.now().toString(36),
+          email: customerEmail,
+          customer_name: customerEmail.split('@')[0],
+          token_balance: newBal,
+          tokens: newBal,
+          role: 'user'
+        });
+      }
+      writeDiskUsers(diskUsersList);
+
+      // 5. Persist to PostgreSQL (Supabase)
       if (supabaseUrl && supabaseKey) {
         try {
           const { createClient } = await import('@supabase/supabase-js');
@@ -306,14 +479,27 @@ export async function POST(req: NextRequest) {
         } catch (_) {}
       }
 
-      // Persist to MySQL
+      // 6. Persist to MySQL
       try {
         const mysqlModule = await import('@/lib/mysql').catch(() => null);
         if (mysqlModule && typeof mysqlModule.query === 'function') {
           await mysqlModule.query(
+            `INSERT INTO users (id, email, token_balance, tokens, updated_at) 
+             VALUES (?, ?, ?, ?, NOW()) 
+             ON DUPLICATE KEY UPDATE token_balance = VALUES(token_balance), tokens = VALUES(tokens), updated_at = NOW()`,
+            ['usr_' + Date.now().toString(36), customerEmail, newBal, newBal]
+          );
+
+          await mysqlModule.query(
             "UPDATE users SET token_balance = ?, tokens = ? WHERE email = ?",
             [newBal, newBal, customerEmail]
           );
+
+          await mysqlModule.query(
+            `INSERT INTO token_transactions (id, customer_email, user_email, amount, balance_after, type, description, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+            [txRecord.id, customerEmail, customerEmail, txRecord.amount, txRecord.balance_after, txRecord.type, txRecord.description]
+          ).catch(() => {});
         }
       } catch (_) {}
 
@@ -322,6 +508,7 @@ export async function POST(req: NextRequest) {
         message: `Successfully adjusted balance for ${customerEmail}.`,
         new_balance: newBal,
         balance_after: newBal,
+        previous_balance: currentBal,
         transaction: txRecord
       }, { headers: CORS_HEADERS });
     }
@@ -388,7 +575,7 @@ export async function DELETE() {
     try {
       const mysqlModule = await import('@/lib/mysql').catch(() => null);
       if (mysqlModule && typeof mysqlModule.query === 'function') {
-        await mysqlModule.query("TRUNCATE TABLE token_transactions");
+        await mysqlModule.query("TRUNCATE TABLE token_transactions").catch(() => {});
       }
     } catch (_) {}
 

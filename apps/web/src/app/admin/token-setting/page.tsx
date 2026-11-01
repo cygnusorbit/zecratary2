@@ -7,7 +7,7 @@ import {
   Plus, Trash2, Edit3, Shield, Activity, 
   CreditCard, History, Sliders, Layers, ArrowUpDown,
   ChevronLeft, ChevronRight, Search, X, Check,
-  UserCheck, ArrowDownLeft, ArrowUpRight, Scale
+  UserCheck, ArrowDownLeft, ArrowUpRight, Scale, RefreshCw
 } from 'lucide-react';
 import { useTranslation } from '@/components/LanguageProvider';
 
@@ -85,7 +85,7 @@ function formatLedgerDescription(desc: string | undefined | null, symbol: string
   return formatted;
 }
 
-// Module-level in-memory cache to prevent background reload when revisiting the page
+// Module-level cache to eliminate shadow loader flashing on tab re-entry
 let memoryCachedSettings: TokenSettings | null = null;
 let memoryCachedPlans: SubscriptionPlanItem[] | null = null;
 let memoryCachedTransactions: TokenTransactionRecord[] | null = null;
@@ -107,7 +107,6 @@ export default function AdminTokenSettingPage() {
 
   const [activeTab, setActiveTab] = useState<'system' | 'packages' | 'plans' | 'adjustment' | 'ledger'>('system');
   
-  // Dynamic State: Initialized from memory cache if available to prevent layout shifting
   const [settings, setSettings] = useState<TokenSettings>(() => memoryCachedSettings || {
     tokenName: '',
     tokenSymbol: '🪙',
@@ -132,6 +131,7 @@ export default function AdminTokenSettingPage() {
   const [currencyCode, setCurrencyCode] = useState<string>(() => memoryCachedCurrencyCode);
   const [loading, setLoading] = useState<boolean>(() => !memoryLoaded);
   const [saving, setSaving] = useState<boolean>(false);
+  const [syncingUsers, setSyncingUsers] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
   // Package editor state
@@ -169,7 +169,6 @@ export default function AdminTokenSettingPage() {
     setTimeout(() => setFeedback(null), 4000);
   };
 
-  // Debounce search input to prevent rapid table re-rendering
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(ledgerSearch);
@@ -179,7 +178,6 @@ export default function AdminTokenSettingPage() {
   }, [ledgerSearch]);
 
   const loadTokenData = useCallback(async (force = false) => {
-    // Prevent background reload when revisiting the page if data is already loaded in memory
     if (!force && memoryLoaded && memoryCachedSettings) {
       setLoading(false);
       return;
@@ -224,11 +222,27 @@ export default function AdminTokenSettingPage() {
         }
 
         if (Array.isArray(data.users)) {
-          setUsers(data.users);
-          memoryCachedUsers = data.users;
-          if (!selectedUserEmail && data.users.length > 0) {
-            setSelectedUserEmail(data.users[0].email);
-          }
+          // Normalize and cast numeric token balance
+          const sanitizedUsers: CustomerUserRecord[] = data.users.map((u: any) => {
+            const rawBal = u.token_balance !== undefined ? u.token_balance : (u.tokens !== undefined ? u.tokens : 0);
+            const numBal = !isNaN(Number(rawBal)) ? Number(rawBal) : 0;
+            return {
+              ...u,
+              token_balance: numBal,
+              tokens: numBal
+            };
+          });
+
+          setUsers(sanitizedUsers);
+          memoryCachedUsers = sanitizedUsers;
+
+          // Set default selected customer if not set or missing
+          setSelectedUserEmail(prev => {
+            if (prev && sanitizedUsers.some(u => u.email.toLowerCase() === prev.toLowerCase())) {
+              return prev;
+            }
+            return sanitizedUsers.length > 0 ? sanitizedUsers[0].email : '';
+          });
         }
 
         const loaded = data.tokenSettings || data.settings || data;
@@ -296,18 +310,16 @@ export default function AdminTokenSettingPage() {
       console.warn('[Token Setting] Error loading configuration:', err);
     } finally {
       setLoading(false);
+      setSyncingUsers(false);
       isFetchingRef.current = false;
     }
-  }, [selectedUserEmail]);
+  }, []);
 
   useEffect(() => {
     document.title = `${tr('tokenSettingDocTitle', 'Token Settings - Admin Console')}`;
-    
-    // Only fetch on initial load; subsequent visits to the tab are served from memory
     loadTokenData(false);
 
     const handleSync = () => {
-      // Event-driven quiet synchronization only when settings are broadcast
       loadTokenData(true);
     };
 
@@ -318,18 +330,25 @@ export default function AdminTokenSettingPage() {
     try {
       tokenBc = new BroadcastChannel('zecratary_token_channel');
       tokenBc.onmessage = (e) => {
-        if (e.data?.type === 'TOKEN_SETTINGS_UPDATED') handleSync();
+        const t = e.data?.type;
+        if (t === 'TOKEN_SETTINGS_UPDATED' || t === 'TOKEN_UPDATED' || t === 'TOKEN_PURCHASED' || t === 'TOKEN_ADJUSTMENT_SUCCESS' || t === 'TOKEN_BALANCE_UPDATED') {
+          handleSync();
+        }
       };
 
       balanceBc = new BroadcastChannel('zecratary_balance_channel');
       balanceBc.onmessage = (e) => {
-        if (e.data?.type === 'TOKEN_SETTINGS_UPDATED') handleSync();
+        const t = e.data?.type;
+        if (t === 'TOKEN_SETTINGS_UPDATED' || t === 'TOKEN_UPDATED' || t === 'TOKEN_BALANCE_UPDATED' || t === 'TOKEN_PURCHASED') {
+          handleSync();
+        }
       };
 
       walletBc = new BroadcastChannel('zecratary_wallet_channel');
       walletBc.onmessage = () => {};
     } catch (_) {}
 
+    window.addEventListener('zecratary_tokens_updated', handleSync);
     window.addEventListener('zecratary_languages_updated', handleSync);
     window.addEventListener('zecratary_dictionary_updated', handleSync);
     window.addEventListener('zecratary_locale_changed', handleSync);
@@ -338,6 +357,7 @@ export default function AdminTokenSettingPage() {
       if (tokenBc) tokenBc.close();
       if (balanceBc) balanceBc.close();
       if (walletBc) walletBc.close();
+      window.removeEventListener('zecratary_tokens_updated', handleSync);
       window.removeEventListener('zecratary_languages_updated', handleSync);
       window.removeEventListener('zecratary_dictionary_updated', handleSync);
       window.removeEventListener('zecratary_locale_changed', handleSync);
@@ -527,7 +547,7 @@ export default function AdminTokenSettingPage() {
       if (res.ok && data.success) {
         const resolvedNewBal = Number(data.new_balance ?? data.balance_after ?? 0);
 
-        // Update local users list
+        // Update local users list with verified authoritative balance
         setUsers(prev => {
           const exists = prev.some(u => u.email.toLowerCase() === targetEmail.toLowerCase());
           if (exists) {
@@ -584,6 +604,12 @@ export default function AdminTokenSettingPage() {
     } finally {
       setAdjusting(false);
     }
+  };
+
+  const handleManualSyncUsers = async () => {
+    setSyncingUsers(true);
+    await loadTokenData(true);
+    showToast('success', tr('toastUsersSynced', 'Customer balances synchronized with PostgreSQL & MySQL.'));
   };
 
   const handleAddPackage = () => {
@@ -737,7 +763,7 @@ export default function AdminTokenSettingPage() {
       className="w-full max-w-full px-4 sm:px-6 lg:px-8 xl:px-10 space-y-6 pb-24 pt-2 font-sans transition-colors duration-200"
       style={{ color: 'var(--color-text)' }}
     >
-      {/* 1. Top Header & Primary Action Bar (Reload Button Permanently Removed) */}
+      {/* 1. Top Header & Primary Action Bar */}
       <div 
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4" 
         style={{ borderColor: 'var(--color-border)' }}
@@ -1441,17 +1467,30 @@ export default function AdminTokenSettingPage() {
               </p>
             </div>
 
-            {/* Step 1: Customer Account Selection */}
+            {/* Step 1: Customer Account Selection with Live Sync button */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
-                  1. {tr('targetCustomerAccount', 'Target Customer Account')}
-                </label>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
+                    1. {tr('targetCustomerAccount', 'Target Customer Account')}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleManualSyncUsers}
+                    disabled={syncingUsers}
+                    className="p-1 rounded-lg border text-[10px] font-bold transition hover:opacity-80 flex items-center gap-1 cursor-pointer"
+                    style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-primary)' }}
+                    title={tr('btnSyncBalances', 'Sync live database customer balances')}
+                  >
+                    <RefreshCw className={`h-3 w-3 ${syncingUsers ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">{tr('syncBalances', 'Sync')}</span>
+                  </button>
+                </div>
                 <div className="flex items-center gap-1.5 text-[11px] font-semibold">
                   <button
                     type="button"
                     onClick={() => setAdjustCustomerMode('select')}
-                    className={`px-2.5 py-1 rounded-lg border transition ${adjustCustomerMode === 'select' ? 'font-bold' : 'opacity-70'}`}
+                    className={`px-2.5 py-1 rounded-lg border transition cursor-pointer ${adjustCustomerMode === 'select' ? 'font-bold' : 'opacity-70'}`}
                     style={adjustCustomerMode === 'select' ? {
                       backgroundColor: 'var(--color-inner-dark)',
                       borderColor: 'var(--color-primary)',
@@ -1465,7 +1504,7 @@ export default function AdminTokenSettingPage() {
                   <button
                     type="button"
                     onClick={() => setAdjustCustomerMode('manual')}
-                    className={`px-2.5 py-1 rounded-lg border transition ${adjustCustomerMode === 'manual' ? 'font-bold' : 'opacity-70'}`}
+                    className={`px-2.5 py-1 rounded-lg border transition cursor-pointer ${adjustCustomerMode === 'manual' ? 'font-bold' : 'opacity-70'}`}
                     style={adjustCustomerMode === 'manual' ? {
                       backgroundColor: 'var(--color-inner-dark)',
                       borderColor: 'var(--color-primary)',
@@ -1504,11 +1543,14 @@ export default function AdminTokenSettingPage() {
                     {filteredUsers.length === 0 ? (
                       <option value="">{tr('noMatchingUsers', 'No users found in catalog')}</option>
                     ) : (
-                      filteredUsers.map(u => (
-                        <option key={u.id || u.email} value={u.email}>
-                          {u.email} ({u.customer_name || u.name || 'User'}) — Current: {Number(u.token_balance ?? u.tokens ?? 0).toLocaleString()} {activeTokenSymbol}
-                        </option>
-                      ))
+                      filteredUsers.map(u => {
+                        const bal = Number(u.token_balance ?? u.tokens ?? 0);
+                        return (
+                          <option key={u.id || u.email} value={u.email}>
+                            {u.email} ({u.customer_name || u.name || 'User'}) — Current: {bal.toLocaleString()} {activeTokenSymbol}
+                          </option>
+                        );
+                      })
                     )}
                   </select>
                 </div>
@@ -1579,7 +1621,7 @@ export default function AdminTokenSettingPage() {
                       key={val}
                       type="button"
                       onClick={() => setAdjustAmount(val)}
-                      className="px-2 py-0.5 rounded-lg border text-[10px] font-mono font-bold transition hover:opacity-80"
+                      className="px-2 py-0.5 rounded-lg border text-[10px] font-mono font-bold transition hover:opacity-80 cursor-pointer"
                       style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
                     >
                       +{val}
