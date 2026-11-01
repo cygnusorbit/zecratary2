@@ -1,12 +1,13 @@
 // @ts-nocheck
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   Database, Server, Cloud, RefreshCw, CheckCircle2, 
   AlertCircle, ShieldCheck, Zap, Activity, HardDrive, 
   Cpu, Lock, Check, ArrowRightLeft, Layers, Wrench, AlertTriangle,
-  ChevronDown, Eye, EyeOff, Radio, FileCode2, Power, Globe, CheckCircle
+  ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, Radio, FileCode2,
+  Power, Globe, CheckCircle, Search, Filter, Hash
 } from 'lucide-react';
 import { useTranslation } from '@/components/LanguageProvider';
 
@@ -15,6 +16,7 @@ interface TableInfo {
   rowCount: number;
   size: string;
   status: string;
+  category?: string;
 }
 
 export default function AdminDatabasePage() {
@@ -23,7 +25,7 @@ export default function AdminDatabasePage() {
   // Navigation tab state
   const [activeTab, setActiveTab] = useState<'supabase' | 'localhost' | 'migration' | 'telemetry'>('supabase');
 
-  // Connection & Active Profile States (Only ONE connected at a time)
+  // Connection & Active Profile States
   const [activeProfile, setActiveProfile] = useState<'localhost_postgres' | 'localhost_mysql' | 'supabase_cloud'>('supabase_cloud');
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('connected');
   const [engine, setEngine] = useState<'postgresql' | 'mysql'>('postgresql');
@@ -51,24 +53,42 @@ export default function AdminDatabasePage() {
   const [supabasePoolerUri, setSupabasePoolerUri] = useState('');
   const [showSupabaseSecret, setShowSupabaseSecret] = useState(false);
 
-  // Telemetry & Tables
+  // Telemetry
   const [telemetry, setTelemetry] = useState({
     version: 'PostgreSQL 15.x / Supabase Cloud',
-    databaseSize: '16.4 MB',
+    databaseSize: '19.5 MB',
     cacheHitRatio: '99.8%',
     uptime: '30 days',
     activeConnections: 3,
     ssl: true
   });
+
+  // Complete 17 Operational Tables Initial Catalog
   const [tables, setTables] = useState<TableInfo[]>([
-    { name: 'admin_settings', rowCount: 14, size: '48 kB', status: 'Synchronized' },
-    { name: 'users', rowCount: 8, size: '64 kB', status: 'Synchronized' },
-    { name: 'subscription_plans', rowCount: 4, size: '32 kB', status: 'Synchronized' },
-    { name: 'payment_transactions', rowCount: 22, size: '80 kB', status: 'Synchronized' },
-    { name: 'saved_recipes', rowCount: 142, size: '512 kB', status: 'Synchronized' },
-    { name: 'currencies', rowCount: 6, size: '24 kB', status: 'Synchronized' },
-    { name: 'token_settings', rowCount: 3, size: '16 kB', status: 'Synchronized' }
+    { name: 'admin_settings', rowCount: 14, size: '48 kB', status: 'Synchronized', category: 'Core Config' },
+    { name: 'users', rowCount: 8, size: '64 kB', status: 'Synchronized', category: 'Auth & Identity' },
+    { name: 'user_profiles', rowCount: 8, size: '40 kB', status: 'Synchronized', category: 'Auth & Identity' },
+    { name: 'subscription_plans', rowCount: 4, size: '32 kB', status: 'Synchronized', category: 'Billing & Plans' },
+    { name: 'token_packages', rowCount: 6, size: '36 kB', status: 'Synchronized', category: 'Billing & Plans' },
+    { name: 'token_settings', rowCount: 3, size: '16 kB', status: 'Synchronized', category: 'Token Economics' },
+    { name: 'user_tokens', rowCount: 8, size: '48 kB', status: 'Synchronized', category: 'Token Economics' },
+    { name: 'payment_transactions', rowCount: 22, size: '80 kB', status: 'Synchronized', category: 'Billing & Plans' },
+    { name: 'user_wallets', rowCount: 8, size: '32 kB', status: 'Synchronized', category: 'Billing & Plans' },
+    { name: 'saved_recipes', rowCount: 142, size: '512 kB', status: 'Synchronized', category: 'Culinary Intelligence' },
+    { name: 'recipes', rowCount: 380, size: '1.2 MB', status: 'Synchronized', category: 'Culinary Intelligence' },
+    { name: 'meal_plans', rowCount: 64, size: '240 kB', status: 'Synchronized', category: 'Culinary Intelligence' },
+    { name: 'grocery_items', rowCount: 210, size: '180 kB', status: 'Synchronized', category: 'Pantry & Grocery' },
+    { name: 'currencies', rowCount: 6, size: '24 kB', status: 'Synchronized', category: 'Localization' },
+    { name: 'frontend_pages', rowCount: 5, size: '128 kB', status: 'Synchronized', category: 'CMS & Frontend' },
+    { name: 'notifications', rowCount: 45, size: '96 kB', status: 'Synchronized', category: 'System & Alerts' },
+    { name: 'audit_logs', rowCount: 312, size: '420 kB', status: 'Synchronized', category: 'System & Alerts' }
   ]);
+
+  // Operational Tables Pagination & Filtering States
+  const [tableSearch, setTableSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(6);
 
   // UI Interactive States
   const [loading, setLoading] = useState(true);
@@ -164,7 +184,7 @@ export default function AdminDatabasePage() {
     setLocalhostUri('mysql://root:@127.0.0.1:3306/zecratary');
   };
 
-  // Fixed Test Connection: Works for Supabase REST, Pooler port 6543, and Localhost PG/MySQL
+  // Test Connection
   const handleTestConnection = async (targetUri: string, profileHint?: string) => {
     setTesting(true);
     setToast(null);
@@ -202,7 +222,7 @@ export default function AdminDatabasePage() {
     }
   };
 
-  // Connect to target database (Only one database is connected at a time)
+  // Connect to target database
   const handleConnectDatabase = async (targetType: 'supabase_cloud' | 'localhost_postgres' | 'localhost_mysql', uriToConnect?: string) => {
     setConnecting(true);
     setToast(null);
@@ -294,7 +314,7 @@ export default function AdminDatabasePage() {
     }
   };
 
-  // Data Migration & Sync Execution
+  // Full Data Migration across all 17 Tables
   const handleCloneLocalToSupabase = async () => {
     setCloning(true);
     setToast(null);
@@ -311,7 +331,7 @@ export default function AdminDatabasePage() {
       if (data.success) {
         setToast({
           type: 'success',
-          message: data.message || t('cloningSuccessToast', 'Database schema and records successfully synced to Supabase Cloud!')
+          message: data.message || 'All 17 operational tables successfully synced to Supabase Cloud!'
         });
         loadDatabaseData(true);
       } else {
@@ -327,7 +347,7 @@ export default function AdminDatabasePage() {
     }
   };
 
-  // Optimize & Analyze Tables
+  // Optimize Tables
   const handleOptimizeTables = async () => {
     try {
       const res = await fetch('/api/admin/database', {
@@ -339,16 +359,268 @@ export default function AdminDatabasePage() {
       if (data.success) {
         setToast({
           type: 'success',
-          message: t('optimizingSuccessToast', 'Table statistics analyzed & vacuumed successfully across PostgreSQL and MySQL!')
+          message: t('optimizingSuccessToast', 'All 17 operational table statistics analyzed & vacuumed successfully!')
         });
         loadDatabaseData(true);
       }
     } catch (_) {}
   };
 
+  // Filtering & Pagination Calculations
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    tables.forEach(t => { if (t.category) set.add(t.category); });
+    return ['ALL', ...Array.from(set)];
+  }, [tables]);
+
+  const filteredTables = useMemo(() => {
+    return tables.filter(t => {
+      const matchesSearch = t.name.toLowerCase().includes(tableSearch.toLowerCase()) ||
+                            (t.category && t.category.toLowerCase().includes(tableSearch.toLowerCase()));
+      const matchesCategory = selectedCategory === 'ALL' || t.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [tables, tableSearch, selectedCategory]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredTables.length / pageSize));
+
+  // Reset to page 1 on filter or search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [tableSearch, selectedCategory, pageSize]);
+
+  const paginatedTables = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredTables.slice(start, start + pageSize);
+  }, [filteredTables, currentPage, pageSize]);
+
   const isConnected = connectionStatus === 'connected';
   const isSupabaseActive = activeProfile === 'supabase_cloud' && isConnected;
   const isLocalhostActive = (activeProfile === 'localhost_postgres' || activeProfile === 'localhost_mysql') && isConnected;
+
+  // Reusable Paginated Tables Component
+  const renderPaginatedTableSection = (titleText: string, subtitleText: string) => (
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h4 className="text-xs font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+            <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0" />
+            <span>{titleText}</span>
+            <span 
+              className="px-2 py-0.5 rounded-full text-[10px] font-extrabold border"
+              style={{ 
+                backgroundColor: 'var(--color-card)', 
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-primary)' 
+              }}
+            >
+              {filteredTables.length} {t('tablesCount', 'Tables')}
+            </span>
+          </h4>
+          <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
+            {subtitleText}
+          </p>
+        </div>
+
+        {/* Search, Category Filter & Rows Per Page */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Search Box */}
+          <div className="relative min-w-[160px] sm:min-w-[200px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 opacity-50 pointer-events-none" style={{ color: 'var(--color-text)' }} />
+            <input
+              type="text"
+              autoComplete="off"
+              data-lpignore="true"
+              data-form-type="other"
+              value={tableSearch}
+              onChange={(e) => setTableSearch(e.target.value)}
+              placeholder={t('searchTables', 'Search tables...')}
+              className="w-full pl-8 pr-3 py-1.5 text-xs font-bold rounded-xl border outline-none transition"
+              style={{
+                backgroundColor: 'var(--color-inner-dark)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+            />
+          </div>
+
+          {/* Category Dropdown */}
+          <div className="relative">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="appearance-none border rounded-xl pl-3 pr-8 py-1.5 text-xs font-bold outline-none cursor-pointer"
+              style={{
+                backgroundColor: 'var(--color-inner-dark)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+            >
+              {categories.map(c => (
+                <option key={`cat-${c}`} value={c} style={{ backgroundColor: 'var(--color-card)', color: 'var(--color-text)' }}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none opacity-50" style={{ color: 'var(--color-text)' }} />
+          </div>
+
+          {/* Rows Per Page Dropdown */}
+          <div className="relative">
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="appearance-none border rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold outline-none cursor-pointer"
+              style={{
+                backgroundColor: 'var(--color-inner-dark)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+              title="Rows per page"
+            >
+              <option value={6} style={{ backgroundColor: 'var(--color-card)', color: 'var(--color-text)' }}>6 / page</option>
+              <option value={10} style={{ backgroundColor: 'var(--color-card)', color: 'var(--color-text)' }}>10 / page</option>
+              <option value={20} style={{ backgroundColor: 'var(--color-card)', color: 'var(--color-text)' }}>20 / page</option>
+            </select>
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none opacity-50" style={{ color: 'var(--color-text)' }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Table Container */}
+      <div 
+        className="rounded-2xl border overflow-hidden shadow-sm transition-colors duration-200"
+        style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-card)' }}>
+                <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>{t('colTableName', 'Table Name')}</th>
+                <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>Category</th>
+                <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>{t('colRowCount', 'Estimated Rows')}</th>
+                <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>{t('colTableSize', 'Size on Disk')}</th>
+                <th className="py-2.5 px-4 font-bold text-right" style={{ color: 'var(--color-text)' }}>{t('colTableStatus', 'Status')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+              {paginatedTables.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                    No tables found matching your search.
+                  </td>
+                </tr>
+              ) : (
+                paginatedTables.map((tbl) => (
+                  <tr key={`sync-row-${tbl.name}`} className="transition hover:opacity-90">
+                    <td className="py-2 px-4 font-mono font-bold flex items-center gap-2" style={{ color: 'var(--color-primary)' }}>
+                      <Hash className="h-3 w-3 opacity-60 shrink-0" />
+                      <span>{tbl.name}</span>
+                    </td>
+                    <td className="py-2 px-4">
+                      <span 
+                        className="px-2 py-0.5 rounded-md text-[10px] font-bold border"
+                        style={{
+                          backgroundColor: 'var(--color-card)',
+                          borderColor: 'var(--color-border)',
+                          color: 'var(--color-text-secondary)'
+                        }}
+                      >
+                        {tbl.category || 'General'}
+                      </span>
+                    </td>
+                    <td className="py-2 px-4 font-mono font-bold" style={{ color: 'var(--color-text)' }}>
+                      {tbl.rowCount.toLocaleString()}
+                    </td>
+                    <td className="py-2 px-4 font-mono text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+                      {tbl.size}
+                    </td>
+                    <td className="py-2 px-4 text-right">
+                      <span 
+                        className="px-2 py-0.5 rounded-full text-[10px] font-bold border"
+                        style={{ 
+                          backgroundColor: 'rgba(16, 185, 129, 0.12)', 
+                          borderColor: 'var(--color-emerald)', 
+                          color: 'var(--color-emerald)' 
+                        }}
+                      >
+                        {tbl.status || 'Synchronized'}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Bottom Navigation Bar */}
+        <div 
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2.5 border-t"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-card)' }}
+        >
+          <div className="text-[11px] font-bold" style={{ color: 'var(--color-text-secondary)' }}>
+            Showing {filteredTables.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} to {Math.min(currentPage * pageSize, filteredTables.length)} of {filteredTables.length} tables
+          </div>
+
+          <div className="flex items-center gap-1.5 self-center sm:self-auto">
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              className="p-1.5 rounded-xl border text-xs font-bold transition hover:opacity-80 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center shadow-xs"
+              style={{
+                backgroundColor: 'var(--color-inner-dark)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+              aria-label="Previous Page"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+              const isCurrent = pageNum === currentPage;
+              return (
+                <button
+                  key={`page-btn-${pageNum}`}
+                  type="button"
+                  onClick={() => setCurrentPage(pageNum)}
+                  className="px-2.5 py-1 rounded-xl border text-xs font-bold transition cursor-pointer shadow-xs"
+                  style={isCurrent ? {
+                    backgroundColor: 'var(--color-primary)',
+                    borderColor: 'var(--color-primary)',
+                    color: '#ffffff'
+                  } : {
+                    backgroundColor: 'var(--color-inner-dark)',
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-text)'
+                  }}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              className="p-1.5 rounded-xl border text-xs font-bold transition hover:opacity-80 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center shadow-xs"
+              style={{
+                backgroundColor: 'var(--color-inner-dark)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+              aria-label="Next Page"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div 
@@ -427,7 +699,7 @@ export default function AdminDatabasePage() {
         </div>
       </div>
 
-      {/* 5. ACTIVE CONNECTED DATABASE OVERVIEW WIDGET */}
+      {/* ACTIVE CONNECTED DATABASE OVERVIEW WIDGET */}
       <div 
         role="region"
         aria-label="Active Database Connection Status"
@@ -526,7 +798,7 @@ export default function AdminDatabasePage() {
           borderColor: 'var(--color-border)'
         }}
       >
-        {/* 1. NAVIGATION TABS BAR WITH ACTIVE BADGES */}
+        {/* NAVIGATION TABS BAR WITH ACTIVE BADGES */}
         <div 
           className="flex p-1.5 rounded-2xl border transition-colors duration-200 overflow-x-auto gap-1"
           style={{
@@ -663,7 +935,6 @@ export default function AdminDatabasePage() {
                 </p>
               </div>
 
-              {/* 2. CONNECT SUPABASE CLOUD BUTTON */}
               <div className="flex items-center gap-2.5">
                 <button
                   type="button"
@@ -776,7 +1047,6 @@ export default function AdminDatabasePage() {
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
-              {/* 3. TEST CONNECTION BUTTON (Supabase REST + Pooler URI) */}
               <button
                 type="button"
                 onClick={() => handleTestConnection(supabasePoolerUri || supabaseUrl, 'supabase_cloud')}
@@ -822,7 +1092,6 @@ export default function AdminDatabasePage() {
                 </p>
               </div>
 
-              {/* 2. CONNECT LOCALHOST BUTTON */}
               <div className="flex items-center gap-2.5">
                 <button
                   type="button"
@@ -1018,7 +1287,6 @@ export default function AdminDatabasePage() {
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
-              {/* 3. TEST CONNECTION BUTTON (Localhost TCP Socket) */}
               <button
                 type="button"
                 onClick={() => handleTestConnection(localhostUri, localhostType === 'mysql' ? 'localhost_mysql' : 'localhost_postgres')}
@@ -1051,7 +1319,7 @@ export default function AdminDatabasePage() {
           </div>
         )}
 
-        {/* 4. TAB 3: DATA MIGRATION & SYNC */}
+        {/* TAB 3: DATA MIGRATION & SYNC */}
         {activeTab === 'migration' && (
           <div className="space-y-6">
             <div>
@@ -1071,10 +1339,10 @@ export default function AdminDatabasePage() {
               >
                 <div>
                   <h4 className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
-                    {t('cloneLocalToSupabaseBtn', 'Replicate & Sync Localhost Database to Supabase Cloud')}
+                    Replicate All 17 Operational Schemas & Records
                   </h4>
                   <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-                    Replicates all 7 core schemas and records (<code className="font-mono">admin_settings</code>, <code className="font-mono">users</code>, <code className="font-mono">subscription_plans</code>, <code className="font-mono">payment_transactions</code>, <code className="font-mono">saved_recipes</code>, <code className="font-mono">currencies</code>, <code className="font-mono">token_settings</code>) into Supabase Cloud PostgreSQL.
+                    Synchronizes complete database tables (<code className="font-mono">admin_settings</code>, <code className="font-mono">users</code>, <code className="font-mono">user_profiles</code>, <code className="font-mono">subscription_plans</code>, <code className="font-mono">token_packages</code>, <code className="font-mono">user_tokens</code>, <code className="font-mono">payment_transactions</code>, <code className="font-mono">user_wallets</code>, <code className="font-mono">saved_recipes</code>, <code className="font-mono">recipes</code>, <code className="font-mono">meal_plans</code>, <code className="font-mono">grocery_items</code>, etc.) into Supabase Cloud.
                   </p>
                 </div>
 
@@ -1087,7 +1355,7 @@ export default function AdminDatabasePage() {
                     style={{ backgroundColor: 'var(--color-primary)' }}
                   >
                     <Layers className={`h-4 w-4 ${cloning ? 'animate-spin' : ''}`} />
-                    <span>{cloning ? 'Replicating Schemas & Records...' : 'Execute Full Data Migration & Sync'}</span>
+                    <span>{cloning ? 'Replicating 17 Schemas...' : 'Execute Full Data Migration (17 Tables)'}</span>
                   </button>
                 </div>
               </div>
@@ -1101,7 +1369,7 @@ export default function AdminDatabasePage() {
                     {t('optimizeTablesBtn', 'Optimize & Vacuum Catalogs')}
                   </h4>
                   <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-                    Analyzes planner meals, grocery items, user profiles, reaps dead tuples, and updates selectivity statistics across PostgreSQL and MySQL.
+                    Analyzes planner meals, grocery items, user profiles, reaps dead tuples, and updates selectivity statistics across PostgreSQL and MySQL catalogs.
                   </p>
                 </div>
 
@@ -1117,64 +1385,17 @@ export default function AdminDatabasePage() {
                     }}
                   >
                     <Wrench className="h-4 w-4" />
-                    <span>{t('optimizeTablesBtn', 'Optimize & Analyze Tables')}</span>
+                    <span>{t('optimizeTablesBtn', 'Optimize & Vacuum Catalogs')}</span>
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Core Tables Status Breakdown */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
-                <CheckCircle className="h-4 w-4 text-emerald-400" />
-                Synchronized Schemas & Operational Tables
-              </h4>
-
-              <div 
-                className="rounded-2xl border overflow-hidden shadow-sm"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
-              >
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-card)' }}>
-                        <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>Table Name</th>
-                        <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>Rows Tracked</th>
-                        <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>Disk Footprint</th>
-                        <th className="py-2.5 px-4 font-bold text-right" style={{ color: 'var(--color-text)' }}>Sync Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
-                      {tables.map((tbl) => (
-                        <tr key={`sync-row-${tbl.name}`} className="transition hover:opacity-90">
-                          <td className="py-2 px-4 font-mono font-bold" style={{ color: 'var(--color-primary)' }}>
-                            {tbl.name}
-                          </td>
-                          <td className="py-2 px-4 font-mono" style={{ color: 'var(--color-text)' }}>
-                            {tbl.rowCount}
-                          </td>
-                          <td className="py-2 px-4 font-mono text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
-                            {tbl.size}
-                          </td>
-                          <td className="py-2 px-4 text-right">
-                            <span 
-                              className="px-2 py-0.5 rounded-full text-[10px] font-bold border"
-                              style={{ 
-                                backgroundColor: 'rgba(16, 185, 129, 0.12)', 
-                                borderColor: 'var(--color-emerald)', 
-                                color: 'var(--color-emerald)' 
-                              }}
-                            >
-                              {tbl.status || 'Synchronized'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+            {/* Paginated Operational Tables Subsystem */}
+            {renderPaginatedTableSection(
+              'Synchronized Schemas & Operational Tables',
+              'Inspect synchronization health, estimated row volumes, disk footprints, and category clusters across all 17 database schemas.'
+            )}
           </div>
         )}
 
@@ -1216,56 +1437,11 @@ export default function AdminDatabasePage() {
               ))}
             </div>
 
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
-                {t('telemetryTables', 'Core Tables Tracked')}
-              </h4>
-
-              <div 
-                className="rounded-2xl border overflow-hidden shadow-sm"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
-              >
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-card)' }}>
-                        <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>{t('colTableName', 'Table Name')}</th>
-                        <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>{t('colRowCount', 'Estimated Rows')}</th>
-                        <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>{t('colTableSize', 'Size on Disk')}</th>
-                        <th className="py-2.5 px-4 font-bold text-right" style={{ color: 'var(--color-text)' }}>{t('colTableStatus', 'Status')}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
-                      {tables.map((tbl) => (
-                        <tr key={`tbl-row-${tbl.name}`} className="transition hover:opacity-90">
-                          <td className="py-2 px-4 font-mono font-bold" style={{ color: 'var(--color-primary)' }}>
-                            {tbl.name}
-                          </td>
-                          <td className="py-2 px-4 font-mono" style={{ color: 'var(--color-text)' }}>
-                            {tbl.rowCount}
-                          </td>
-                          <td className="py-2 px-4 font-mono text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
-                            {tbl.size}
-                          </td>
-                          <td className="py-2 px-4 text-right">
-                            <span 
-                              className="px-2 py-0.5 rounded-full text-[10px] font-bold border"
-                              style={{ 
-                                backgroundColor: 'rgba(16, 185, 129, 0.12)', 
-                                borderColor: 'var(--color-emerald)', 
-                                color: 'var(--color-emerald)' 
-                              }}
-                            >
-                              {tbl.status || t('healthyStatus', 'Healthy')}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+            {/* Paginated Operational Tables in Telemetry View */}
+            {renderPaginatedTableSection(
+              'Core Operational Tables Tracked',
+              'System catalog metrics, disk utilization, and table storage profiles across active schemas.'
+            )}
           </div>
         )}
 
