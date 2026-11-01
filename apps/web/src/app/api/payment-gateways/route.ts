@@ -20,6 +20,9 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       allowed_gateways: settings.allowed_gateways,
+      verified_gateways: settings.verified_gateways,
+      stripeKeysVerified: settings.stripeKeysVerified,
+      paypalKeysVerified: settings.paypalKeysVerified,
       settings: settings,
       gatewaySettings: settings.gateways,
       gateways: settings.gateways,
@@ -30,7 +33,8 @@ export async function GET() {
     return NextResponse.json({
       success: false,
       error: err.message,
-      allowed_gateways: []
+      allowed_gateways: [],
+      verified_gateways: []
     }, { status: 500, headers: CORS_HEADERS });
   }
 }

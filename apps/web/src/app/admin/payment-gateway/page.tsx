@@ -589,6 +589,20 @@ export default function AdminPaymentGatewayPage() {
       if (res.ok && data.success) {
         setConfig(prev => ({ ...prev, stripeKeysVerified: true, stripeWebhookVerified: true }));
         setFeedback({ type: 'success', msg: data.message || 'Stripe keys and webhook secret verified!' });
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('zecratary_payment_updated'));
+          window.dispatchEvent(new Event('zecratary_payment_gateway_updated'));
+          window.dispatchEvent(new Event('zecratary_wallet_updated'));
+          try {
+            const gwBc = new BroadcastChannel('zecratary_gateway_channel');
+            gwBc.postMessage({ 
+              type: 'GATEWAY_UPDATED', 
+              stripeKeysVerified: true,
+              settings: { ...configRef.current, stripeKeysVerified: true }
+            });
+            gwBc.close();
+          } catch (_) {}
+        }
       } else {
         setConfig(prev => ({ ...prev, stripeKeysVerified: false }));
         setFeedback({ type: 'error', msg: data.message || 'Stripe key verification failed.' });
@@ -628,6 +642,20 @@ export default function AdminPaymentGatewayPage() {
           paypalWebhookVerified: Boolean(data.webhookVerified)
         }));
         setFeedback({ type: 'success', msg: data.message || 'PayPal credentials verified successfully!' });
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('zecratary_payment_updated'));
+          window.dispatchEvent(new Event('zecratary_payment_gateway_updated'));
+          window.dispatchEvent(new Event('zecratary_wallet_updated'));
+          try {
+            const gwBc = new BroadcastChannel('zecratary_gateway_channel');
+            gwBc.postMessage({ 
+              type: 'GATEWAY_UPDATED', 
+              paypalKeysVerified: true,
+              settings: { ...configRef.current, paypalKeysVerified: true }
+            });
+            gwBc.close();
+          } catch (_) {}
+        }
       } else {
         setConfig(prev => ({ ...prev, paypalKeysVerified: false, paypalWebhookVerified: false }));
         setFeedback({ type: 'error', msg: data.error || 'Failed to authenticate with PayPal API.' });

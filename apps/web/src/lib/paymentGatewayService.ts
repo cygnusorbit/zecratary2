@@ -17,10 +17,15 @@ export interface ManualDetails {
 export interface PaymentGatewaySettings {
   currency: string;
   allowed_gateways: string[];
+  verified_gateways: string[];
   active_gateway?: string;
   stripeConnected?: boolean;
   stripe_configured?: boolean;
   paypal_configured?: boolean;
+  stripeKeysVerified: boolean;
+  stripeWebhookVerified: boolean;
+  paypalKeysVerified: boolean;
+  paypalWebhookVerified: boolean;
   test_mode?: boolean;
   manual_details?: ManualDetails;
   gateways: {
@@ -30,7 +35,9 @@ export interface PaymentGatewaySettings {
       testMode?: boolean; 
       publishableKey?: string; 
       secretKey?: string; 
-      webhookSecret?: string; 
+      webhookSecret?: string;
+      keysVerified?: boolean;
+      webhookVerified?: boolean;
     };
     paypal: { 
       enabled: boolean; 
@@ -39,7 +46,9 @@ export interface PaymentGatewaySettings {
       clientId?: string; 
       clientSecret?: string; 
       webhookId?: string; 
-      environment?: 'sandbox' | 'live'; 
+      environment?: 'sandbox' | 'live';
+      keysVerified?: boolean;
+      webhookVerified?: boolean;
     };
     manualSettlement: ManualDetails;
   };
@@ -66,18 +75,16 @@ export function normalizeGatewaySettings(raw: any, existingSettings?: PaymentGat
     return existingSettings || readDiskGatewaySettings();
   }
 
-  // 1. Unwrap nested payload wrappers if present
   const source = raw.paymentSettings || raw.settings || raw.gateways || raw.gatewaySettings || raw;
   const stripeObj = source.stripe || raw.stripe || {};
   const paypalObj = source.paypal || raw.paypal || {};
   const manualObj = source.manualSettlement || source.manual || source.bank_wire || raw.manual_details || raw.manualSettlement || {};
 
-  // 2. Direct action toggle support
   const isToggle = raw.action === 'toggle_gateway';
   const toggleGw = String(raw.gateway || '').toLowerCase().trim();
   const toggleEnabled = raw.enabled !== undefined ? isTrueVal(raw.enabled) : undefined;
 
-  // 3. Strict Stripe Evaluation
+  // Stripe Enabled Evaluation
   let stripeEnabled = true;
   if (isToggle && toggleGw === 'stripe' && toggleEnabled !== undefined) {
     stripeEnabled = toggleEnabled;
@@ -89,7 +96,7 @@ export function normalizeGatewaySettings(raw: any, existingSettings?: PaymentGat
     stripeEnabled = existingSettings.gateways.stripe.enabled;
   }
 
-  // 4. Strict PayPal Evaluation (Default to false unless explicitly enabled)
+  // PayPal Enabled Evaluation
   let paypalEnabled = false;
   if (isToggle && toggleGw === 'paypal' && toggleEnabled !== undefined) {
     paypalEnabled = toggleEnabled;
@@ -101,7 +108,7 @@ export function normalizeGatewaySettings(raw: any, existingSettings?: PaymentGat
     paypalEnabled = existingSettings.gateways.paypal.enabled;
   }
 
-  // 5. Strict Manual / Bank Wire Evaluation
+  // Manual Settlement Evaluation
   let manualEnabled = true;
   if (isToggle && (toggleGw === 'manual' || toggleGw === 'bank_wire' || toggleGw === 'manualsettlement') && toggleEnabled !== undefined) {
     manualEnabled = toggleEnabled;
@@ -113,13 +120,41 @@ export function normalizeGatewaySettings(raw: any, existingSettings?: PaymentGat
     manualEnabled = existingSettings.gateways.manualSettlement.enabled ?? true;
   }
 
-  // 6. Build strict allowed_gateways whitelist
+  // Verification Flags Persistence
+  const stripeKeysVerified = raw.stripeKeysVerified !== undefined
+    ? isTrueVal(raw.stripeKeysVerified)
+    : (source.stripeKeysVerified !== undefined
+      ? isTrueVal(source.stripeKeysVerified)
+      : (stripeObj.keysVerified !== undefined
+        ? isTrueVal(stripeObj.keysVerified)
+        : (existingSettings?.stripeKeysVerified ?? false)));
+
+  const stripeWebhookVerified = raw.stripeWebhookVerified !== undefined
+    ? isTrueVal(raw.stripeWebhookVerified)
+    : (source.stripeWebhookVerified !== undefined
+      ? isTrueVal(source.stripeWebhookVerified)
+      : (existingSettings?.stripeWebhookVerified ?? false));
+
+  const paypalKeysVerified = raw.paypalKeysVerified !== undefined
+    ? isTrueVal(raw.paypalKeysVerified)
+    : (source.paypalKeysVerified !== undefined
+      ? isTrueVal(source.paypalKeysVerified)
+      : (paypalObj.keysVerified !== undefined
+        ? isTrueVal(paypalObj.keysVerified)
+        : (existingSettings?.paypalKeysVerified ?? false)));
+
+  const paypalWebhookVerified = raw.paypalWebhookVerified !== undefined
+    ? isTrueVal(raw.paypalWebhookVerified)
+    : (source.paypalWebhookVerified !== undefined
+      ? isTrueVal(source.paypalWebhookVerified)
+      : (existingSettings?.paypalWebhookVerified ?? false));
+
+  // Allowed channels
   const allowed: string[] = [];
   if (stripeEnabled) allowed.push('stripe');
   if (paypalEnabled) allowed.push('paypal');
   if (manualEnabled) allowed.push('manual');
 
-  // Intersect with explicitly passed allowed_gateways if not a single toggle action
   const rawAllowed = raw.allowed_gateways || source.allowed_gateways;
   if (Array.isArray(rawAllowed) && rawAllowed.length > 0 && !isToggle) {
     const normalizedRaw = rawAllowed.map((g: any) => {
@@ -131,6 +166,12 @@ export function normalizeGatewaySettings(raw: any, existingSettings?: PaymentGat
     allowed.length = 0;
     allowed.push(...filtered);
   }
+
+  // Verified channels (Strictly authenticated channels)
+  const verified: string[] = [];
+  if (stripeEnabled && stripeKeysVerified) verified.push('stripe');
+  if (paypalEnabled && paypalKeysVerified) verified.push('paypal');
+  if (manualEnabled) verified.push('manual'); // Bank wire has no API keys and is verified by nature
 
   const activeGw = (stripeEnabled && paypalEnabled)
     ? 'both'
@@ -148,10 +189,15 @@ export function normalizeGatewaySettings(raw: any, existingSettings?: PaymentGat
   return {
     currency: source.currency || raw.currency || existingSettings?.currency || 'USD',
     allowed_gateways: allowed,
+    verified_gateways: verified,
     active_gateway: source.activeGateway || raw.activeGateway || activeGw,
     stripeConnected: source.stripeConnected ?? raw.stripeConnected ?? existingSettings?.stripeConnected ?? true,
     stripe_configured: Boolean(stripeObj.publishableKey || process.env.STRIPE_PUBLISHABLE_KEY),
     paypal_configured: Boolean(paypalObj.clientId || process.env.PAYPAL_CLIENT_ID),
+    stripeKeysVerified,
+    stripeWebhookVerified,
+    paypalKeysVerified,
+    paypalWebhookVerified,
     test_mode: stripeTest,
     manual_details: {
       enabled: manualEnabled,
@@ -172,7 +218,9 @@ export function normalizeGatewaySettings(raw: any, existingSettings?: PaymentGat
         testMode: stripeTest,
         publishableKey: stripeObj.publishableKey || '',
         secretKey: stripeObj.secretKey || '',
-        webhookSecret: stripeObj.webhookSecret || ''
+        webhookSecret: stripeObj.webhookSecret || '',
+        keysVerified: stripeKeysVerified,
+        webhookVerified: stripeWebhookVerified
       },
       paypal: {
         enabled: paypalEnabled,
@@ -181,7 +229,9 @@ export function normalizeGatewaySettings(raw: any, existingSettings?: PaymentGat
         clientId: paypalObj.clientId || '',
         clientSecret: paypalObj.clientSecret || '',
         webhookId: paypalObj.webhookId || '',
-        environment: paypalTest ? 'sandbox' : 'live'
+        environment: paypalTest ? 'sandbox' : 'live',
+        keysVerified: paypalKeysVerified,
+        webhookVerified: paypalWebhookVerified
       },
       manualSettlement: {
         enabled: manualEnabled,
@@ -215,14 +265,19 @@ export function readDiskGatewaySettings(): PaymentGatewaySettings {
   return {
     currency: 'USD',
     allowed_gateways: ['stripe', 'manual'],
+    verified_gateways: ['manual'],
     active_gateway: 'stripe',
     stripeConnected: true,
-    stripe_configured: true,
+    stripe_configured: false,
     paypal_configured: false,
+    stripeKeysVerified: false,
+    stripeWebhookVerified: false,
+    paypalKeysVerified: false,
+    paypalWebhookVerified: false,
     test_mode: true,
     gateways: {
-      stripe: { enabled: true, mode: 'test', testMode: true, publishableKey: '', secretKey: '' },
-      paypal: { enabled: false, mode: 'sandbox', testMode: true, clientId: '', clientSecret: '', environment: 'sandbox' },
+      stripe: { enabled: true, mode: 'test', testMode: true, publishableKey: '', secretKey: '', keysVerified: false },
+      paypal: { enabled: false, mode: 'sandbox', testMode: true, clientId: '', clientSecret: '', environment: 'sandbox', keysVerified: false },
       manualSettlement: {
         enabled: true,
         bankName: 'Bangkok Bank',
@@ -260,7 +315,7 @@ export function writeDiskGatewaySettings(settings: PaymentGatewaySettings): void
 export async function getAuthoritativeGatewaySettings(): Promise<PaymentGatewaySettings> {
   let settings = readDiskGatewaySettings();
 
-  // 1. Check PostgreSQL (Supabase)
+  // PostgreSQL (Supabase)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
@@ -285,7 +340,7 @@ export async function getAuthoritativeGatewaySettings(): Promise<PaymentGatewayS
     } catch (_) {}
   }
 
-  // 2. Check MySQL
+  // MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
     if (mysqlModule && typeof mysqlModule.query === 'function') {
@@ -308,7 +363,7 @@ export async function saveAuthoritativeGatewaySettings(input: any): Promise<Paym
   const normalized = normalizeGatewaySettings(input, current);
   writeDiskGatewaySettings(normalized);
 
-  // 1. Persist to PostgreSQL (Supabase)
+  // PostgreSQL (Supabase)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
@@ -326,7 +381,7 @@ export async function saveAuthoritativeGatewaySettings(input: any): Promise<Paym
     } catch (_) {}
   }
 
-  // 2. Persist to MySQL
+  // MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
     if (mysqlModule && typeof mysqlModule.query === 'function') {

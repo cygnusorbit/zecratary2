@@ -20,7 +20,6 @@ export async function GET(req: NextRequest) {
     const userId = searchParams.get('userId') || 'usr_admin_1';
     const email = searchParams.get('email') || 'admin@zecratary.com';
 
-    // Authoritative gateway configuration
     const gwSettings = await getAuthoritativeGatewaySettings();
 
     let userBalance = 150.00;
@@ -72,6 +71,9 @@ export async function GET(req: NextRequest) {
       balance: userBalance,
       currency: gwSettings.currency,
       allowed_gateways: gwSettings.allowed_gateways,
+      verified_gateways: gwSettings.verified_gateways,
+      stripeKeysVerified: gwSettings.stripeKeysVerified,
+      paypalKeysVerified: gwSettings.paypalKeysVerified,
       gatewaySettings: gwSettings.gateways,
       gateways: gwSettings.gateways,
       settings: {
@@ -82,6 +84,9 @@ export async function GET(req: NextRequest) {
         preset_amounts: [10, 25, 50, 100, 250],
         bonus_rules: [{ threshold: 50, bonus_percent: 5 }, { threshold: 100, bonus_percent: 10 }],
         allowed_gateways: gwSettings.allowed_gateways,
+        verified_gateways: gwSettings.verified_gateways,
+        stripeKeysVerified: gwSettings.stripeKeysVerified,
+        paypalKeysVerified: gwSettings.paypalKeysVerified,
         allow_site_purchases: true,
         test_mode: gwSettings.test_mode,
         active_gateway: gwSettings.active_gateway,
@@ -125,6 +130,25 @@ export async function POST(req: NextRequest) {
 
     if (action === 'topup') {
       const topupAmount = Number(amount || 0);
+      const chosenGw = String(gateway || '').toLowerCase().trim();
+
+      // AUTHORITATIVE KEY VERIFICATION CHECK: BLOCK UNVERIFIED GATEWAY PAYMENTS
+      const gwSettings = await getAuthoritativeGatewaySettings();
+
+      if (chosenGw === 'stripe' && !gwSettings.stripeKeysVerified) {
+        return NextResponse.json({
+          success: false,
+          error: 'Payment submission blocked: Stripe API credentials are not verified by the administrator in Payment Gateway settings.'
+        }, { status: 400, headers: CORS_HEADERS });
+      }
+
+      if (chosenGw === 'paypal' && !gwSettings.paypalKeysVerified) {
+        return NextResponse.json({
+          success: false,
+          error: 'Payment submission blocked: PayPal credentials are not verified by the administrator in Payment Gateway settings.'
+        }, { status: 400, headers: CORS_HEADERS });
+      }
+
       return NextResponse.json({
         success: true,
         message: `Successfully processed top-up of $${topupAmount.toFixed(2)} via ${gateway || 'payment gateway'}.`,

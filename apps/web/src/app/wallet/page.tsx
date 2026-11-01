@@ -8,7 +8,8 @@ import {
   Wallet, CreditCard, Plus, RefreshCw, CheckCircle2, AlertCircle, 
   Gift, ShieldCheck, ArrowRight, History, Search, Filter, 
   ArrowUpRight, ArrowDownLeft, ChevronLeft, ChevronRight, 
-  Layers, Coins, Shield, ExternalLink, Info, Sparkles, RotateCw, Check
+  Layers, Coins, Shield, ExternalLink, Info, Sparkles, RotateCw, Check,
+  AlertTriangle, ShieldAlert
 } from 'lucide-react';
 import { getCurrentUser, initAuthStorage, User } from '@/lib/auth';
 import { useTranslation } from '@/components/LanguageProvider';
@@ -33,6 +34,9 @@ interface WalletSettings {
   preset_amounts: number[];
   bonus_rules: Array<{ threshold: number; bonus_percent: number }>;
   allowed_gateways: string[];
+  verified_gateways: string[];
+  stripeKeysVerified?: boolean;
+  paypalKeysVerified?: boolean;
   allow_site_purchases: boolean;
   test_mode?: boolean;
   active_gateway?: string;
@@ -74,11 +78,9 @@ function WalletContent() {
   const [reconciling, setReconciling] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
-  // User & Balances
   const [user, setUser] = useState<User | null>(null);
   const [balance, setBalance] = useState<number>(0);
 
-  // Settings
   const [settings, setSettings] = useState<WalletSettings>({
     is_enabled: true,
     currency: 'USD',
@@ -87,16 +89,17 @@ function WalletContent() {
     preset_amounts: [10, 25, 50, 100, 250],
     bonus_rules: [{ threshold: 50, bonus_percent: 5 }, { threshold: 100, bonus_percent: 10 }],
     allowed_gateways: [],
+    verified_gateways: ['manual'],
+    stripeKeysVerified: false,
+    paypalKeysVerified: false,
     allow_site_purchases: true,
   });
 
-  // Top-Up Form States
   const [selectedAmount, setSelectedAmount] = useState<number>(50);
   const [customAmount, setCustomAmount] = useState<string>('');
   const [selectedGateway, setSelectedGateway] = useState<string>('');
   const [manualReference, setManualReference] = useState<string>('');
 
-  // Ledger States
   const [transactions, setTransactions] = useState<WalletTx[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -104,7 +107,6 @@ function WalletContent() {
   const [totalPages, setTotalPages] = useState(1);
   const [stats, setStats] = useState({ totalDeposited: 0, totalSpent: 0, totalEvents: 0 });
 
-  // Concurrency & Debounce locks
   const isFetchingRef = useRef(false);
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const verifyingIdRef = useRef<string | null>(null);
@@ -149,11 +151,25 @@ function WalletContent() {
     }
   }, [syncLocalBalanceQuietly]);
 
-  // Universal Gateway Validator with Strict Negative Enforcement
+  // Evaluates if the Gateway API Key is Verified by Administrator
+  const isGatewayKeyVerified = useCallback((gwKey: string): boolean => {
+    if (!gwKey) return false;
+    const lower = gwKey.toLowerCase().trim();
+    if (lower === 'manual' || lower === 'bank_wire' || lower === 'wire' || lower === 'manualsettlement') {
+      return true; // Manual wire transfers have no external API keys
+    }
+    if (lower === 'stripe') {
+      return Boolean(settings.stripeKeysVerified);
+    }
+    if (lower === 'paypal') {
+      return Boolean(settings.paypalKeysVerified);
+    }
+    return false;
+  }, [settings.stripeKeysVerified, settings.paypalKeysVerified]);
+
   const isGatewayActive = useCallback((key: 'stripe' | 'paypal' | 'manual', data: any): boolean => {
     if (!data) return false;
 
-    // 1. Direct gateway object lookup
     const gwObj = 
       data?.gateways?.[key === 'manual' ? 'manualSettlement' : key] ||
       data?.settings?.gateways?.[key === 'manual' ? 'manualSettlement' : key] ||
@@ -169,7 +185,6 @@ function WalletContent() {
       }
     }
 
-    // 2. Direct property flags
     if (key === 'paypal') {
       if (isFalseVal(data?.paypal_enabled) || isFalseVal(data?.settings?.paypal_enabled) || isFalseVal(data?.paypalEnabled)) {
         return false;
@@ -184,7 +199,6 @@ function WalletContent() {
       }
     }
 
-    // 3. Whitelist Check
     const allowedList = data?.allowed_gateways || data?.settings?.allowed_gateways || data?.allowedGateways;
     if (Array.isArray(allowedList)) {
       const normalizedList = allowedList.map(item => {
@@ -197,7 +211,6 @@ function WalletContent() {
       }
     }
 
-    // 4. Positive Enabled Check
     if (gwObj && (isTrueVal(gwObj.enabled) || isTrueVal(gwObj.is_enabled) || isTrueVal(gwObj.active))) {
       return true;
     }
@@ -212,7 +225,6 @@ function WalletContent() {
       return true;
     }
 
-    // If in allowedList and not disqualified above
     if (Array.isArray(allowedList)) {
       const normalizedList = allowedList.map(item => {
         const lower = String(item).toLowerCase().trim();
@@ -233,7 +245,6 @@ function WalletContent() {
     return list;
   }, [isGatewayActive]);
 
-  // Fetch Wallet Data & Gateway Settings with Parallel Query
   const fetchWalletData = useCallback(async (
     activeUser: User | null, 
     targetPage = 1, 
@@ -259,7 +270,6 @@ function WalletContent() {
         t: String(Date.now())
       });
 
-      // Query /api/wallet (for balance & ledger) and /api/payment-gateways (for live channel state) in parallel
       const [walletRes, gwRes] = await Promise.all([
         fetch(`/api/wallet?${qParams.toString()}`, { cache: 'no-store' }).catch(() => null),
         fetch(`/api/payment-gateways?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null)
@@ -284,8 +294,23 @@ function WalletContent() {
         
         syncLocalBalanceQuietly(wBal);
 
-        // Derive allowed channels directly from the fresh authoritative payload
         const loadedAllowed = resolveAllowedChannels(activePayload);
+
+        const stripeVerified = Boolean(
+          activePayload.stripeKeysVerified ??
+          activePayload.settings?.stripeKeysVerified ??
+          activePayload.gateways?.stripe?.keysVerified ??
+          walletData.stripeKeysVerified ??
+          walletData.settings?.stripeKeysVerified
+        );
+
+        const paypalVerified = Boolean(
+          activePayload.paypalKeysVerified ??
+          activePayload.settings?.paypalKeysVerified ??
+          activePayload.gateways?.paypal?.keysVerified ??
+          walletData.paypalKeysVerified ??
+          walletData.settings?.paypalKeysVerified
+        );
 
         const resolvedManualDetails = 
           activePayload.settings?.manual_details || 
@@ -303,6 +328,9 @@ function WalletContent() {
             : [10, 25, 50, 100, 250],
           bonus_rules: Array.isArray(walletData.settings?.bonus_rules) ? walletData.settings.bonus_rules : [],
           allowed_gateways: loadedAllowed,
+          verified_gateways: activePayload.verified_gateways || ['manual'],
+          stripeKeysVerified: stripeVerified,
+          paypalKeysVerified: paypalVerified,
           allow_site_purchases: walletData.settings?.allow_site_purchases !== false,
           test_mode: Boolean(activePayload.settings?.test_mode),
           active_gateway: loadedAllowed[0] || '',
@@ -313,7 +341,6 @@ function WalletContent() {
 
         setGatewaysLoaded(true);
 
-        // Ensure selected gateway is currently an active channel
         setSelectedGateway((prev) => {
           if (prev && loadedAllowed.includes(prev)) return prev;
           return loadedAllowed[0] || '';
@@ -335,7 +362,6 @@ function WalletContent() {
     }
   }, [syncLocalBalanceQuietly, resolveAllowedChannels]);
 
-  // Reconciliation Handler
   const handleReconcile = async () => {
     if (!user) return;
     setReconciling(true);
@@ -366,7 +392,6 @@ function WalletContent() {
     }
   };
 
-  // Mount & Real-Time Sync
   useEffect(() => {
     initAuthStorage();
     const u = getCurrentUser();
@@ -464,7 +489,19 @@ function WalletContent() {
         const payload = ev.data?.settings || ev.data?.paymentSettings || ev.data?.gateways;
         if (payload) {
           const fresh = resolveAllowedChannels(payload);
-          setSettings(prev => ({ ...prev, allowed_gateways: fresh }));
+          const sVerified = ev.data?.stripeKeysVerified !== undefined 
+            ? Boolean(ev.data.stripeKeysVerified) 
+            : (payload.stripeKeysVerified !== undefined ? Boolean(payload.stripeKeysVerified) : undefined);
+          const pVerified = ev.data?.paypalKeysVerified !== undefined 
+            ? Boolean(ev.data.paypalKeysVerified) 
+            : (payload.paypalKeysVerified !== undefined ? Boolean(payload.paypalKeysVerified) : undefined);
+
+          setSettings(prev => ({ 
+            ...prev, 
+            allowed_gateways: fresh,
+            stripeKeysVerified: sVerified !== undefined ? sVerified : prev.stripeKeysVerified,
+            paypalKeysVerified: pVerified !== undefined ? pVerified : prev.paypalKeysVerified
+          }));
           setSelectedGateway(prev => (fresh.includes(prev) ? prev : fresh[0] || ''));
         }
         debouncedSync();
@@ -514,6 +551,7 @@ function WalletContent() {
     return (finalDepositAmount * activeBonusPercent) / 100;
   }, [finalDepositAmount, activeBonusPercent]);
 
+  // STAGE 1 VERIFICATION ENFORCEMENT: Client-Side Deposit Guard
   const handleDeposit = async () => {
     if (settings.allowed_gateways.length === 0) {
       showToast(t('noGatewaysEnabledNotice', 'No payment gateways are currently enabled in Payment Gateway settings.'), 'error');
@@ -523,6 +561,17 @@ function WalletContent() {
       showToast(t('pleaseSelectValidGateway', 'Please select an available payment gateway.'), 'error');
       return;
     }
+
+    // STRICT CHECK: DO NOT ALLOW PAYMENT SUBMISSION IF KEYS ARE UNVERIFIED
+    if (!isGatewayKeyVerified(selectedGateway)) {
+      showToast(
+        (t('gatewayNotVerifiedError', 'Payment blocked: {gateway} keys are not verified by admin. Please contact support.'))
+          .replace('{gateway}', selectedGateway === 'stripe' ? 'Stripe' : selectedGateway === 'paypal' ? 'PayPal' : selectedGateway.toUpperCase()),
+        'error'
+      );
+      return;
+    }
+
     if (finalDepositAmount < settings.min_topup) {
       showToast((t('minTopupWarning', 'Minimum deposit is {min}')).replace('{min}', `${activeCurrencySymbol}${settings.min_topup}`), 'error');
       return;
@@ -601,6 +650,8 @@ function WalletContent() {
       setSubmitting(false);
     }
   };
+
+  const isSelectedVerified = isGatewayKeyVerified(selectedGateway);
 
   return (
     <div 
@@ -788,7 +839,7 @@ function WalletContent() {
             </div>
           </div>
 
-          {/* Payment Gateway Options - Excludes Disabled Channels Dynamically */}
+          {/* Payment Gateway Options with Verification Badges */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-bold opacity-80">{t('paymentGateway', 'Payment Gateway')}</label>
@@ -823,11 +874,23 @@ function WalletContent() {
                     }`}
                     style={{ borderColor: selectedGateway === 'stripe' ? 'var(--color-primary)' : 'var(--color-border)' }}
                   >
-                    <span className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
                       <CreditCard className="h-4 w-4 text-sky-400" />
                       <span>{t('stripeGateway', 'Stripe')}</span>
-                    </span>
-                    {selectedGateway === 'stripe' && <Check className="h-4 w-4 text-[var(--color-primary)]" />}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {settings.stripeKeysVerified ? (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                          Verified
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                          Unverified
+                        </span>
+                      )}
+                      {selectedGateway === 'stripe' && <Check className="h-3.5 w-3.5 text-[var(--color-primary)]" />}
+                    </div>
                   </button>
                 )}
 
@@ -840,11 +903,23 @@ function WalletContent() {
                     }`}
                     style={{ borderColor: selectedGateway === 'paypal' ? 'var(--color-primary)' : 'var(--color-border)' }}
                   >
-                    <span className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
                       <Sparkles className="h-4 w-4 text-amber-400" />
                       <span>{t('paypalGateway', 'PayPal')}</span>
-                    </span>
-                    {selectedGateway === 'paypal' && <Check className="h-4 w-4 text-[var(--color-primary)]" />}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {settings.paypalKeysVerified ? (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                          Verified
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                          Unverified
+                        </span>
+                      )}
+                      {selectedGateway === 'paypal' && <Check className="h-3.5 w-3.5 text-[var(--color-primary)]" />}
+                    </div>
                   </button>
                 )}
 
@@ -857,16 +932,47 @@ function WalletContent() {
                     }`}
                     style={{ borderColor: selectedGateway === 'manual' ? 'var(--color-primary)' : 'var(--color-border)' }}
                   >
-                    <span className="flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                      <span>{t('manualGateway', 'Bank Wire / Manual Settlement')}</span>
-                    </span>
-                    {selectedGateway === 'manual' && <Check className="h-4 w-4 text-[var(--color-primary)]" />}
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 text-purple-400" />
+                      <span>{t('manualGateway', 'Bank Wire / Settlement')}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                        Active
+                      </span>
+                      {selectedGateway === 'manual' && <Check className="h-3.5 w-3.5 text-[var(--color-primary)]" />}
+                    </div>
                   </button>
                 )}
               </div>
             )}
           </div>
+
+          {/* UNVERIFIED KEY SUBMISSION BLOCK WARNING BANNER */}
+          {selectedGateway && !isSelectedVerified && (
+            <div 
+              role="region"
+              aria-label="Payment Gateway Key Verification Alert"
+              data-lpignore="true"
+              className="p-4 rounded-2xl border text-xs flex items-start gap-3 animate-in fade-in transition shadow-xs"
+              style={{
+                backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                borderColor: '#f59e0b',
+                color: '#fbbf24'
+              }}
+            >
+              <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-amber-500" />
+              <div className="space-y-0.5">
+                <span className="font-extrabold block text-xs">
+                  {t('gatewayUnverifiedTitle', 'Payment Gateway Key Not Verified')}
+                </span>
+                <p className="text-[11px] font-normal opacity-90 leading-relaxed">
+                  {t('gatewayUnverifiedDesc', 'Payment submissions via this gateway are disabled because its API keys have not been verified in Payment Gateway Settings. Please choose another payment method or contact the administrator to verify the API credentials.')}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Bank Wire Details Form */}
           {selectedGateway === 'manual' && settings.allowed_gateways.includes('manual') && (
@@ -875,7 +981,7 @@ function WalletContent() {
               style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
             >
               <div className="flex items-center justify-between font-bold">
-                <span className="flex items-center gap-1.5 text-emerald-400">
+                <span className="flex items-center gap-1.5 text-purple-400">
                   <ShieldCheck className="h-4 w-4" />
                   <span>{t('bankTransferInstructions', 'Bank Wire / Manual Settlement Details')}</span>
                 </span>
@@ -907,15 +1013,30 @@ function WalletContent() {
             </div>
           )}
 
-          {/* Deposit Submit Button */}
+          {/* Deposit Submit Button with Verification Enforcement Guard */}
           <button
             type="button"
             onClick={handleDeposit}
-            disabled={submitting || finalDepositAmount < settings.min_topup || settings.allowed_gateways.length === 0 || !selectedGateway}
-            className="w-full py-3 rounded-xl text-white font-bold text-xs transition shadow-lg flex items-center justify-center gap-2 cursor-pointer hover:opacity-90 disabled:opacity-40"
-            style={{ backgroundColor: 'var(--color-primary)' }}
+            disabled={
+              submitting || 
+              finalDepositAmount < settings.min_topup || 
+              settings.allowed_gateways.length === 0 || 
+              !selectedGateway ||
+              !isSelectedVerified
+            }
+            className={`w-full py-3 rounded-xl font-bold text-xs transition shadow-lg flex items-center justify-center gap-2 ${
+              !isSelectedVerified ? 'opacity-50 cursor-not-allowed text-white' : 'text-white cursor-pointer hover:opacity-90'
+            }`}
+            style={{
+              backgroundColor: isSelectedVerified ? 'var(--color-primary)' : 'var(--color-border)'
+            }}
           >
-            {submitting ? t('processingDeposit', 'Processing Deposit...') : (
+            {submitting ? t('processingDeposit', 'Processing Deposit...') : !isSelectedVerified ? (
+              <>
+                <ShieldAlert className="h-4 w-4 text-amber-300" />
+                <span>{t('gatewayUnverifiedSubmitBlocked', 'Key Not Verified — Payment Blocked')}</span>
+              </>
+            ) : (
               <>
                 <Plus className="h-4 w-4" />
                 <span>
