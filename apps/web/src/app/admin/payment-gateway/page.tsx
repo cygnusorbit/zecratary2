@@ -391,7 +391,16 @@ export default function AdminPaymentGatewayPage() {
           window.dispatchEvent(new Event('zecratary_wallet_updated'));
           try {
             const gwBc = new BroadcastChannel('zecratary_gateway_channel');
-            gwBc.postMessage({ type: 'GATEWAY_UPDATED', paymentSettings: updatedConfig });
+            gwBc.postMessage({ 
+              type: 'GATEWAY_UPDATED', 
+              paymentSettings: updatedConfig, 
+              settings: updatedConfig, 
+              allowed_gateways: [
+                ...(nextStripeEnabled ? ['stripe'] : []),
+                ...(nextPaypalEnabled ? ['paypal'] : []),
+                ...(nextManualEnabled ? ['manual'] : [])
+              ]
+            });
             gwBc.close();
           } catch (_) {}
           try {
@@ -455,6 +464,20 @@ export default function AdminPaymentGatewayPage() {
           window.dispatchEvent(new Event('zecratary_payment_updated'));
           window.dispatchEvent(new Event('zecratary_payment_gateway_updated'));
           window.dispatchEvent(new Event('zecratary_wallet_updated'));
+          try {
+            const gwBc = new BroadcastChannel('zecratary_gateway_channel');
+            gwBc.postMessage({ 
+              type: 'GATEWAY_UPDATED', 
+              paymentSettings: payloadConfig, 
+              settings: payloadConfig,
+              allowed_gateways: [
+                ...(stripeEn ? ['stripe'] : []),
+                ...(paypalEn ? ['paypal'] : []),
+                ...(normalizeBool(currentConfig.manualSettlement.enabled, true) ? ['manual'] : [])
+              ]
+            });
+            gwBc.close();
+          } catch (_) {}
         }
       } else {
         setFeedback({ type: 'error', msg: data.error || 'Failed to save configuration.' });

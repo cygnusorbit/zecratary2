@@ -461,8 +461,9 @@ function WalletContent() {
       };
       gwBc = new BroadcastChannel('zecratary_gateway_channel');
       gwBc.onmessage = (ev) => {
-        if (ev.data?.settings) {
-          const fresh = resolveAllowedChannels(ev.data.settings);
+        const payload = ev.data?.settings || ev.data?.paymentSettings || ev.data?.gateways;
+        if (payload) {
+          const fresh = resolveAllowedChannels(payload);
           setSettings(prev => ({ ...prev, allowed_gateways: fresh }));
           setSelectedGateway(prev => (fresh.includes(prev) ? prev : fresh[0] || ''));
         }
