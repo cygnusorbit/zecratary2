@@ -326,3 +326,8 @@ export async function deleteAuthoritativeTransactions(ids: string[]): Promise<bo
 
   return true;
 }
+
+
+// Backward Compatibility Aliases
+export const getAuthoritativeTransactions = getAllAuthoritativeTransactions;
+export const recordTransaction = recordAuthoritativeTransaction;

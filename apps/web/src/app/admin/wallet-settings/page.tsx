@@ -189,7 +189,6 @@ export default function AdminWalletSettingsPage() {
     window.addEventListener('zecratary_theme_changed', handleSync);
     window.addEventListener('zecratary_theme_updated', handleSync);
     window.addEventListener('storage', handleSync);
-
     window.addEventListener('zecratary_wallet_settings_updated', handleSync);
 
     let walletBc: BroadcastChannel | null = null;
@@ -372,7 +371,7 @@ export default function AdminWalletSettingsPage() {
     }
   };
 
-  // Delete Transactions (Single or Batch) with full multi-tier removal
+  // Delete Transactions (Single or Batch) with multi-tier database removal
   const handleDeleteTransactions = async (idsToDelete: string[]) => {
     if (idsToDelete.length === 0) return;
     const promptMsg = idsToDelete.length > 1
@@ -1313,7 +1312,7 @@ export default function AdminWalletSettingsPage() {
             </div>
           </div>
 
-          {/* Section 3: Manual Customer Balance Adjustment */}
+          {/* Section 3: Manual Customer Balance Adjustment (Sanitized string quoting) */}
           <div 
             className="p-6 rounded-3xl border shadow-sm space-y-4 transition-colors duration-200"
             style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
@@ -1324,7 +1323,7 @@ export default function AdminWalletSettingsPage() {
                 {tr('manualAdjustmentHeading', 'Manual Customer Balance Adjustment')}
               </h2>
               <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                {tr('manualAdjustmentDesc', 'Directly credit or debit a user's store wallet balance with an audit record.')}
+                {tr('manualAdjustmentDesc', "Directly credit or debit a user's store wallet balance with an audit record.")}
               </p>
             </div>
 
