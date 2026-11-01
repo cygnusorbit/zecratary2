@@ -54,11 +54,13 @@ interface WalletTx {
   gateway_tx_id?: string;
   status: string;
   description: string;
+  plan_name?: string;
+  planName?: string;
   created_at: string;
 }
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
-  USD: '$', EUR: '€', GBP: '£', CAD: 'CA$', AUD: 'AU$', JPY: '¥', SGD: 'S$', CHF: 'Fr', NZD: 'NZ$', THB: '฿'
+  USD: '$', EUR: '€', GBP: '£', CAD: 'CA$', AUD: 'AU$', JPY: '¥', SGD: 'S$', CHF: 'Fr', NZD: 'NZ$', THB: '฿', CNY: '¥', MYR: 'RM'
 };
 
 const isFalseVal = (v: any): boolean =>
@@ -102,6 +104,7 @@ function WalletContent() {
 
   const [transactions, setTransactions] = useState<WalletTx[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -155,8 +158,8 @@ function WalletContent() {
   const isGatewayKeyVerified = useCallback((gwKey: string): boolean => {
     if (!gwKey) return false;
     const lower = gwKey.toLowerCase().trim();
-    if (lower === 'manual' || lower === 'bank_wire' || lower === 'wire' || lower === 'manualsettlement') {
-      return true; // Manual wire transfers have no external API keys
+    if (['manual', 'bank_wire', 'wire', 'manualsettlement'].includes(lower)) {
+      return true;
     }
     if (lower === 'stripe') {
       return Boolean(settings.stripeKeysVerified);
@@ -362,6 +365,15 @@ function WalletContent() {
     }
   }, [syncLocalBalanceQuietly, resolveAllowedChannels]);
 
+  // Debounce search query changes
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
   const handleReconcile = async () => {
     if (!user) return;
     setReconciling(true);
@@ -380,8 +392,11 @@ function WalletContent() {
         if (typeof data.wallet_balance === 'number') {
           broadcastBalanceUpdate(data.wallet_balance);
         }
+        if (Array.isArray(data.transactions) && data.transactions.length > 0) {
+          setTransactions(data.transactions);
+        }
         showToast(data.message || t('paymentReconciledToast', 'Payment verified! Your wallet has been credited.'), 'success');
-        fetchWalletData(user, page, searchQuery, typeFilter, true);
+        fetchWalletData(user, page, debouncedSearch, typeFilter, true);
       } else {
         showToast(data.error || 'Reconciliation completed. No missing payments found.', 'info');
       }
@@ -410,28 +425,46 @@ function WalletContent() {
       }
     }
 
+    // Check for Stripe session or PayPal redirect return params
     const sessionId = searchParams?.get('session_id');
+    const paypalToken = searchParams?.get('token') || searchParams?.get('paymentId') || searchParams?.get('order_id');
     const isSuccess = searchParams?.get('status') === 'success' || searchParams?.get('success') === 'true';
+    const isPayPal = searchParams?.get('gateway') === 'paypal' || Boolean(paypalToken);
 
-    if (sessionId && isSuccess && verifyingIdRef.current !== sessionId) {
-      verifyingIdRef.current = sessionId;
-      const verifyCheckoutSession = async () => {
-        showToast(t('verifyingStripeSession', 'Confirming payment session and crediting wallet...'), 'info');
+    const activeVerificationToken = sessionId || (isPayPal && (paypalToken || 'paypal_success'));
+
+    if (activeVerificationToken && isSuccess && verifyingIdRef.current !== activeVerificationToken) {
+      verifyingIdRef.current = activeVerificationToken;
+
+      const verifyPaymentReturn = async () => {
+        showToast(t('verifyingSessionNotice', 'Confirming payment session and crediting wallet...'), 'info');
         try {
+          const verifyPayload = sessionId ? {
+            action: 'verify_stripe_session',
+            sessionId: sessionId,
+            email: u.email,
+            userId: String(u.id || '')
+          } : {
+            action: 'verify_paypal_session',
+            orderId: activeVerificationToken,
+            amount: paramAmount ? parseFloat(paramAmount) : 50.00,
+            email: u.email,
+            userId: String(u.id || '')
+          };
+
           const res = await fetch('/api/wallet', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'verify_stripe_session',
-              sessionId: sessionId,
-              email: u.email,
-              userId: String(u.id || '')
-            })
+            body: JSON.stringify(verifyPayload)
           });
+
           const data = await res.json().catch(() => ({}));
           if (data.success) {
             if (typeof data.wallet_balance === 'number') {
               broadcastBalanceUpdate(data.wallet_balance);
+            }
+            if (Array.isArray(data.transactions) && data.transactions.length > 0) {
+              setTransactions(data.transactions);
             }
             showToast(data.message || t('paymentReconciledToast', 'Payment verified! Your wallet has been credited.'), 'success');
             fetchWalletData(u, 1, '', 'all', true);
@@ -448,7 +481,8 @@ function WalletContent() {
           showToast(e.message || 'Payment verification failed.', 'error');
         }
       };
-      verifyCheckoutSession();
+
+      verifyPaymentReturn();
     } else {
       fetchWalletData(u, 1, '', 'all', true);
     }
@@ -459,7 +493,7 @@ function WalletContent() {
         const active = getCurrentUser();
         if (active) {
           setUser(active);
-          fetchWalletData(active, page, searchQuery, typeFilter, true);
+          fetchWalletData(active, page, debouncedSearch, typeFilter, true);
         }
       }, 150);
     };
@@ -527,9 +561,9 @@ function WalletContent() {
 
   useEffect(() => {
     if (user) {
-      fetchWalletData(user, page, searchQuery, typeFilter, true);
+      fetchWalletData(user, page, debouncedSearch, typeFilter, true);
     }
-  }, [page, searchQuery, typeFilter]);
+  }, [page, debouncedSearch, typeFilter]);
 
   const finalDepositAmount = useMemo(() => {
     if (customAmount.trim()) {
@@ -562,7 +596,6 @@ function WalletContent() {
       return;
     }
 
-    // STRICT CHECK: DO NOT ALLOW PAYMENT SUBMISSION IF KEYS ARE UNVERIFIED
     if (!isGatewayKeyVerified(selectedGateway)) {
       showToast(
         (t('gatewayNotVerifiedError', 'Payment blocked: {gateway} keys are not verified by admin. Please contact support.'))
@@ -634,6 +667,10 @@ function WalletContent() {
       
       broadcastBalanceUpdate(newBal);
 
+      if (Array.isArray(data.transactions) && data.transactions.length > 0) {
+        setTransactions(data.transactions);
+      }
+
       showToast(
         data.message || (t('depositSuccessToast', 'Successfully deposited {amount} into your wallet!'))
           .replace('{amount}', `${activeCurrencySymbol}${finalDepositAmount.toFixed(2)}`),
@@ -643,7 +680,7 @@ function WalletContent() {
       setCustomAmount('');
       setManualReference('');
       setSelectedAmount(settings.preset_amounts[0] || 50);
-      fetchWalletData(user, page, searchQuery, typeFilter, true);
+      fetchWalletData(user, page, debouncedSearch, typeFilter, true);
     } catch (err: any) {
       showToast(err.message || 'Deposit failed.', 'error');
     } finally {
@@ -705,7 +742,7 @@ function WalletContent() {
 
           <button
             type="button"
-            onClick={() => fetchWalletData(user, page, searchQuery, typeFilter, true)}
+            onClick={() => fetchWalletData(user, page, debouncedSearch, typeFilter, true)}
             disabled={loading}
             className="border font-bold text-xs px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 hover:opacity-80"
             style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
@@ -730,7 +767,7 @@ function WalletContent() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Available Balance Box */}
         <div 
-          className="lg:col-span-4 p-6 rounded-3xl border shadow-sm space-y-5"
+          className="lg:col-span-4 p-6 rounded-3xl border shadow-sm space-y-5 transition-colors duration-200"
           style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
         >
           <div className="flex items-center justify-between">
@@ -870,7 +907,7 @@ function WalletContent() {
                     type="button"
                     onClick={() => setSelectedGateway('stripe')}
                     className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-between transition cursor-pointer ${
-                      selectedGateway === 'stripe' ? 'border-[var(--color-primary)] bg-[var(--color-inner-dark)]' : 'hover:border-slate-500'
+                      selectedGateway === 'stripe' ? 'border-[var(--color-primary)] bg-[var(--color-inner-dark)]' : 'hover:border-[var(--color-primary)]'
                     }`}
                     style={{ borderColor: selectedGateway === 'stripe' ? 'var(--color-primary)' : 'var(--color-border)' }}
                   >
@@ -899,7 +936,7 @@ function WalletContent() {
                     type="button"
                     onClick={() => setSelectedGateway('paypal')}
                     className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-between transition cursor-pointer ${
-                      selectedGateway === 'paypal' ? 'border-[var(--color-primary)] bg-[var(--color-inner-dark)]' : 'hover:border-slate-500'
+                      selectedGateway === 'paypal' ? 'border-[var(--color-primary)] bg-[var(--color-inner-dark)]' : 'hover:border-[var(--color-primary)]'
                     }`}
                     style={{ borderColor: selectedGateway === 'paypal' ? 'var(--color-primary)' : 'var(--color-border)' }}
                   >
@@ -928,7 +965,7 @@ function WalletContent() {
                     type="button"
                     onClick={() => setSelectedGateway('manual')}
                     className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-between transition cursor-pointer ${
-                      selectedGateway === 'manual' ? 'border-[var(--color-primary)] bg-[var(--color-inner-dark)]' : 'hover:border-slate-500'
+                      selectedGateway === 'manual' ? 'border-[var(--color-primary)] bg-[var(--color-inner-dark)]' : 'hover:border-[var(--color-primary)]'
                     }`}
                     style={{ borderColor: selectedGateway === 'manual' ? 'var(--color-primary)' : 'var(--color-border)' }}
                   >
@@ -1003,6 +1040,8 @@ function WalletContent() {
                   type="text"
                   autoComplete="off"
                   data-lpignore="true"
+                  data-form-type="other"
+                  spellCheck="false"
                   placeholder={t('transferReferencePlaceholder', 'e.g. WIRE-94821 or Transaction Ref')}
                   value={manualReference}
                   onChange={(e) => setManualReference(e.target.value)}
@@ -1057,7 +1096,7 @@ function WalletContent() {
         role="region"
         aria-label={t('walletLedgerTitle', 'Wallet Transaction Ledger')}
         data-lpignore="true"
-        className="p-6 rounded-3xl border shadow-sm space-y-4"
+        className="p-6 rounded-3xl border shadow-sm space-y-4 transition-colors duration-200"
         style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
       >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4" style={{ borderColor: 'var(--color-border)' }}>
@@ -1084,7 +1123,10 @@ function WalletContent() {
 
             <select
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
+              onChange={(e) => {
+                setTypeFilter(e.target.value);
+                setPage(1);
+              }}
               className="px-2.5 py-1.5 rounded-xl border text-xs font-bold outline-none cursor-pointer"
               style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
             >
@@ -1121,23 +1163,26 @@ function WalletContent() {
                   const amt = Number(tx.amount || 0);
                   const isDebit = amt < 0;
                   return (
-                    <tr key={tx.id} className="hover:bg-slate-800/20 transition">
+                    <tr 
+                      key={tx.id} 
+                      className="transition duration-150 hover:bg-[var(--color-inner-dark)]"
+                    >
                       <td className="py-3 px-3 font-mono text-[11px] opacity-75">
                         {tx.created_at ? new Date(tx.created_at).toLocaleDateString() : '—'}
                       </td>
                       <td className="py-3 px-3 font-mono text-[10px] opacity-60">
-                        {tx.id.slice(0, 14)}...
+                        {(tx.id || '').slice(0, 14)}...
                       </td>
                       <td className="py-3 px-3 uppercase text-[10px] font-bold opacity-75">
                         {tx.gateway || 'Stripe'}
                       </td>
                       <td className="py-3 px-3">
                         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border opacity-80" style={{ borderColor: 'var(--color-border)' }}>
-                          {tx.type}
+                          {t(`txType_${tx.type}`, tx.type || 'topup')}
                         </span>
                       </td>
                       <td className="py-3 px-3 font-medium">
-                        {tx.description}
+                        {tx.description || tx.plan_name || tx.planName || t('walletDeposit', 'Wallet Deposit')}
                       </td>
                       <td className={`py-3 px-3 text-right font-bold font-mono ${isDebit ? 'text-rose-400' : 'text-emerald-400'}`}>
                         {isDebit ? `-${activeCurrencySymbol}${Math.abs(amt).toFixed(2)}` : `+${activeCurrencySymbol}${amt.toFixed(2)}`}
