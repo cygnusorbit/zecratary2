@@ -18,12 +18,24 @@ export interface WalletTransactionRecord {
   currency?: string;
   type: string;
   gateway: string;
+  gateway_tx_id?: string;
+  gatewayTxId?: string;
   status: string;
   description: string;
   transfer_reference?: string;
   transferReference?: string;
+  confirmed_at?: string;
+  confirmedAt?: string;
+  confirmed_amount?: number;
+  confirmedAmount?: number;
+  failure_reason?: string;
+  failureReason?: string;
+  notes?: string;
+  test_mode?: boolean;
+  testMode?: boolean;
   created_at: string;
   createdAt?: string;
+  [key: string]: any;
 }
 
 export type WalletTransactionItem = WalletTransactionRecord;
@@ -64,7 +76,7 @@ export function readDiskTransactions(): WalletTransactionRecord[] {
         const raw = fs.readFileSync(p, 'utf-8');
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          return parsed; // Returns [] cleanly without resurrecting seed data
+          return parsed;
         }
       } catch (_) {}
     }
@@ -121,10 +133,21 @@ export async function autoHarmonizeTransactionSchema(): Promise<void> {
           status VARCHAR(50) DEFAULT 'completed',
           description TEXT,
           transfer_reference VARCHAR(255),
+          confirmed_at DATETIME,
+          failure_reason TEXT,
+          notes TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
       `);
+      const alterQueries = [
+        "ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS confirmed_at DATETIME",
+        "ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS failure_reason TEXT",
+        "ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS notes TEXT"
+      ];
+      for (const aq of alterQueries) {
+        try { await mysqlModule.query(aq); } catch (_) {}
+      }
     }
   } catch (_) {}
 }
@@ -165,6 +188,9 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
               status: row.status || 'completed',
               description: row.description || row.plan_name || row.planName || 'Wallet deposit',
               transfer_reference: row.transfer_reference || row.transferReference || '',
+              confirmed_at: row.confirmed_at || row.confirmedAt || '',
+              failure_reason: row.failure_reason || row.failureReason || '',
+              notes: row.notes || '',
               created_at: row.created_at || row.createdAt || new Date().toISOString()
             });
           }
@@ -199,6 +225,9 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
               status: row.status || 'completed',
               description: row.description || row.plan_name || 'Wallet deposit',
               transfer_reference: row.transfer_reference || '',
+              confirmed_at: row.confirmed_at ? new Date(row.confirmed_at).toISOString() : '',
+              failure_reason: row.failure_reason || '',
+              notes: row.notes || '',
               created_at: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString()
             });
           }
@@ -207,7 +236,7 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
     }
   } catch (_) {}
 
-  // 3. Fallback Disk Merge (only if disk file has records)
+  // 3. Fallback Disk Merge
   const diskRecords = readDiskTransactions();
   for (const r of diskRecords) {
     if (r.id && !combinedMap.has(r.id)) {
@@ -254,6 +283,9 @@ export async function recordAuthoritativeTransaction(tx: WalletTransactionRecord
           status: tx.status || 'completed',
           description: tx.description || 'Wallet deposit',
           transfer_reference: tx.transfer_reference || tx.id,
+          confirmed_at: tx.confirmed_at || null,
+          failure_reason: tx.failure_reason || null,
+          notes: tx.notes || null,
           created_at: tx.created_at || new Date().toISOString()
         }, { onConflict: 'id' });
     } catch (_) {}
@@ -265,11 +297,14 @@ export async function recordAuthoritativeTransaction(tx: WalletTransactionRecord
     if (mysqlModule && typeof mysqlModule.query === 'function') {
       await mysqlModule.query(
         `INSERT INTO payment_transactions 
-         (id, user_id, email, customer_email, customer_name, plan_name, amount, balance_after, currency, type, gateway, status, description, transfer_reference, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+         (id, user_id, email, customer_email, customer_name, plan_name, amount, balance_after, currency, type, gateway, status, description, transfer_reference, confirmed_at, failure_reason, notes, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
          ON DUPLICATE KEY UPDATE 
          balance_after = VALUES(balance_after),
          status = VALUES(status),
+         confirmed_at = VALUES(confirmed_at),
+         failure_reason = VALUES(failure_reason),
+         notes = VALUES(notes),
          updated_at = NOW()`,
         [
           tx.id,
@@ -285,7 +320,10 @@ export async function recordAuthoritativeTransaction(tx: WalletTransactionRecord
           tx.gateway || 'stripe',
           tx.status || 'completed',
           tx.description || 'Wallet deposit',
-          tx.transfer_reference || tx.id
+          tx.transfer_reference || tx.id,
+          tx.confirmed_at || null,
+          tx.failure_reason || null,
+          tx.notes || null
         ]
       );
     }
@@ -296,12 +334,10 @@ export async function deleteAuthoritativeTransactions(ids: string[]): Promise<bo
   if (!ids || ids.length === 0) return true;
   const idSet = new Set(ids.map(String));
 
-  // 1. Disk Mirror
   const current = readDiskTransactions();
   const updated = current.filter(t => !idSet.has(String(t.id)));
   writeDiskTransactions(updated);
 
-  // 2. PostgreSQL (Supabase)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
@@ -313,7 +349,6 @@ export async function deleteAuthoritativeTransactions(ids: string[]): Promise<bo
     } catch (_) {}
   }
 
-  // 3. MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
     if (mysqlModule && typeof mysqlModule.query === 'function') {
@@ -329,10 +364,8 @@ export async function deleteAuthoritativeTransactions(ids: string[]): Promise<bo
 }
 
 export async function deleteAllAuthoritativeTransactions(): Promise<boolean> {
-  // 1. Disk Mirror
   writeDiskTransactions([]);
 
-  // 2. PostgreSQL (Supabase)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
@@ -344,7 +377,6 @@ export async function deleteAllAuthoritativeTransactions(): Promise<boolean> {
     } catch (_) {}
   }
 
-  // 3. MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
     if (mysqlModule && typeof mysqlModule.query === 'function') {
@@ -385,7 +417,6 @@ export async function calculateAuthoritativeUserBalance(
     ? emailOrInitial
     : (typeof fallbackBalance === 'number' ? fallbackBalance : 0);
 
-  // PostgreSQL (Supabase)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
@@ -405,7 +436,6 @@ export async function calculateAuthoritativeUserBalance(
     } catch (_) {}
   }
 
-  // MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
     if (mysqlModule && typeof mysqlModule.query === 'function') {
@@ -425,7 +455,6 @@ export async function calculateAuthoritativeUserBalance(
     }
   } catch (_) {}
 
-  // Authoritative Transactions latest balance_after
   try {
     const allTxs = await getAllAuthoritativeTransactions();
     const userTxs = allTxs.filter(t => {
