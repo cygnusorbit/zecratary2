@@ -6,7 +6,7 @@ import {
   Sparkles, CheckCircle2, AlertCircle, Save, RefreshCw, 
   Plus, Trash2, Edit3, Shield, Activity, 
   CreditCard, History, Sliders, Layers,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Search, X, Check
 } from 'lucide-react';
 import { useTranslation } from '@/components/LanguageProvider';
 
@@ -20,6 +20,8 @@ export interface TokenPackage {
   badge?: string;
   bonusTokens?: number;
   isPopular?: boolean;
+  bestValue?: boolean;
+  description?: string;
 }
 
 export interface SubscriptionPlanItem {
@@ -34,6 +36,7 @@ export interface SubscriptionPlanItem {
 export interface TokenSettings {
   tokenName: string;
   tokenSymbol: string;
+  tokenIcon?: string;
   startingBalance: number;
   isEnabled: boolean;
   importUrlCost: number;
@@ -49,39 +52,14 @@ export interface TokenSettings {
 
 export interface TokenTransactionRecord {
   id: string;
-  customer_email: string;
+  customer_email?: string;
+  user_email?: string;
   amount: number;
   balance_after: number;
   type: string;
   description: string;
   created_at: string;
 }
-
-const DEFAULT_TOKEN_PACKAGES: TokenPackage[] = [
-  { id: 'pkg_starter', name: 'Starter Spark', tokenAmount: 250, tokens: 250, priceDollars: 4.99, price: 4.99, badge: 'Popular', bonusTokens: 0, isPopular: true },
-  { id: 'pkg_chef', name: 'Culinary Master', tokenAmount: 1000, tokens: 1000, priceDollars: 14.99, price: 14.99, badge: 'Best Value', bonusTokens: 150, isPopular: false },
-  { id: 'pkg_executive', name: 'Kitchen Enterprise', tokenAmount: 5000, tokens: 5000, priceDollars: 49.99, price: 49.99, badge: 'VIP', bonusTokens: 1000, isPopular: false }
-];
-
-const DEFAULT_SETTINGS: TokenSettings = {
-  tokenName: 'Foodie Token',
-  tokenSymbol: '🪙',
-  startingBalance: 100,
-  isEnabled: true,
-  importUrlCost: 5,
-  importTextCost: 2,
-  importPhotoCost: 10,
-  aiChefCost: 2,
-  chefCost: 2,
-  mealPlannerCost: 5,
-  macroAnalysisCost: 3,
-  planAllocations: {
-    'free': 50,
-    'nutrition-pro': 750,
-    'vip-chef': 3000
-  },
-  packages: DEFAULT_TOKEN_PACKAGES
-};
 
 function formatLedgerDescription(desc: string | undefined | null, symbol: string): string {
   if (!desc) return '—';
@@ -107,7 +85,25 @@ export default function AdminTokenSettingPage() {
   }, [t]);
 
   const [activeTab, setActiveTab] = useState<'system' | 'packages' | 'plans' | 'ledger'>('system');
-  const [settings, setSettings] = useState<TokenSettings>(DEFAULT_SETTINGS);
+  
+  // Dynamic State: Initialized empty to eliminate hardcoded element flashing
+  const [settings, setSettings] = useState<TokenSettings>({
+    tokenName: '',
+    tokenSymbol: '🪙',
+    tokenIcon: '',
+    startingBalance: 0,
+    isEnabled: true,
+    importUrlCost: 5,
+    importTextCost: 2,
+    importPhotoCost: 10,
+    aiChefCost: 2,
+    chefCost: 2,
+    mealPlannerCost: 5,
+    macroAnalysisCost: 3,
+    planAllocations: {},
+    packages: []
+  });
+
   const [plans, setPlans] = useState<SubscriptionPlanItem[]>([]);
   const [transactions, setTransactions] = useState<TokenTransactionRecord[]>([]);
   const [currencySymbol, setCurrencySymbol] = useState('$');
@@ -121,11 +117,13 @@ export default function AdminTokenSettingPage() {
   const [pkgName, setPkgName] = useState('New Chef Bundle');
   const [pkgTokens, setPkgTokens] = useState<number>(500);
   const [pkgPrice, setPkgPrice] = useState<number>(7.99);
-  const [pkgBadge, setPkgBadge] = useState('Hot');
+  const [pkgBadge, setPkgBadge] = useState('Popular');
   const [pkgBonus, setPkgBonus] = useState<number>(50);
+  const [pkgIsPopular, setPkgIsPopular] = useState<boolean>(false);
 
   // Ledger filter & pagination state
   const [ledgerSearch, setLedgerSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [ledgerFilterType, setLedgerFilterType] = useState('all');
   const [ledgerPage, setLedgerPage] = useState<number>(1);
   const [ledgerPageSize, setLedgerPageSize] = useState<number>(10);
@@ -138,12 +136,29 @@ export default function AdminTokenSettingPage() {
     setTimeout(() => setFeedback(null), 4000);
   };
 
+  // Debounce search input to prevent rapid table re-rendering
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(ledgerSearch);
+      setLedgerPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [ledgerSearch]);
+
   const loadTokenData = useCallback(async () => {
     if (isFetchingRef.current || isSavingRef.current) return;
     isFetchingRef.current = true;
     setLoading(true);
 
     try {
+      // Dynamic currency detection from client storage
+      if (typeof window !== 'undefined') {
+        const storedSym = localStorage.getItem('zecratary_currency_symbol');
+        const storedCur = localStorage.getItem('zecratary_currency');
+        if (storedSym) setCurrencySymbol(storedSym);
+        if (storedCur) setCurrencyCode(storedCur);
+      }
+
       let res = await fetch('/api/admin/token-setting?t=' + Date.now(), { cache: 'no-store' });
       if (!res.ok) {
         res = await fetch('/api/admin/token-settings?t=' + Date.now(), { cache: 'no-store' });
@@ -157,9 +172,9 @@ export default function AdminTokenSettingPage() {
           setPlans(data.plans);
         }
 
-        if (data.tokenSettings || data.settings) {
-          const loaded = data.tokenSettings || data.settings;
-          const mergedPlanAllocations = { ...DEFAULT_SETTINGS.planAllocations, ...(loaded.planAllocations || {}) };
+        const loaded = data.tokenSettings || data.settings || data;
+        if (loaded) {
+          const mergedPlanAllocations = { ...(loaded.planAllocations || {}) };
           if (Array.isArray(data.plans)) {
             data.plans.forEach((p: SubscriptionPlanItem) => {
               if (p.token_limit !== undefined && mergedPlanAllocations[p.slug] === undefined) {
@@ -169,9 +184,9 @@ export default function AdminTokenSettingPage() {
           }
 
           const activeSymbol = loaded.tokenSymbol || '🪙';
-          const resolvedChef = Number(loaded.aiChefCost ?? loaded.chefCost ?? DEFAULT_SETTINGS.aiChefCost);
+          const resolvedChef = Number(loaded.aiChefCost ?? loaded.chefCost ?? 2);
 
-          const loadedPkgs = Array.isArray(loaded.packages) && loaded.packages.length > 0 
+          const loadedPkgs = Array.isArray(loaded.packages)
             ? loaded.packages.map((p: any) => ({
                 id: p.id || 'pkg_' + Math.random().toString(36).substring(2, 7),
                 name: p.name || 'Bundle',
@@ -181,13 +196,16 @@ export default function AdminTokenSettingPage() {
                 price: Number(p.price ?? p.priceDollars ?? 4.99),
                 badge: p.badge || undefined,
                 bonusTokens: Number(p.bonusTokens || 0),
-                isPopular: Boolean(p.isPopular)
+                isPopular: Boolean(p.isPopular || (p.badge && String(p.badge).toLowerCase().includes('popular'))),
+                bestValue: Boolean(p.bestValue || (p.badge && String(p.badge).toLowerCase().includes('value'))),
+                description: p.description || ''
               }))
-            : DEFAULT_TOKEN_PACKAGES;
+            : [];
 
           setSettings({
             tokenName: loaded.tokenName || 'Foodie Token',
             tokenSymbol: activeSymbol,
+            tokenIcon: loaded.tokenIcon || '',
             startingBalance: loaded.startingBalance !== undefined ? Number(loaded.startingBalance) : 100,
             isEnabled: loaded.isEnabled !== undefined ? Boolean(loaded.isEnabled) : true,
             importUrlCost: loaded.importUrlCost !== undefined ? Number(loaded.importUrlCost) : 5,
@@ -203,6 +221,7 @@ export default function AdminTokenSettingPage() {
 
           if (typeof window !== 'undefined') {
             localStorage.setItem('zecratary_token_symbol', activeSymbol);
+            localStorage.setItem('zecratary_token_name', loaded.tokenName || 'Foodie Token');
           }
         }
         if (Array.isArray(data.transactions)) {
@@ -210,7 +229,7 @@ export default function AdminTokenSettingPage() {
         }
       }
     } catch (err) {
-      console.warn('[Token Setting] Using fallback defaults:', err);
+      console.warn('[Token Setting] Error loading configuration:', err);
     } finally {
       setLoading(false);
       isFetchingRef.current = false;
@@ -222,26 +241,44 @@ export default function AdminTokenSettingPage() {
     loadTokenData();
 
     const handleSync = () => loadTokenData();
+
+    // Cross-tab BroadcastChannels for instantaneous synchronization
+    let tokenBc: BroadcastChannel | null = null;
+    let balanceBc: BroadcastChannel | null = null;
+    let walletBc: BroadcastChannel | null = null;
+
+    try {
+      tokenBc = new BroadcastChannel('zecratary_token_channel');
+      tokenBc.onmessage = () => handleSync();
+
+      balanceBc = new BroadcastChannel('zecratary_balance_channel');
+      balanceBc.onmessage = () => handleSync();
+
+      walletBc = new BroadcastChannel('zecratary_wallet_channel');
+      walletBc.onmessage = () => handleSync();
+    } catch (_) {}
+
     window.addEventListener('zecratary_tokens_updated', handleSync);
     window.addEventListener('zecratary_token_settings_updated', handleSync);
+    window.addEventListener('zecratary_wallet_updated', handleSync);
     window.addEventListener('zecratary_languages_updated', handleSync);
     window.addEventListener('zecratary_dictionary_updated', handleSync);
     window.addEventListener('zecratary_locale_changed', handleSync);
 
     return () => {
+      if (tokenBc) tokenBc.close();
+      if (balanceBc) balanceBc.close();
+      if (walletBc) walletBc.close();
       window.removeEventListener('zecratary_tokens_updated', handleSync);
       window.removeEventListener('zecratary_token_settings_updated', handleSync);
+      window.removeEventListener('zecratary_wallet_updated', handleSync);
       window.removeEventListener('zecratary_languages_updated', handleSync);
       window.removeEventListener('zecratary_dictionary_updated', handleSync);
       window.removeEventListener('zecratary_locale_changed', handleSync);
     };
   }, [loadTokenData, tr]);
 
-  useEffect(() => {
-    setLedgerPage(1);
-  }, [ledgerSearch, ledgerFilterType, ledgerPageSize]);
-
-  // Robust Save: Handles schema adaptation and dual-endpoint resilience
+  // Robust Save: Persists to PostgreSQL & MySQL and broadcasts across all tabs
   const handleSaveSettings = async () => {
     if (saving || isSavingRef.current) return;
     setSaving(true);
@@ -260,7 +297,9 @@ export default function AdminTokenSettingPage() {
       priceDollars: Number(p.priceDollars ?? p.price ?? 4.99),
       badge: p.badge || undefined,
       bonusTokens: Number(p.bonusTokens || 0),
-      isPopular: Boolean(p.isPopular)
+      isPopular: Boolean(p.isPopular),
+      bestValue: Boolean(p.bestValue),
+      description: p.description || ''
     }));
 
     const payload = {
@@ -304,10 +343,17 @@ export default function AdminTokenSettingPage() {
           window.dispatchEvent(new CustomEvent('zecratary_token_settings_updated', { detail: payload }));
           window.dispatchEvent(new Event('zecratary_admin_settings_updated'));
 
+          // Real-time broadcast notification across open tabs
           try {
             const bc = new BroadcastChannel('zecratary_balance_channel');
             bc.postMessage({ type: 'TOKEN_SETTINGS_UPDATED', tokenSymbol: activeSymbol, settings: payload });
             bc.close();
+          } catch (_) {}
+
+          try {
+            const tbc = new BroadcastChannel('zecratary_token_channel');
+            tbc.postMessage({ type: 'TOKEN_SETTINGS_UPDATED', tokenSymbol: activeSymbol, settings: payload });
+            tbc.close();
           } catch (_) {}
         }
         showToast('success', tr('toastTokenSettingsSaved', 'Token settings saved and synchronized with PostgreSQL & MySQL!'));
@@ -323,9 +369,30 @@ export default function AdminTokenSettingPage() {
   };
 
   const handleResetDefaults = () => {
-    if (!confirm('Reset token settings to platform defaults?')) return;
-    setSettings(DEFAULT_SETTINGS);
-    showToast('success', tr('toastTokenSettingsReset', 'Token settings reset to defaults successfully!'));
+    if (!confirm(tr('confirmResetDefaults', 'Reset token settings to platform defaults?'))) return;
+    const defaultPkgs: TokenPackage[] = [
+      { id: 'pkg_starter', name: 'Starter Spark', tokenAmount: 250, tokens: 250, priceDollars: 4.99, price: 4.99, badge: 'Popular', bonusTokens: 0, isPopular: true, description: 'Perfect for light exploration.' },
+      { id: 'pkg_chef', name: 'Culinary Master', tokenAmount: 1000, tokens: 1000, priceDollars: 14.99, price: 14.99, badge: 'Best Value', bonusTokens: 150, isPopular: false, bestValue: true, description: 'Generous bonus tokens for daily cooking.' },
+      { id: 'pkg_executive', name: 'Kitchen Enterprise', tokenAmount: 5000, tokens: 5000, priceDollars: 49.99, price: 49.99, badge: 'VIP', bonusTokens: 1000, isPopular: false, description: 'High-volume throughput.' }
+    ];
+
+    setSettings({
+      tokenName: 'Foodie Token',
+      tokenSymbol: '🪙',
+      tokenIcon: '',
+      startingBalance: 100,
+      isEnabled: true,
+      importUrlCost: 5,
+      importTextCost: 2,
+      importPhotoCost: 10,
+      aiChefCost: 2,
+      chefCost: 2,
+      mealPlannerCost: 5,
+      macroAnalysisCost: 3,
+      planAllocations: { 'free': 50, 'nutrition-pro': 750, 'vip-chef': 3000 },
+      packages: defaultPkgs
+    });
+    showToast('success', tr('toastTokenSettingsReset', 'Token settings reset to platform defaults! Click Save to apply.'));
   };
 
   const handleClearLedger = async () => {
@@ -356,7 +423,8 @@ export default function AdminTokenSettingPage() {
       price: prc,
       badge: pkgBadge.trim() || undefined,
       bonusTokens: parseInt(pkgBonus, 10) || 0,
-      isPopular: false
+      isPopular: pkgIsPopular,
+      description: 'Generous culinary token tier.'
     };
 
     setSettings(prev => ({
@@ -365,7 +433,13 @@ export default function AdminTokenSettingPage() {
     }));
 
     setEditingPkgId(null);
-    showToast('success', `Added package "${newPkg.name}".`);
+    setPkgName('New Chef Bundle');
+    setPkgTokens(500);
+    setPkgPrice(7.99);
+    setPkgBadge('Popular');
+    setPkgBonus(50);
+    setPkgIsPopular(false);
+    showToast('success', tr('addedPackageToast', `Added package "${newPkg.name}". Click Save to persist.`));
   };
 
   const handleUpdatePackage = (pkgId: string) => {
@@ -382,23 +456,31 @@ export default function AdminTokenSettingPage() {
         priceDollars: prc,
         price: prc,
         badge: pkgBadge.trim() || undefined,
-        bonusTokens: parseInt(pkgBonus, 10) || 0
+        bonusTokens: parseInt(pkgBonus, 10) || 0,
+        isPopular: pkgIsPopular
       } : p)
     }));
 
     setEditingPkgId(null);
-    showToast('success', `Updated package "${pkgName}".`);
+    setPkgName('New Chef Bundle');
+    setPkgTokens(500);
+    setPkgPrice(7.99);
+    setPkgBadge('Popular');
+    setPkgBonus(50);
+    setPkgIsPopular(false);
+    showToast('success', tr('updatedPackageToast', `Updated package "${pkgName}". Click Save to persist.`));
   };
 
   const handleDeletePackage = (pkgId: string) => {
     if (settings.packages.length <= 1) {
-      alert('You must keep at least one token package active.');
+      alert(tr('keepOnePackageWarning', 'You must keep at least one token package active.'));
       return;
     }
     setSettings(prev => ({
       ...prev,
       packages: prev.packages.filter(p => p.id !== pkgId)
     }));
+    showToast('success', tr('removedPackageToast', 'Package removed. Click Save to persist.'));
   };
 
   const handleStartEdit = (pkg: TokenPackage) => {
@@ -408,23 +490,30 @@ export default function AdminTokenSettingPage() {
     setPkgPrice(pkg.priceDollars ?? pkg.price ?? 4.99);
     setPkgBadge(pkg.badge || '');
     setPkgBonus(pkg.bonusTokens || 0);
+    setPkgIsPopular(Boolean(pkg.isPopular));
   };
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(tx => {
-      const matchSearch = !ledgerSearch.trim() || 
-        (tx.customer_email && tx.customer_email.toLowerCase().includes(ledgerSearch.toLowerCase())) ||
-        (tx.description && tx.description.toLowerCase().includes(ledgerSearch.toLowerCase())) ||
-        (tx.type && tx.type.toLowerCase().includes(ledgerSearch.toLowerCase()));
+      const email = (tx.customer_email || tx.user_email || '').toLowerCase();
+      const desc = (tx.description || '').toLowerCase();
+      const id = (tx.id || '').toLowerCase();
+      const type = (tx.type || '').toLowerCase();
+
+      const matchSearch = !debouncedSearch.trim() || 
+        email.includes(debouncedSearch.toLowerCase()) ||
+        desc.includes(debouncedSearch.toLowerCase()) ||
+        id.includes(debouncedSearch.toLowerCase()) ||
+        type.includes(debouncedSearch.toLowerCase());
       
       const matchType = ledgerFilterType === 'all' || 
-        (ledgerFilterType === 'purchases' && (tx.type.toLowerCase().includes('purchase') || tx.type.toLowerCase().includes('topup'))) ||
-        (ledgerFilterType === 'deductions' && (tx.amount < 0 || tx.type.toLowerCase().includes('deduct') || tx.type.toLowerCase().includes('consumption'))) ||
-        (ledgerFilterType === 'grants' && (tx.amount > 0 && !tx.type.toLowerCase().includes('purchase')));
+        (ledgerFilterType === 'purchases' && (type.includes('purchase') || type.includes('topup'))) ||
+        (ledgerFilterType === 'deductions' && (tx.amount < 0 || type.includes('deduct') || type.includes('consumption'))) ||
+        (ledgerFilterType === 'grants' && (tx.amount > 0 && !type.includes('purchase')));
 
       return matchSearch && matchType;
     });
-  }, [transactions, ledgerSearch, ledgerFilterType]);
+  }, [transactions, debouncedSearch, ledgerFilterType]);
 
   const totalLedgerRecords = filteredTransactions.length;
   const totalLedgerPages = Math.max(1, Math.ceil(totalLedgerRecords / ledgerPageSize));
@@ -440,7 +529,7 @@ export default function AdminTokenSettingPage() {
       className="w-full max-w-full px-4 sm:px-6 lg:px-8 xl:px-10 space-y-6 pb-24 pt-2 font-sans transition-colors duration-200"
       style={{ color: 'var(--color-text)' }}
     >
-      {/* 1. Top Header & Primary Action Bar (Task 1: Save Button with text "Configurations" removed) */}
+      {/* 1. Top Header & Primary Action Bar */}
       <div 
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4" 
         style={{ borderColor: 'var(--color-border)' }}
@@ -515,8 +604,8 @@ export default function AdminTokenSettingPage() {
           className="p-3.5 rounded-2xl text-xs font-semibold flex items-center gap-2 border shadow-sm animate-in fade-in"
           style={{
             backgroundColor: 'var(--color-inner-dark)',
-            borderColor: feedback.type === 'success' ? 'var(--color-emerald, #10b981)' : '#ef4444',
-            color: feedback.type === 'success' ? 'var(--color-emerald, #10b981)' : '#ef4444'
+            borderColor: feedback.type === 'success' ? 'var(--color-emerald, #10b981)' : 'var(--color-danger, #ef4444)',
+            color: feedback.type === 'success' ? 'var(--color-emerald, #10b981)' : 'var(--color-danger, #ef4444)'
           }}
         >
           {feedback.type === 'success' ? (
@@ -568,187 +657,159 @@ export default function AdminTokenSettingPage() {
         data-lpignore="true"
         className={activeTab === 'system' ? 'space-y-6 animate-in fade-in' : 'hidden'}
       >
-        {/* Master Bypass Slide Switch */}
-        <div 
-          className="p-6 rounded-3xl border shadow-sm transition-colors duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-          style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
-        >
-          <div>
-            <h2 className="text-sm font-bold uppercase tracking-wider flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
-              <Shield className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
-              {tr('tokenMasterSwitchTitle', 'Token Consumption Master Switch')}
-            </h2>
-            <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-              {tr('tokenMasterSwitchDesc', 'When Free Mode is active, all recipe generation, imports, and meal planners operate without deducting user tokens.')}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3 shrink-0">
-            <span 
-              className="text-xs font-bold px-3 py-1 rounded-lg border transition"
-              style={{
-                backgroundColor: 'var(--color-inner-dark)',
-                borderColor: settings.isEnabled ? 'var(--color-emerald, #10b981)' : '#f59e0b',
-                color: settings.isEnabled ? 'var(--color-emerald, #10b981)' : '#fbbf24'
-              }}
-            >
-              {settings.isEnabled 
-                ? tr('tokenMasterSwitchActive', 'System Active (Enforce Consumption)') 
-                : tr('tokenMasterSwitchFree', 'Free Token Mode (Bypass Consumption)')}
-            </span>
-
-            <button
-              type="button"
-              role="switch"
-              aria-checked={settings.isEnabled}
-              onClick={() => setSettings({ ...settings, isEnabled: !settings.isEnabled })}
-              className="relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-              style={{
-                backgroundColor: settings.isEnabled ? 'var(--color-emerald, #10b981)' : 'var(--color-inner-dark)'
-              }}
-            >
-              <span
-                aria-hidden="true"
-                className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                  settings.isEnabled ? 'translate-x-7' : 'translate-x-0'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
-
-        {/* Token Identity Section */}
-        <div 
-          className="p-6 rounded-3xl border shadow-sm space-y-4 transition-colors duration-200"
-          style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
-        >
-          <div className="border-b pb-3" style={{ borderColor: 'var(--color-border)' }}>
-            <h2 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
-              <Sparkles className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
-              {tr('tokenIdentityHeading', 'Token Identity & Starting Quota')}
-            </h2>
-            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              {tr('tokenIdentityDesc', 'Customize the public currency name, display symbol/emoji, and initial registration balance.')}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-            <div>
-              <label className="block font-bold mb-1" style={{ color: 'var(--color-text)' }}>
-                {tr('tokenNameLabel', 'Token Name')}
-              </label>
-              <input
-                id="cfg_token_name"
-                name="cfg_token_name"
-                type="text"
-                autoComplete="off"
-                autoCorrect="off"
-                data-lpignore="true"
-                data-1p-ignore="true"
-                data-bwignore="true"
-                data-form-type="other"
-                spellCheck="false"
-                value={settings.tokenName}
-                onChange={(e) => setSettings({ ...settings, tokenName: e.target.value })}
-                placeholder={tr('tokenNamePlaceholder', 'e.g. Foodie Token')}
-                className="w-full px-3.5 py-2.5 rounded-xl border outline-none font-bold"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              />
+        {loading ? (
+          /* Tab 1 Shadow Loader Skeleton */
+          <div className="space-y-6">
+            <div className="p-6 rounded-3xl border animate-pulse space-y-3" style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}>
+              <div className="h-4 w-48 rounded bg-[var(--color-inner-dark)]" />
+              <div className="h-3 w-80 rounded bg-[var(--color-inner-dark)]/70" />
             </div>
+            <div className="p-6 rounded-3xl border animate-pulse space-y-4" style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}>
+              <div className="h-4 w-36 rounded bg-[var(--color-inner-dark)]" />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="h-10 rounded-xl bg-[var(--color-inner-dark)]" />
+                <div className="h-10 rounded-xl bg-[var(--color-inner-dark)]" />
+                <div className="h-10 rounded-xl bg-[var(--color-inner-dark)]" />
+              </div>
+            </div>
+            <div className="p-6 rounded-3xl border animate-pulse space-y-4" style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}>
+              <div className="h-4 w-44 rounded bg-[var(--color-inner-dark)]" />
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+                {[1, 2, 3, 4, 5, 6].map(i => (
+                  <div key={i} className="h-16 rounded-2xl bg-[var(--color-inner-dark)]" />
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Master Bypass Slide Switch */}
+            <div 
+              className="p-6 rounded-3xl border shadow-sm transition-colors duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+            >
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-wider flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+                  <Shield className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
+                  {tr('tokenMasterSwitchTitle', 'Token Consumption Master Switch')}
+                </h2>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+                  {tr('tokenMasterSwitchDesc', 'When Free Mode is active, all recipe generation, imports, and meal planners operate without deducting user tokens.')}
+                </p>
+              </div>
 
-            <div>
-              <label className="block font-bold mb-1" style={{ color: 'var(--color-text)' }}>
-                {tr('tokenSymbolLabel', 'Token Symbol / Emoji')}
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  id="cfg_token_symbol"
-                  name="cfg_token_symbol"
-                  type="text"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  data-lpignore="true"
-                  data-1p-ignore="true"
-                  data-bwignore="true"
-                  data-form-type="other"
-                  spellCheck="false"
-                  value={settings.tokenSymbol}
-                  onChange={(e) => setSettings({ ...settings, tokenSymbol: e.target.value })}
-                  placeholder={tr('tokenSymbolPlaceholder', 'e.g. 🪙, 💎, ⚡, ⭐')}
-                  className="flex-1 px-3.5 py-2.5 rounded-xl border outline-none font-bold text-center"
-                  style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-                />
-                <div 
-                  className="w-10 h-10 shrink-0 rounded-xl border flex items-center justify-center text-xl shadow-inner select-none transition-all duration-200"
-                  style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
-                  title="Dynamic Live Preview"
+              <div className="flex items-center gap-3 shrink-0">
+                <span 
+                  className="text-xs font-bold px-3 py-1 rounded-lg border transition"
+                  style={{
+                    backgroundColor: 'var(--color-inner-dark)',
+                    borderColor: settings.isEnabled ? 'var(--color-emerald, #10b981)' : 'var(--color-warning, #f59e0b)',
+                    color: settings.isEnabled ? 'var(--color-emerald, #10b981)' : 'var(--color-warning, #fbbf24)'
+                  }}
                 >
-                  {activeTokenSymbol}
-                </div>
+                  {settings.isEnabled 
+                    ? tr('tokenMasterSwitchActive', 'System Active (Enforce Consumption)') 
+                    : tr('tokenMasterSwitchFree', 'Free Token Mode (Bypass Consumption)')}
+                </span>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={settings.isEnabled}
+                  onClick={() => setSettings({ ...settings, isEnabled: !settings.isEnabled })}
+                  className="relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                  style={{
+                    backgroundColor: settings.isEnabled ? 'var(--color-emerald, #10b981)' : 'var(--color-inner-dark)'
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                      settings.isEnabled ? 'translate-x-7' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
               </div>
             </div>
 
-            <div>
-              <label className="block font-bold mb-1" style={{ color: 'var(--color-text)' }}>
-                {tr('startingBalanceLabel', 'New User Starting Balance')}
-              </label>
-              <input
-                id="cfg_starting_balance"
-                name="cfg_starting_balance"
-                type="number"
-                min="0"
-                autoComplete="off"
-                autoCorrect="off"
-                data-lpignore="true"
-                data-1p-ignore="true"
-                data-bwignore="true"
-                data-form-type="other"
-                value={settings.startingBalance}
-                onChange={(e) => setSettings({ ...settings, startingBalance: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                className="w-full px-3.5 py-2.5 rounded-xl border outline-none font-mono font-bold"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              />
-              <span className="text-[10px] mt-0.5 block" style={{ color: 'var(--color-text-secondary)' }}>
-                {tr('startingBalanceHelp', 'Initial spendable tokens granted immediately upon new account registration.')}
-              </span>
-            </div>
-          </div>
-        </div>
+            {/* Token Identity Section */}
+            <div 
+              className="p-6 rounded-3xl border shadow-sm space-y-4 transition-colors duration-200"
+              style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+            >
+              <div className="border-b pb-3" style={{ borderColor: 'var(--color-border)' }}>
+                <h2 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+                  <Sparkles className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
+                  {tr('tokenIdentityHeading', 'Token Identity & Starting Quota')}
+                </h2>
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  {tr('tokenIdentityDesc', 'Customize the public currency name, display symbol/emoji, and initial registration balance.')}
+                </p>
+              </div>
 
-        {/* Feature Consumption Costs Section */}
-        <div 
-          className="p-6 rounded-3xl border shadow-sm space-y-4 transition-colors duration-200"
-          style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
-        >
-          <div className="border-b pb-3" style={{ borderColor: 'var(--color-border)' }}>
-            <h2 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
-              <Activity className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
-              {tr('featureCostsHeading', 'Feature Action Token Costs')}
-            </h2>
-            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              {tr('featureCostsDesc', 'Define token consumption amounts for AI assistance, recipe parsers, and nutritional telemetry.')}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs font-mono">
-            {[
-              { key: 'aiChefCost', label: tr('costAiChefLabel', 'AI Chef Recipe Generation'), val: settings.aiChefCost },
-              { key: 'importUrlCost', label: tr('costImportUrlLabel', 'URL Recipe Scraper Import'), val: settings.importUrlCost },
-              { key: 'importTextCost', label: tr('costImportTextLabel', 'Raw Text Recipe Import'), val: settings.importTextCost },
-              { key: 'importPhotoCost', label: tr('costImportPhotoLabel', 'Photo / OCR Recipe Import'), val: settings.importPhotoCost },
-              { key: 'mealPlannerCost', label: tr('costMealPlannerLabel', 'Weekly Meal Plan Generation'), val: settings.mealPlannerCost },
-              { key: 'macroAnalysisCost', label: tr('costMacroAnalysisLabel', 'Nutritional Macro Analysis'), val: settings.macroAnalysisCost }
-            ].map(action => (
-              <div 
-                key={action.key}
-                className="p-3.5 rounded-2xl border flex items-center justify-between gap-3 shadow-xs"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
-              >
-                <div className="font-sans font-bold" style={{ color: 'var(--color-text)' }}>
-                  {action.label}
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                <div>
+                  <label className="block font-bold mb-1" style={{ color: 'var(--color-text)' }}>
+                    {tr('tokenNameLabel', 'Token Name')}
+                  </label>
                   <input
+                    id="cfg_token_name"
+                    name="cfg_token_name"
+                    type="text"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    data-bwignore="true"
+                    data-form-type="other"
+                    spellCheck="false"
+                    value={settings.tokenName}
+                    onChange={(e) => setSettings({ ...settings, tokenName: e.target.value })}
+                    placeholder={tr('tokenNamePlaceholder', 'e.g. Foodie Token')}
+                    className="w-full px-3.5 py-2.5 rounded-xl border outline-none font-bold"
+                    style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold mb-1" style={{ color: 'var(--color-text)' }}>
+                    {tr('tokenSymbolLabel', 'Token Symbol / Emoji')}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="cfg_token_symbol"
+                      name="cfg_token_symbol"
+                      type="text"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      data-lpignore="true"
+                      data-1p-ignore="true"
+                      data-bwignore="true"
+                      data-form-type="other"
+                      spellCheck="false"
+                      value={settings.tokenSymbol}
+                      onChange={(e) => setSettings({ ...settings, tokenSymbol: e.target.value })}
+                      placeholder={tr('tokenSymbolPlaceholder', 'e.g. 🪙, 💎, ⚡, ⭐')}
+                      className="flex-1 px-3.5 py-2.5 rounded-xl border outline-none font-bold text-center"
+                      style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                    />
+                    <div 
+                      className="w-10 h-10 shrink-0 rounded-xl border flex items-center justify-center text-xl shadow-inner select-none transition-all duration-200"
+                      style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
+                      title="Dynamic Live Preview"
+                    >
+                      {activeTokenSymbol}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold mb-1" style={{ color: 'var(--color-text)' }}>
+                    {tr('startingBalanceLabel', 'New User Starting Balance')}
+                  </label>
+                  <input
+                    id="cfg_starting_balance"
+                    name="cfg_starting_balance"
                     type="number"
                     min="0"
                     autoComplete="off"
@@ -757,24 +818,80 @@ export default function AdminTokenSettingPage() {
                     data-1p-ignore="true"
                     data-bwignore="true"
                     data-form-type="other"
-                    value={action.val}
-                    onChange={(e) => {
-                      const v = Math.max(0, parseInt(e.target.value, 10) || 0);
-                      setSettings(prev => ({
-                        ...prev,
-                        [action.key]: v,
-                        ...(action.key === 'aiChefCost' ? { chefCost: v } : {})
-                      }));
-                    }}
-                    className="w-16 px-2.5 py-1.5 rounded-lg border font-mono font-bold text-center outline-none"
-                    style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                    value={settings.startingBalance}
+                    onChange={(e) => setSettings({ ...settings, startingBalance: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border outline-none font-mono font-bold"
+                    style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
                   />
-                  <span className="font-bold text-sm">{activeTokenSymbol}</span>
+                  <span className="text-[10px] mt-0.5 block" style={{ color: 'var(--color-text-secondary)' }}>
+                    {tr('startingBalanceHelp', 'Initial spendable tokens granted immediately upon new account registration.')}
+                  </span>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
+
+            {/* Feature Consumption Costs Section */}
+            <div 
+              className="p-6 rounded-3xl border shadow-sm space-y-4 transition-colors duration-200"
+              style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+            >
+              <div className="border-b pb-3" style={{ borderColor: 'var(--color-border)' }}>
+                <h2 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+                  <Activity className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
+                  {tr('featureCostsHeading', 'Feature Action Token Costs')}
+                </h2>
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  {tr('featureCostsDesc', 'Define token consumption amounts for AI assistance, recipe parsers, and nutritional telemetry.')}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs font-mono">
+                {[
+                  { key: 'aiChefCost', label: tr('costAiChefLabel', 'AI Chef Recipe Generation'), val: settings.aiChefCost },
+                  { key: 'importUrlCost', label: tr('costImportUrlLabel', 'URL Recipe Scraper Import'), val: settings.importUrlCost },
+                  { key: 'importTextCost', label: tr('costImportTextLabel', 'Raw Text Recipe Import'), val: settings.importTextCost },
+                  { key: 'importPhotoCost', label: tr('costImportPhotoLabel', 'Photo / OCR Recipe Import'), val: settings.importPhotoCost },
+                  { key: 'mealPlannerCost', label: tr('costMealPlannerLabel', 'Weekly Meal Plan Generation'), val: settings.mealPlannerCost },
+                  { key: 'macroAnalysisCost', label: tr('costMacroAnalysisLabel', 'Nutritional Macro Analysis'), val: settings.macroAnalysisCost }
+                ].map(action => (
+                  <div 
+                    key={action.key}
+                    className="p-3.5 rounded-2xl border flex items-center justify-between gap-3 shadow-xs"
+                    style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
+                  >
+                    <div className="font-sans font-bold" style={{ color: 'var(--color-text)' }}>
+                      {action.label}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <input
+                        type="number"
+                        min="0"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
+                        data-bwignore="true"
+                        data-form-type="other"
+                        value={action.val}
+                        onChange={(e) => {
+                          const v = Math.max(0, parseInt(e.target.value, 10) || 0);
+                          setSettings(prev => ({
+                            ...prev,
+                            [action.key]: v,
+                            ...(action.key === 'aiChefCost' ? { chefCost: v } : {})
+                          }));
+                        }}
+                        className="w-16 px-2.5 py-1.5 rounded-lg border font-mono font-bold text-center outline-none"
+                        style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                      />
+                      <span className="font-bold text-sm">{activeTokenSymbol}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* TAB 2: USER PURCHASABLE TOKEN PACKAGES */}
@@ -784,217 +901,270 @@ export default function AdminTokenSettingPage() {
         data-lpignore="true"
         className={activeTab === 'packages' ? 'space-y-6 animate-in fade-in' : 'hidden'}
       >
-        <div 
-          className="p-6 rounded-3xl border shadow-sm space-y-4 transition-colors duration-200"
-          style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
-        >
-          <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--color-border)' }}>
-            <div>
-              <h2 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
-                <CreditCard className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
-                {editingPkgId ? 'Edit Token Package' : tr('packagesHeading', 'User Purchasable Token Packages')}
-              </h2>
-              <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                {tr('packagesDesc', 'Manage bundles available for on-demand top-up on /token and the navigation top bar.')}
-              </p>
+        {loading ? (
+          /* Tab 2 Shadow Loader Skeleton */
+          <div className="space-y-6">
+            <div className="p-6 rounded-3xl border animate-pulse space-y-4" style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}>
+              <div className="h-4 w-44 rounded bg-[var(--color-inner-dark)]" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} className="h-10 rounded-xl bg-[var(--color-inner-dark)]" />
+                ))}
+              </div>
             </div>
-
-            {editingPkgId && (
-              <button
-                type="button"
-                onClick={() => setEditingPkgId(null)}
-                className="text-xs font-bold underline cursor-pointer"
-                style={{ color: 'var(--color-primary)' }}
-              >
-                {tr('btnCancelEdit', 'Cancel Edit')}
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
-            <div>
-              <label className="block font-bold mb-1" style={{ color: 'var(--color-text)' }}>
-                {tr('packageNameLabel', 'Package Name')}
-              </label>
-              <input
-                type="text"
-                autoComplete="off"
-                autoCorrect="off"
-                data-lpignore="true"
-                data-1p-ignore="true"
-                data-bwignore="true"
-                data-form-type="other"
-                value={pkgName}
-                onChange={(e) => setPkgName(e.target.value)}
-                placeholder="e.g. Starter Spark"
-                className="w-full px-3 py-2 rounded-xl border outline-none font-bold"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold mb-1" style={{ color: 'var(--color-text)' }}>
-                {tr('packageTokensLabel', 'Token Amount')}
-              </label>
-              <input
-                type="number"
-                min="1"
-                autoComplete="off"
-                autoCorrect="off"
-                data-lpignore="true"
-                data-1p-ignore="true"
-                data-bwignore="true"
-                data-form-type="other"
-                value={pkgTokens}
-                onChange={(e) => setPkgTokens(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                className="w-full px-3 py-2 rounded-xl border outline-none font-mono font-bold"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold mb-1" style={{ color: 'var(--color-text)' }}>
-                {tr('packagePriceLabel', `Price (${currencySymbol} ${currencyCode})`).replace('{currency}', `${currencySymbol} ${currencyCode}`)}
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                autoComplete="off"
-                autoCorrect="off"
-                data-lpignore="true"
-                data-1p-ignore="true"
-                data-bwignore="true"
-                data-form-type="other"
-                value={pkgPrice}
-                onChange={(e) => setPkgPrice(parseFloat(e.target.value) || 0)}
-                className="w-full px-3 py-2 rounded-xl border outline-none font-mono font-bold"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold mb-1" style={{ color: 'var(--color-text)' }}>
-                {tr('packageBadgeLabel', 'Ribbon / Badge')}
-              </label>
-              <input
-                type="text"
-                autoComplete="off"
-                autoCorrect="off"
-                data-lpignore="true"
-                data-1p-ignore="true"
-                data-bwignore="true"
-                data-form-type="other"
-                value={pkgBadge}
-                onChange={(e) => setPkgBadge(e.target.value)}
-                placeholder="e.g. Popular, Best Value"
-                className="w-full px-3 py-2 rounded-xl border outline-none font-bold"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold mb-1" style={{ color: 'var(--color-text)' }}>
-                {tr('packageBonusLabel', 'Bonus Tokens')}
-              </label>
-              <input
-                type="number"
-                min="0"
-                autoComplete="off"
-                autoCorrect="off"
-                data-lpignore="true"
-                data-1p-ignore="true"
-                data-bwignore="true"
-                data-form-type="other"
-                value={pkgBonus}
-                onChange={(e) => setPkgBonus(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                className="w-full px-3 py-2 rounded-xl border outline-none font-mono font-bold"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="p-6 rounded-3xl border animate-pulse space-y-4" style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}>
+                  <div className="h-5 w-32 rounded bg-[var(--color-inner-dark)]" />
+                  <div className="h-8 w-24 rounded bg-[var(--color-inner-dark)]" />
+                  <div className="h-12 rounded-2xl bg-[var(--color-inner-dark)]" />
+                </div>
+              ))}
             </div>
           </div>
-
-          <div className="flex justify-end pt-2">
-            <button
-              type="button"
-              onClick={editingPkgId ? () => handleUpdatePackage(editingPkgId) : handleAddPackage}
-              className="px-5 py-2 text-white font-bold rounded-xl text-xs shadow transition hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
-              style={{ backgroundColor: 'var(--color-primary)' }}
-            >
-              <Plus className="h-4 w-4" />
-              <span>{editingPkgId ? tr('btnUpdatePackage', 'Update Package') : tr('btnAddPackage', '+ Add New Package')}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Active Bundles Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {settings.packages.map((pkg) => (
-            <div
-              key={pkg.id}
-              className="p-6 rounded-3xl border shadow-sm flex flex-col justify-between space-y-4 relative overflow-hidden transition-colors duration-200"
+        ) : (
+          <>
+            <div 
+              className="p-6 rounded-3xl border shadow-sm space-y-4 transition-colors duration-200"
               style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
             >
-              {pkg.badge && (
-                <span 
-                  className="absolute top-4 right-4 px-3 py-0.5 rounded-full text-[9px] font-black uppercase text-white shadow-xs"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
-                >
-                  {pkg.badge}
-                </span>
-              )}
-
-              <div>
-                <h3 className="text-base font-extrabold" style={{ color: 'var(--color-text)' }}>{pkg.name}</h3>
-                <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-2xl font-black" style={{ color: 'var(--color-primary)' }}>
-                    {currencySymbol}{Number(pkg.priceDollars ?? pkg.price ?? 0).toFixed(2)}
-                  </span>
-                  <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                    {tr('oneTimePayment', '/ one-time')}
-                  </span>
+              <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--color-border)' }}>
+                <div>
+                  <h2 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+                    <CreditCard className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
+                    {editingPkgId ? tr('editTokenPackage', 'Edit Token Package') : tr('packagesHeading', 'User Purchasable Token Packages')}
+                  </h2>
+                  <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                    {tr('packagesDesc', 'Manage bundles available for on-demand top-up on /token and the navigation top bar.')}
+                  </p>
                 </div>
 
-                <div 
-                  className="mt-3 p-3.5 rounded-2xl border flex items-center justify-between" 
-                  style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">{activeTokenSymbol}</span>
-                    <span className="text-base font-black font-mono" style={{ color: 'var(--color-text)' }}>
-                      +{Number(pkg.tokenAmount ?? pkg.tokens ?? 0).toLocaleString()}
-                    </span>
-                  </div>
-                  {pkg.bonusTokens > 0 && (
-                    <span className="text-[10px] font-black px-2.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                      +{pkg.bonusTokens} Bonus
-                    </span>
-                  )}
+                {editingPkgId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkgId(null);
+                      setPkgName('New Chef Bundle');
+                      setPkgTokens(500);
+                      setPkgPrice(7.99);
+                      setPkgBadge('Popular');
+                      setPkgBonus(50);
+                      setPkgIsPopular(false);
+                    }}
+                    className="text-xs font-bold underline cursor-pointer"
+                    style={{ color: 'var(--color-primary)' }}
+                  >
+                    {tr('btnCancelEdit', 'Cancel Edit')}
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+                <div>
+                  <label className="block font-bold mb-1" style={{ color: 'var(--color-text)' }}>
+                    {tr('packageNameLabel', 'Package Name')}
+                  </label>
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    data-bwignore="true"
+                    data-form-type="other"
+                    value={pkgName}
+                    onChange={(e) => setPkgName(e.target.value)}
+                    placeholder="e.g. Starter Spark"
+                    className="w-full px-3 py-2 rounded-xl border outline-none font-bold"
+                    style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold mb-1" style={{ color: 'var(--color-text)' }}>
+                    {tr('packageTokensLabel', 'Token Amount')}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    data-bwignore="true"
+                    data-form-type="other"
+                    value={pkgTokens}
+                    onChange={(e) => setPkgTokens(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="w-full px-3 py-2 rounded-xl border outline-none font-mono font-bold"
+                    style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold mb-1" style={{ color: 'var(--color-text)' }}>
+                    {tr('packagePriceLabel', `Price (${currencySymbol} ${currencyCode})`).replace('{currency}', `${currencySymbol} ${currencyCode}`)}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    data-bwignore="true"
+                    data-form-type="other"
+                    value={pkgPrice}
+                    onChange={(e) => setPkgPrice(parseFloat(e.target.value) || 0)}
+                    className="w-full px-3 py-2 rounded-xl border outline-none font-mono font-bold"
+                    style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold mb-1" style={{ color: 'var(--color-text)' }}>
+                    {tr('packageBadgeLabel', 'Ribbon / Badge')}
+                  </label>
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    data-bwignore="true"
+                    data-form-type="other"
+                    value={pkgBadge}
+                    onChange={(e) => setPkgBadge(e.target.value)}
+                    placeholder="e.g. Popular, Best Value"
+                    className="w-full px-3 py-2 rounded-xl border outline-none font-bold"
+                    style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold mb-1" style={{ color: 'var(--color-text)' }}>
+                    {tr('packageBonusLabel', 'Bonus Tokens')}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    data-bwignore="true"
+                    data-form-type="other"
+                    value={pkgBonus}
+                    onChange={(e) => setPkgBonus(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    className="w-full px-3 py-2 rounded-xl border outline-none font-mono font-bold"
+                    style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  />
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
-                <button
-                  type="button"
-                  onClick={() => handleStartEdit(pkg)}
-                  className="px-3 py-1.5 rounded-xl border text-xs font-bold transition hover:opacity-80 flex items-center gap-1 cursor-pointer"
-                  style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-                >
-                  <Edit3 className="h-3.5 w-3.5" />
-                  <span>Edit</span>
-                </button>
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={pkgIsPopular}
+                    onChange={(e) => setPkgIsPopular(e.target.checked)}
+                    className="rounded text-[var(--color-primary)]"
+                  />
+                  <span>{tr('markAsPopular', 'Mark as Most Popular package')}</span>
+                </label>
 
                 <button
                   type="button"
-                  onClick={() => handleDeletePackage(pkg.id)}
-                  className="p-2 rounded-xl border text-red-400 border-red-500/30 hover:bg-red-500/10 transition cursor-pointer"
+                  onClick={editingPkgId ? () => handleUpdatePackage(editingPkgId) : handleAddPackage}
+                  className="px-5 py-2 text-white font-bold rounded-xl text-xs shadow transition hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Plus className="h-4 w-4" />
+                  <span>{editingPkgId ? tr('btnUpdatePackage', 'Update Package') : tr('btnAddPackage', '+ Add New Package')}</span>
                 </button>
               </div>
             </div>
-          ))}
-        </div>
+
+            {/* Active Bundles Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {settings.packages.length === 0 ? (
+                <div className="col-span-full p-8 text-center text-xs opacity-60 border border-dashed rounded-3xl" style={{ borderColor: 'var(--color-border)' }}>
+                  {tr('noPackagesConfigured', 'No token packages configured yet. Use the form above to add a bundle.')}
+                </div>
+              ) : (
+                settings.packages.map((pkg) => (
+                  <div
+                    key={pkg.id}
+                    className="p-6 rounded-3xl border shadow-sm flex flex-col justify-between space-y-4 relative overflow-hidden transition-colors duration-200"
+                    style={{ 
+                      backgroundColor: 'var(--color-card)', 
+                      borderColor: pkg.isPopular ? 'var(--color-primary)' : 'var(--color-border)' 
+                    }}
+                  >
+                    {pkg.badge && (
+                      <span 
+                        className="absolute top-4 right-4 px-3 py-0.5 rounded-full text-[9px] font-black uppercase text-white shadow-xs"
+                        style={{ backgroundColor: 'var(--color-primary)' }}
+                      >
+                        {pkg.badge}
+                      </span>
+                    )}
+
+                    <div>
+                      <h3 className="text-base font-extrabold" style={{ color: 'var(--color-text)' }}>{pkg.name}</h3>
+                      <div className="flex items-baseline gap-1 mt-2">
+                        <span className="text-2xl font-black" style={{ color: 'var(--color-primary)' }}>
+                          {currencySymbol}{Number(pkg.priceDollars ?? pkg.price ?? 0).toFixed(2)}
+                        </span>
+                        <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                          {tr('oneTimePayment', '/ one-time')}
+                        </span>
+                      </div>
+
+                      <div 
+                        className="mt-3 p-3.5 rounded-2xl border flex items-center justify-between" 
+                        style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{activeTokenSymbol}</span>
+                          <span className="text-base font-black font-mono" style={{ color: 'var(--color-text)' }}>
+                            +{Number(pkg.tokenAmount ?? pkg.tokens ?? 0).toLocaleString()}
+                          </span>
+                        </div>
+                        {pkg.bonusTokens > 0 && (
+                          <span className="text-[10px] font-black px-2.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                            +{pkg.bonusTokens} Bonus
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleStartEdit(pkg)}
+                        className="px-3 py-1.5 rounded-xl border text-xs font-bold transition hover:opacity-80 flex items-center gap-1 cursor-pointer"
+                        style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                        <span>{tr('btnEdit', 'Edit')}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePackage(pkg.id)}
+                        className="p-2 rounded-xl border text-rose-400 border-rose-500/30 hover:bg-rose-500/10 transition cursor-pointer"
+                        title={tr('btnDelete', 'Delete')}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* TAB 3: SUBSCRIPTION PLAN MONTHLY INCLUDED TOKENS */}
@@ -1037,56 +1207,27 @@ export default function AdminTokenSettingPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
-                  {plans.length === 0 ? (
-                    Object.entries(settings.planAllocations).map(([planSlug, quota]) => (
-                      <tr key={planSlug} className="transition" style={{ backgroundColor: 'transparent' }}>
-                        <td className="py-3.5 px-5 font-bold capitalize" style={{ color: 'var(--color-text)' }}>
-                          {planSlug.replace('-', ' ')}
-                        </td>
-                        <td className="py-3.5 px-5 font-mono text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                          Tier Standard
-                        </td>
-                        <td className="py-3.5 px-5">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              min="0"
-                              autoComplete="off"
-                              autoCorrect="off"
-                              data-lpignore="true"
-                              data-1p-ignore="true"
-                              data-bwignore="true"
-                              data-form-type="other"
-                              value={quota}
-                              onChange={(e) => {
-                                const val = Math.max(0, parseInt(e.target.value, 10) || 0);
-                                setSettings(prev => ({
-                                  ...prev,
-                                  planAllocations: { ...prev.planAllocations, [planSlug]: val }
-                                }));
-                              }}
-                              className="w-28 px-3 py-1.5 rounded-xl border outline-none font-mono font-bold"
-                              style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-                            />
-                            <span className="font-bold">{activeTokenSymbol} {tr('tokensPerMonth', 'tokens/mo')}</span>
-                          </div>
-                        </td>
+                {loading ? (
+                  /* Tab 3 Table Shadow Loader Skeleton */
+                  <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+                    {[1, 2, 3].map(i => (
+                      <tr key={i} className="animate-pulse">
+                        <td className="py-3.5 px-5"><div className="h-4 w-32 rounded bg-[var(--color-card)]" /></td>
+                        <td className="py-3.5 px-5"><div className="h-4 w-20 rounded bg-[var(--color-card)]" /></td>
+                        <td className="py-3.5 px-5"><div className="h-8 w-44 rounded-xl bg-[var(--color-card)]" /></td>
                       </tr>
-                    ))
-                  ) : (
-                    plans.map((p) => {
-                      const currentVal = settings.planAllocations[p.slug] !== undefined 
-                        ? settings.planAllocations[p.slug] 
-                        : (p.token_limit || 0);
-                      return (
-                        <tr key={p.id || p.slug} className="transition" style={{ backgroundColor: 'transparent' }}>
-                          <td className="py-3.5 px-5 font-bold" style={{ color: 'var(--color-text)' }}>
-                            <div className="font-extrabold">{p.name}</div>
-                            <span className="font-mono text-[10px] opacity-60">slug: {p.slug}</span>
+                    ))}
+                  </tbody>
+                ) : (
+                  <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+                    {plans.length === 0 ? (
+                      Object.entries(settings.planAllocations).map(([planSlug, quota]) => (
+                        <tr key={planSlug} className="transition" style={{ backgroundColor: 'transparent' }}>
+                          <td className="py-3.5 px-5 font-bold capitalize" style={{ color: 'var(--color-text)' }}>
+                            {planSlug.replace('-', ' ')}
                           </td>
-                          <td className="py-3.5 px-5 font-mono font-bold" style={{ color: 'var(--color-primary)' }}>
-                            {currencySymbol}{parseFloat(p.price || 0).toFixed(2)} / {p.interval || 'month'}
+                          <td className="py-3.5 px-5 font-mono text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                            Tier Standard
                           </td>
                           <td className="py-3.5 px-5">
                             <div className="flex items-center gap-2">
@@ -1099,12 +1240,12 @@ export default function AdminTokenSettingPage() {
                                 data-1p-ignore="true"
                                 data-bwignore="true"
                                 data-form-type="other"
-                                value={currentVal}
+                                value={quota}
                                 onChange={(e) => {
                                   const val = Math.max(0, parseInt(e.target.value, 10) || 0);
                                   setSettings(prev => ({
                                     ...prev,
-                                    planAllocations: { ...prev.planAllocations, [p.slug]: val }
+                                    planAllocations: { ...prev.planAllocations, [planSlug]: val }
                                   }));
                                 }}
                                 className="w-28 px-3 py-1.5 rounded-xl border outline-none font-mono font-bold"
@@ -1114,10 +1255,52 @@ export default function AdminTokenSettingPage() {
                             </div>
                           </td>
                         </tr>
-                      );
-                    })
-                  )}
-                </tbody>
+                      ))
+                    ) : (
+                      plans.map((p) => {
+                        const currentVal = settings.planAllocations[p.slug] !== undefined 
+                          ? settings.planAllocations[p.slug] 
+                          : (p.token_limit || 0);
+                        return (
+                          <tr key={p.id || p.slug} className="transition" style={{ backgroundColor: 'transparent' }}>
+                            <td className="py-3.5 px-5 font-bold" style={{ color: 'var(--color-text)' }}>
+                              <div className="font-extrabold">{p.name}</div>
+                              <span className="font-mono text-[10px] opacity-60">slug: {p.slug}</span>
+                            </td>
+                            <td className="py-3.5 px-5 font-mono font-bold" style={{ color: 'var(--color-primary)' }}>
+                              {currencySymbol}{parseFloat(p.price || 0).toFixed(2)} / {p.interval || 'month'}
+                            </td>
+                            <td className="py-3.5 px-5">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  autoComplete="off"
+                                  autoCorrect="off"
+                                  data-lpignore="true"
+                                  data-1p-ignore="true"
+                                  data-bwignore="true"
+                                  data-form-type="other"
+                                  value={currentVal}
+                                  onChange={(e) => {
+                                    const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                    setSettings(prev => ({
+                                      ...prev,
+                                      planAllocations: { ...prev.planAllocations, [p.slug]: val }
+                                    }));
+                                  }}
+                                  className="w-28 px-3 py-1.5 rounded-xl border outline-none font-mono font-bold"
+                                  style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                                />
+                                <span className="font-bold">{activeTokenSymbol} {tr('tokensPerMonth', 'tokens/mo')}</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                )}
               </table>
             </div>
           </div>
@@ -1143,9 +1326,29 @@ export default function AdminTokenSettingPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Restored Search Input Bar */}
+            <div className="relative">
+              <Search className="h-3.5 w-3.5 absolute left-3 top-2.5 pointer-events-none opacity-60" />
+              <input
+                type="text"
+                autoComplete="off"
+                data-lpignore="true"
+                data-form-type="other"
+                spellCheck="false"
+                placeholder={tr('searchLedgerPlaceholder', 'Search by customer, description, ID...')}
+                value={ledgerSearch}
+                onChange={(e) => setLedgerSearch(e.target.value)}
+                className="pl-8 pr-3 py-1.5 rounded-xl border text-xs outline-none font-medium w-48 sm:w-56"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+              />
+            </div>
+
             <select
               value={ledgerFilterType}
-              onChange={(e) => setLedgerFilterType(e.target.value)}
+              onChange={(e) => {
+                setLedgerFilterType(e.target.value);
+                setLedgerPage(1);
+              }}
               className="px-3 py-1.5 rounded-xl border text-xs font-bold outline-none cursor-pointer"
               style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
             >
@@ -1164,7 +1367,10 @@ export default function AdminTokenSettingPage() {
               </span>
               <select
                 value={ledgerPageSize}
-                onChange={(e) => setLedgerPageSize(Number(e.target.value))}
+                onChange={(e) => {
+                  setLedgerPageSize(Number(e.target.value));
+                  setLedgerPage(1);
+                }}
                 className="bg-transparent text-xs font-bold outline-none cursor-pointer"
                 style={{ color: 'var(--color-text)' }}
               >
@@ -1178,7 +1384,7 @@ export default function AdminTokenSettingPage() {
             <button
               type="button"
               onClick={handleClearLedger}
-              className="px-3 py-1.5 rounded-xl border text-xs font-bold transition hover:bg-red-500/10 text-red-400 border-red-500/30 cursor-pointer"
+              className="px-3 py-1.5 rounded-xl border text-xs font-bold transition hover:bg-rose-500/10 text-rose-400 border-rose-500/30 cursor-pointer"
             >
               {tr('btnClearLedger', 'Clear Audit Trail')}
             </button>
@@ -1204,55 +1410,71 @@ export default function AdminTokenSettingPage() {
                   <th className="px-5 py-4">{tr('colDescription', 'Description')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}>
-                {paginatedTransactions.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-10" style={{ color: 'var(--color-text-secondary)' }}>
-                      {tr('noLedgerRecords', 'No recent token transactions recorded.')}
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedTransactions.map((tx) => {
-                    const isPositive = tx.amount > 0;
-                    return (
-                      <tr key={tx.id} className="transition" style={{ borderColor: 'var(--color-border)' }}>
-                        <td className="px-5 py-4 font-mono font-bold text-xs" style={{ color: 'var(--color-text)' }}>
-                          {tx.customer_email || 'System User'}
-                        </td>
+              {loading ? (
+                /* Tab 4 Table Shadow Loader Skeleton */
+                <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <tr key={i} className="animate-pulse">
+                      <td className="px-5 py-4"><div className="h-3 w-28 rounded bg-[var(--color-inner-dark)]" /></td>
+                      <td className="px-5 py-4"><div className="h-4 w-16 rounded-full bg-[var(--color-inner-dark)]" /></td>
+                      <td className="px-5 py-4"><div className="h-3 w-14 rounded bg-[var(--color-inner-dark)]" /></td>
+                      <td className="px-5 py-4"><div className="h-3 w-10 rounded bg-[var(--color-inner-dark)]" /></td>
+                      <td className="px-5 py-4"><div className="h-3 w-24 rounded bg-[var(--color-inner-dark)]" /></td>
+                      <td className="px-5 py-4"><div className="h-3 w-44 rounded bg-[var(--color-inner-dark)]" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              ) : (
+                <tbody className="divide-y" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}>
+                  {paginatedTransactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center py-10" style={{ color: 'var(--color-text-secondary)' }}>
+                        {tr('noLedgerRecords', 'No recent token transactions recorded.')}
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedTransactions.map((tx) => {
+                      const isPositive = Number(tx.amount) > 0;
+                      return (
+                        <tr key={tx.id} className="transition" style={{ borderColor: 'var(--color-border)' }}>
+                          <td className="px-5 py-4 font-mono font-bold text-xs" style={{ color: 'var(--color-text)' }}>
+                            {tx.customer_email || tx.user_email || 'System User'}
+                          </td>
 
-                        <td className="px-5 py-4">
-                          <span 
-                            className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border"
-                            style={{
-                              backgroundColor: 'var(--color-inner-dark)',
-                              borderColor: isPositive ? 'var(--color-emerald, #10b981)' : '#f59e0b',
-                              color: isPositive ? 'var(--color-emerald, #10b981)' : '#fbbf24'
-                            }}
-                          >
-                            {tx.type}
-                          </span>
-                        </td>
+                          <td className="px-5 py-4">
+                            <span 
+                              className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border"
+                              style={{
+                                backgroundColor: 'var(--color-inner-dark)',
+                                borderColor: isPositive ? 'var(--color-emerald, #10b981)' : 'var(--color-warning, #f59e0b)',
+                                color: isPositive ? 'var(--color-emerald, #10b981)' : 'var(--color-warning, #fbbf24)'
+                              }}
+                            >
+                              {tx.type}
+                            </span>
+                          </td>
 
-                        <td className="px-5 py-4 font-mono font-black" style={{ color: isPositive ? 'var(--color-emerald, #10b981)' : '#ef4444' }}>
-                          {isPositive ? `+${tx.amount}` : tx.amount} {activeTokenSymbol}
-                        </td>
+                          <td className="px-5 py-4 font-mono font-black" style={{ color: isPositive ? 'var(--color-emerald, #10b981)' : 'var(--color-danger, #ef4444)' }}>
+                            {isPositive ? `+${tx.amount}` : tx.amount} {activeTokenSymbol}
+                          </td>
 
-                        <td className="px-5 py-4 font-mono font-bold" style={{ color: 'var(--color-text)' }}>
-                          {tx.balance_after !== undefined ? tx.balance_after : '—'}
-                        </td>
+                          <td className="px-5 py-4 font-mono font-bold" style={{ color: 'var(--color-text)' }}>
+                            {tx.balance_after !== undefined ? tx.balance_after : '—'}
+                          </td>
 
-                        <td className="px-5 py-4 text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
-                          {new Date(tx.created_at).toLocaleDateString(locale === 'th' ? 'th-TH' : (locale || 'en-US'), { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </td>
+                          <td className="px-5 py-4 text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+                            {tx.created_at ? new Date(tx.created_at).toLocaleDateString(locale === 'th' ? 'th-TH' : (locale || 'en-US'), { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                          </td>
 
-                        <td className="px-5 py-4 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                          {formatLedgerDescription(tx.description, activeTokenSymbol)}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
+                          <td className="px-5 py-4 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                            {formatLedgerDescription(tx.description, activeTokenSymbol)}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              )}
             </table>
           </div>
         </div>
