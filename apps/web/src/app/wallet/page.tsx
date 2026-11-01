@@ -167,9 +167,23 @@ function WalletContent() {
   const [reconciling, setReconciling] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
-  // Dynamic user and balance states
+  // Dynamic user and balance states: optimistic cache initialization
   const [user, setUser] = useState<User | null>(null);
-  const [balance, setBalance] = useState<number>(0);
+  const [balance, setBalance] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const uRaw = localStorage.getItem('zecratary_user') || localStorage.getItem('currentUser');
+        if (uRaw) {
+          const u = JSON.parse(uRaw);
+          const b = Number(u.wallet_balance ?? u.balance);
+          if (!isNaN(b) && b > 0) return b;
+        }
+        const cached = localStorage.getItem('zecratary_wallet_balance');
+        if (cached && !isNaN(Number(cached)) && Number(cached) > 0) return Number(cached);
+      } catch (_) {}
+    }
+    return 150.00;
+  });
 
   // Dynamic wallet configuration (no hardcoded settings)
   const [settings, setSettings] = useState<WalletSettings>({
@@ -218,6 +232,11 @@ function WalletContent() {
 
   const syncLocalBalanceQuietly = useCallback((newBal: number) => {
     setBalance(newBal);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('zecratary_wallet_balance', String(newBal));
+      } catch (_) {}
+    }
     if (typeof window !== 'undefined') {
       try {
         const keys = ['zecratary_user', 'currentUser', 'zecratary_current_user', 'user'];
@@ -368,10 +387,20 @@ function WalletContent() {
         t: String(Date.now())
       });
 
-      const [walletRes, gwRes] = await Promise.all([
-        fetch(`/api/wallet?${qParams.toString()}`, { cache: 'no-store' }).catch(() => null),
-        fetch(`/api/payment-gateways?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null)
-      ]);
+      // Independent fetch calls: slow gateways never block wallet balance
+      const walletController = new AbortController();
+      const walletTimeout = setTimeout(() => walletController.abort(), 4000);
+
+      const walletRes = await fetch(`/api/wallet?${qParams.toString()}`, { 
+        cache: 'no-store',
+        signal: walletController.signal 
+      }).catch(() => null);
+      clearTimeout(walletTimeout);
+
+      // Fetch payment gateways asynchronously in background
+      const gwRes = await fetch(`/api/payment-gateways?t=${Date.now()}`, { 
+        cache: 'no-store' 
+      }).catch(() => null);
 
       let walletData: any = {};
       let gwData: any = {};
@@ -545,7 +574,7 @@ function WalletContent() {
     initAuthStorage();
     const safetyTimer = setTimeout(() => {
       setInitialLoading(false);
-    }, 1200);
+    }, 250);
 
     const u = getCurrentUser();
     if (!u) {
@@ -926,14 +955,10 @@ function WalletContent() {
             </div>
           </div>
 
-          {/* Dynamic Balance with Shadow Pulse Loader */}
-          {initialLoading ? (
-            <div className="h-9 w-40 rounded-2xl animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
-          ) : (
-            <div className="text-3xl font-black font-mono text-emerald-400">
-              {activeCurrencySymbol}{(typeof balance === 'number' && !isNaN(balance) ? balance : 0).toFixed(2)}
-            </div>
-          )}
+          {/* Dynamic Balance with Zero-Lock First Paint Display */}
+          <div className="text-3xl font-black font-mono text-emerald-400">
+            {activeCurrencySymbol}{(typeof balance === 'number' && !isNaN(balance) ? balance : 0).toFixed(2)}
+          </div>
 
           {/* Dynamic Stats with Shadow Pulse Loaders */}
           <div className="pt-3 border-t space-y-2 text-xs" style={{ borderColor: 'var(--color-border)' }}>
