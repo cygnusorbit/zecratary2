@@ -1,1 +1,36 @@
-[]
+[
+  {
+    "id": "transaction_ref-10980981211",
+    "user_id": "usr_admin_1",
+    "email": "admin@zecratary.com",
+    "customer_email": "admin@zecratary.com",
+    "customer_name": "admin",
+    "plan_name": "Wallet Deposit",
+    "amount": 8,
+    "balance_after": 8,
+    "currency": "USD",
+    "type": "topup",
+    "gateway": "manual",
+    "status": "pending",
+    "description": "Bank wire deposit submitted for $8.00 (Ref: transaction_ref-10980981211)",
+    "transfer_reference": "transaction_ref-10980981211",
+    "created_at": "2026-11-01T17:42:29.196Z"
+  },
+  {
+    "id": "cs_test_a13KNRPJFxJP4Aj293r3Vl6LuHJUf7MwlxpW2S8WMlnu5dSv0BJ9zvzLsH",
+    "user_id": "usr_admin_1",
+    "email": "admin@zecratary.com",
+    "customer_email": "admin@zecratary.com",
+    "customer_name": "admin",
+    "plan_name": "Wallet Deposit",
+    "amount": 8,
+    "balance_after": 8,
+    "currency": "USD",
+    "type": "topup",
+    "gateway": "stripe",
+    "status": "completed",
+    "description": "Stripe checkout deposit of $8.00",
+    "transfer_reference": "cs_test_a13KNRPJFxJP4Aj293r3Vl6LuHJUf7MwlxpW2S8WMlnu5dSv0BJ9zvzLsH",
+    "created_at": "2026-11-01T17:41:58.386Z"
+  }
+]
