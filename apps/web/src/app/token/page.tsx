@@ -39,12 +39,6 @@ interface TokenTransaction {
   created_at: string;
 }
 
-const DEFAULT_PACKAGES: TokenPackage[] = [
-  { id: 'pkg_starter', name: 'Starter Spark', tokens: 250, tokenAmount: 250, price: 4.99, priceDollars: 4.99, badge: 'Popular', bonusTokens: 0, popular: true, description: 'Perfect for light exploration and everyday AI recipe formulations.' },
-  { id: 'pkg_chef', name: 'Culinary Master', tokens: 1000, tokenAmount: 1000, price: 14.99, priceDollars: 14.99, badge: 'Best Value', bonusTokens: 150, bestValue: true, description: 'Our most popular bundle with generous bonus tokens for daily cooking.' },
-  { id: 'pkg_executive', name: 'Kitchen Enterprise', tokens: 5000, tokenAmount: 5000, price: 49.99, priceDollars: 49.99, badge: 'VIP', bonusTokens: 1000, description: 'Maximum tokens with high-priority generation throughput and OCR parsing.' }
-];
-
 const CURRENCY_SYMBOLS: Record<string, string> = {
   USD: '$', EUR: '€', GBP: '£', CAD: 'CA$', AUD: 'AU$', JPY: '¥', THB: '฿'
 };
@@ -63,7 +57,7 @@ export default function TokenPortalPage() {
   const [tokenName, setTokenName] = useState<string>('Foodie Token');
   const [isTokenEnabled, setIsTokenEnabled] = useState<boolean>(true);
 
-  // Complete Feature Consumption Costs (6 platform rates)
+  // Complete Feature Consumption Costs (Synced with settings)
   const [costs, setCosts] = useState({
     chef: 2,
     import_url: 5,
@@ -72,7 +66,9 @@ export default function TokenPortalPage() {
     meal_planner: 5,
     macro_analysis: 3
   });
-  const [packages, setPackages] = useState<TokenPackage[]>(DEFAULT_PACKAGES);
+
+  // Dynamic Packages (No hardcoded fallbacks - initialized to empty array)
+  const [packages, setPackages] = useState<TokenPackage[]>([]);
 
   // KPI Stats
   const [stats, setStats] = useState({ totalDeducted: 0, totalGranted: 0, totalEvents: 0 });
@@ -80,10 +76,14 @@ export default function TokenPortalPage() {
   // Ledger State
   const [transactions, setTransactions] = useState<TokenTransaction[]>([]);
   const [search, setSearch] = useState<string>('');
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [selectedType, setSelectedType] = useState<string>('all');
   const [page, setPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
+  
+  // Loading States for Shadow Loaders
   const [loading, setLoading] = useState<boolean>(true);
+  const [packagesLoading, setPackagesLoading] = useState<boolean>(true);
   const [purchasing, setPurchasing] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -93,6 +93,21 @@ export default function TokenPortalPage() {
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMessage({ type, text });
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Debounce search input to prevent network request spam & reset page
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 320);
+    return () => clearTimeout(handler);
+  }, [search]);
+
+  // Reset page when filter type changes
+  const handleTypeFilterChange = (newType: string) => {
+    setSelectedType(newType);
+    setPage(1);
   };
 
   // 1. Load Token Telemetry, Packages & User Transactions
@@ -141,24 +156,24 @@ export default function TokenPortalPage() {
             });
           }
 
-          if (Array.isArray(data.packages) && data.packages.length > 0) {
+          if (Array.isArray(data.packages)) {
             const mapped = data.packages.map((pkg: any) => {
               const tokensVal = Number(pkg.tokens ?? pkg.tokenAmount ?? 0);
               const priceVal = Number(pkg.price ?? pkg.priceDollars ?? 0);
               const isPop = Boolean(pkg.popular ?? pkg.isPopular ?? (pkg.badge && String(pkg.badge).toLowerCase().includes('popular')));
               const isBest = Boolean(pkg.bestValue ?? (pkg.badge && String(pkg.badge).toLowerCase().includes('value')));
               return {
-                id: pkg.id,
-                name: pkg.name,
+                id: pkg.id || `pkg_${Math.random()}`,
+                name: pkg.name || 'Token Bundle',
                 tokens: tokensVal,
                 tokenAmount: tokensVal,
                 price: priceVal,
                 priceDollars: priceVal,
-                badge: pkg.badge,
-                bonusTokens: Number(pkg.bonusTokens || 0),
+                badge: pkg.badge || '',
+                bonusTokens: Number(pkg.bonusTokens || pkg.bonus_tokens || 0),
                 popular: isPop,
                 bestValue: isBest,
-                description: pkg.description
+                description: pkg.description || ''
               };
             });
             setPackages(mapped);
@@ -173,7 +188,7 @@ export default function TokenPortalPage() {
         }
       }
 
-      // Live Wallet Balance Sync
+      // Live Wallet Balance Sync with /api/wallet
       try {
         const wRes = await fetch(`/api/wallet?email=${encodeURIComponent(targetEmail)}&t=${Date.now()}`, { cache: 'no-store' });
         if (wRes.ok) {
@@ -193,6 +208,7 @@ export default function TokenPortalPage() {
       console.warn('[TokenPortal] Error loading telemetry:', err);
     } finally {
       setLoading(false);
+      setPackagesLoading(false);
     }
   }, []);
 
@@ -205,15 +221,31 @@ export default function TokenPortalPage() {
       return;
     }
     setCurrentUser(user);
-    fetchTokenData(user, page, search, selectedType);
+    fetchTokenData(user, page, debouncedSearch, selectedType);
 
     const handleSync = () => {
       const u = getCurrentUser();
       if (u) {
         setCurrentUser(u);
-        fetchTokenData(u, page, search, selectedType);
+        fetchTokenData(u, page, debouncedSearch, selectedType);
       }
     };
+
+    // Cross-tab BroadcastChannel Listeners for instantaneous synchronization
+    let tokenBc: BroadcastChannel | null = null;
+    let balanceBc: BroadcastChannel | null = null;
+    let walletBc: BroadcastChannel | null = null;
+
+    try {
+      tokenBc = new BroadcastChannel('zecratary_token_channel');
+      tokenBc.onmessage = () => handleSync();
+
+      balanceBc = new BroadcastChannel('zecratary_balance_channel');
+      balanceBc.onmessage = () => handleSync();
+
+      walletBc = new BroadcastChannel('zecratary_wallet_channel');
+      walletBc.onmessage = () => handleSync();
+    } catch (_) {}
 
     window.addEventListener('storage', handleSync);
     window.addEventListener('zecratary_tokens_updated', handleSync);
@@ -224,6 +256,9 @@ export default function TokenPortalPage() {
     window.addEventListener('zecratary_locale_changed', handleSync);
 
     return () => {
+      if (tokenBc) tokenBc.close();
+      if (balanceBc) balanceBc.close();
+      if (walletBc) walletBc.close();
       window.removeEventListener('storage', handleSync);
       window.removeEventListener('zecratary_tokens_updated', handleSync);
       window.removeEventListener('zecratary_wallet_updated', handleSync);
@@ -232,14 +267,16 @@ export default function TokenPortalPage() {
       window.removeEventListener('zecratary_dictionary_updated', handleSync);
       window.removeEventListener('zecratary_locale_changed', handleSync);
     };
-  }, [fetchTokenData, page, search, selectedType, router, t]);
+  }, [fetchTokenData, page, debouncedSearch, selectedType, router, t]);
 
-  // Execute Atomic Purchase via Store Wallet
+  // Execute Atomic Purchase via Store Wallet with Bonus Tokens Included
   const handleConfirmPurchase = async () => {
     if (!confirmModalPackage || !currentUser) return;
     setPurchasing(true);
 
-    const tokensToBuy = Number(confirmModalPackage.tokens ?? confirmModalPackage.tokenAmount ?? 0);
+    const baseTokens = Number(confirmModalPackage.tokens ?? confirmModalPackage.tokenAmount ?? 0);
+    const bonusTokens = Number(confirmModalPackage.bonusTokens || 0);
+    const totalTokensToCredit = baseTokens + bonusTokens;
     const priceToPay = Number(confirmModalPackage.price ?? confirmModalPackage.priceDollars ?? 0);
 
     try {
@@ -249,8 +286,10 @@ export default function TokenPortalPage() {
         body: JSON.stringify({
           action: 'purchase',
           packageId: confirmModalPackage.id,
-          tokens: tokensToBuy,
-          tokenAmount: tokensToBuy,
+          tokens: totalTokensToCredit,
+          baseTokens: baseTokens,
+          bonusTokens: bonusTokens,
+          tokenAmount: totalTokensToCredit,
           price: priceToPay,
           priceDollars: priceToPay,
           packageName: confirmModalPackage.name,
@@ -264,7 +303,7 @@ export default function TokenPortalPage() {
         throw new Error(data.error || 'Token purchase failed.');
       }
 
-      const newBal = Number(data.balance ?? (tokenBalance + tokensToBuy));
+      const newBal = Number(data.balance ?? (tokenBalance + totalTokensToCredit));
       setTokenBalance(newBal);
 
       const newWalletBal = Math.max(0, walletBalance - priceToPay);
@@ -294,15 +333,21 @@ export default function TokenPortalPage() {
         bc.close();
       } catch (_) {}
 
+      try {
+        const tbc = new BroadcastChannel('zecratary_token_channel');
+        tbc.postMessage({ type: 'TOKEN_UPDATED', tokens: newBal });
+        tbc.close();
+      } catch (_) {}
+
       showToast(
         (t('purchaseSuccessToast', 'Successfully purchased {tokens} {symbol}!'))
-          .replace('{tokens}', tokensToBuy.toLocaleString())
+          .replace('{tokens}', totalTokensToCredit.toLocaleString())
           .replace('{symbol}', tokenSymbol),
         'success'
       );
 
       setConfirmModalPackage(null);
-      fetchTokenData(currentUser, page, search, selectedType);
+      fetchTokenData(currentUser, page, debouncedSearch, selectedType);
     } catch (err: any) {
       showToast(err.message || 'Error completing purchase.', 'error');
     } finally {
@@ -311,7 +356,6 @@ export default function TokenPortalPage() {
   };
 
   return (
-    // TASK 1: Full-Width (100%) Fluid Canvas with Responsive Padding
     <div 
       className="w-full max-w-full px-4 sm:px-6 lg:px-8 xl:px-10 space-y-6 pb-24 font-sans transition-colors duration-200"
       style={{ color: 'var(--color-text)' }}
@@ -322,12 +366,12 @@ export default function TokenPortalPage() {
           className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-2xl text-xs font-bold shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-3 border"
           style={{
             backgroundColor: 'var(--color-card)',
-            borderColor: toastMessage.type === 'success' ? 'var(--color-emerald)' : '#ef4444',
+            borderColor: toastMessage.type === 'success' ? 'var(--color-emerald, #10b981)' : 'var(--color-danger, #ef4444)',
             color: 'var(--color-text)'
           }}
         >
           {toastMessage.type === 'success' ? (
-            <CheckCircle2 className="h-4 w-4" style={{ color: 'var(--color-emerald)' }} />
+            <CheckCircle2 className="h-4 w-4" style={{ color: 'var(--color-emerald, #10b981)' }} />
           ) : (
             <AlertCircle className="h-4 w-4 text-red-500" />
           )}
@@ -352,7 +396,7 @@ export default function TokenPortalPage() {
         <div className="flex items-center gap-2.5">
           <button
             type="button"
-            onClick={() => fetchTokenData(currentUser, page, search, selectedType)}
+            onClick={() => fetchTokenData(currentUser, page, debouncedSearch, selectedType)}
             disabled={loading}
             className="border font-bold text-xs px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 hover:opacity-80"
             style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
@@ -365,7 +409,7 @@ export default function TokenPortalPage() {
           <Link
             href="/wallet"
             className="px-4 py-2.5 rounded-xl text-xs font-bold border transition shadow-xs flex items-center gap-1.5 hover:opacity-80"
-            style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-emerald)' }}
+            style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-emerald, #10b981)' }}
           >
             <Wallet className="h-4 w-4" />
             <span>{t('topUpWalletBtn', 'Top Up Wallet')}</span>
@@ -379,7 +423,7 @@ export default function TokenPortalPage() {
           className="p-4 rounded-3xl border flex items-center gap-3 shadow-sm animate-in fade-in"
           style={{
             backgroundColor: 'var(--color-card)',
-            borderColor: 'var(--color-emerald)',
+            borderColor: 'var(--color-emerald, #10b981)',
             color: 'var(--color-text)'
           }}
         >
@@ -397,77 +441,95 @@ export default function TokenPortalPage() {
         </div>
       )}
 
-      {/* 1. KPI Telemetry Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Current Token Balance */}
-        <div 
-          className="p-5 rounded-3xl border shadow-xs flex flex-col justify-between space-y-3"
-          style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold opacity-75">{t('currentTokenBalance', 'Current Token Balance')}</span>
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
-              <DynamicTokenIcon symbol={tokenSymbol} icon={tokenIcon} size={18} className="w-4 h-4" />
+      {/* 1. KPI Telemetry Summary Cards (With Themed Shadow Loader) */}
+      {loading ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((n) => (
+            <div 
+              key={n}
+              className="p-5 rounded-3xl border shadow-xs flex flex-col justify-between space-y-3 animate-pulse"
+              style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="h-3 w-24 rounded bg-[var(--color-inner-dark)]" />
+                <div className="w-8 h-8 rounded-xl bg-[var(--color-inner-dark)]" />
+              </div>
+              <div className="h-8 w-28 rounded-xl bg-[var(--color-inner-dark)]" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Current Token Balance */}
+          <div 
+            className="p-5 rounded-3xl border shadow-xs flex flex-col justify-between space-y-3"
+            style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold opacity-75">{t('currentTokenBalance', 'Current Token Balance')}</span>
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                <DynamicTokenIcon symbol={tokenSymbol} icon={tokenIcon} size={18} className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-black font-mono flex items-center gap-2">
+              <span>{tokenBalance.toLocaleString()}</span>
+              <span className="text-sm font-sans flex items-center gap-1 opacity-90">
+                <DynamicTokenIcon symbol={tokenSymbol} icon={tokenIcon} size={16} className="w-4 h-4 inline-block" />
+              </span>
             </div>
           </div>
-          <div className="text-2xl font-black font-mono flex items-center gap-2">
-            <span>{tokenBalance.toLocaleString()}</span>
-            <span className="text-sm font-sans flex items-center gap-1 opacity-90">
-              <DynamicTokenIcon symbol={tokenSymbol} icon={tokenIcon} size={16} className="w-4 h-4 inline-block" />
-            </span>
-          </div>
-        </div>
 
-        {/* Store Wallet Balance */}
-        <div 
-          className="p-5 rounded-3xl border shadow-xs flex flex-col justify-between space-y-3"
-          style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold opacity-75">{t('storeWalletBalance', 'Store Wallet Balance')}</span>
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <Wallet className="h-4 w-4" />
+          {/* Store Wallet Balance */}
+          <div 
+            className="p-5 rounded-3xl border shadow-xs flex flex-col justify-between space-y-3"
+            style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold opacity-75">{t('storeWalletBalance', 'Store Wallet Balance')}</span>
+              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <Wallet className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-black font-mono text-emerald-400">
+              {currencySymbol}{walletBalance.toFixed(2)}
             </div>
           </div>
-          <div className="text-2xl font-black font-mono text-emerald-400">
-            {currencySymbol}{walletBalance.toFixed(2)}
-          </div>
-        </div>
 
-        {/* Lifetime Tokens Used */}
-        <div 
-          className="p-5 rounded-3xl border shadow-xs flex flex-col justify-between space-y-3"
-          style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold opacity-75">{t('lifetimeDeducted', 'Lifetime Tokens Used')}</span>
-            <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
-              <TrendingDown className="h-4 w-4" />
+          {/* Lifetime Tokens Used */}
+          <div 
+            className="p-5 rounded-3xl border shadow-xs flex flex-col justify-between space-y-3"
+            style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold opacity-75">{t('lifetimeDeducted', 'Lifetime Tokens Used')}</span>
+              <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                <TrendingDown className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-black font-mono">
+              {stats.totalDeducted.toLocaleString()}
             </div>
           </div>
-          <div className="text-2xl font-black font-mono">
-            {stats.totalDeducted.toLocaleString()}
-          </div>
-        </div>
 
-        {/* Lifetime Tokens Granted */}
-        <div 
-          className="p-5 rounded-3xl border shadow-xs flex flex-col justify-between space-y-3"
-          style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold opacity-75">{t('lifetimeGranted', 'Lifetime Tokens Granted')}</span>
-            <div className="p-2 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
-              <TrendingUp className="h-4 w-4" />
+          {/* Lifetime Tokens Granted */}
+          <div 
+            className="p-5 rounded-3xl border shadow-xs flex flex-col justify-between space-y-3"
+            style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold opacity-75">{t('lifetimeGranted', 'Lifetime Tokens Granted')}</span>
+              <div className="p-2 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                <TrendingUp className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-black font-mono">
+              {stats.totalGranted.toLocaleString()}
             </div>
           </div>
-          <div className="text-2xl font-black font-mono">
-            {stats.totalGranted.toLocaleString()}
-          </div>
         </div>
-      </div>
+      )}
 
-      {/* 2. Token Bundles Showcase (Fluid Grid) */}
+      {/* 2. Token Bundles Showcase (With Themed Shadow Loader) */}
       <div 
         className="p-6 rounded-3xl border shadow-sm space-y-5"
         style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
@@ -483,93 +545,128 @@ export default function TokenPortalPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
-          {packages.map((pkg) => {
-            const displayTokens = Number(pkg.tokens ?? pkg.tokenAmount ?? 0);
-            const displayPrice = Number(pkg.price ?? pkg.priceDollars ?? 0);
-            const isPopular = Boolean(pkg.popular || (pkg.badge && pkg.badge.toLowerCase().includes('popular')));
-            const isBestValue = Boolean(pkg.bestValue || (pkg.badge && pkg.badge.toLowerCase().includes('value')));
-
-            return (
+        {packagesLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+            {[1, 2, 3].map((n) => (
               <div
-                key={pkg.id}
-                className="p-5 rounded-3xl border flex flex-col justify-between space-y-4 shadow-xs hover:shadow-md transition relative group"
+                key={n}
+                className="p-5 rounded-3xl border flex flex-col justify-between space-y-4 shadow-xs animate-pulse"
                 style={{
                   backgroundColor: 'var(--color-inner-dark)',
-                  borderColor: isPopular ? 'var(--color-primary)' : 'var(--color-border)'
+                  borderColor: 'var(--color-border)'
                 }}
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-black text-sm" style={{ color: 'var(--color-text)' }}>
-                      {pkg.name}
-                    </h4>
-                    {isPopular && (
-                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider text-white bg-[var(--color-primary)]">
-                        {pkg.badge || t('popularBadge', 'Most Popular')}
-                      </span>
-                    )}
-                    {isBestValue && !isPopular && (
-                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider text-emerald-400 border border-emerald-500/30 bg-emerald-500/10">
-                        {pkg.badge || t('bestValueBadge', 'Best Value')}
-                      </span>
-                    )}
-                    {!isPopular && !isBestValue && pkg.badge && (
-                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider text-[var(--color-primary)] border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/10">
-                        {pkg.badge}
-                      </span>
-                    )}
+                    <div className="h-4 w-28 rounded bg-[var(--color-card)]" />
+                    <div className="h-4 w-16 rounded-full bg-[var(--color-card)]" />
                   </div>
-
-                  <div className="flex items-baseline gap-1.5 font-mono">
-                    <span className="text-2xl font-black text-amber-500">
-                      +{displayTokens.toLocaleString()}
-                    </span>
-                    <span className="text-xs opacity-80 flex items-center gap-1">
-                      <DynamicTokenIcon symbol={tokenSymbol} icon={tokenIcon} size={14} className="w-3.5 h-3.5 inline-block" />
-                    </span>
-                    {pkg.bonusTokens && pkg.bonusTokens > 0 ? (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 ml-1">
-                        +{(pkg.bonusTokens).toLocaleString()} Bonus
-                      </span>
-                    ) : null}
+                  <div className="h-8 w-32 rounded-xl bg-[var(--color-card)]" />
+                  <div className="space-y-1.5 pt-1">
+                    <div className="h-3 w-full rounded bg-[var(--color-card)]/70" />
+                    <div className="h-3 w-4/5 rounded bg-[var(--color-card)]/70" />
                   </div>
-
-                  {pkg.description ? (
-                    <p className="text-xs leading-relaxed opacity-75">
-                      {pkg.description}
-                    </p>
-                  ) : (
-                    <p className="text-xs leading-relaxed opacity-60">
-                      Top up your culinary workspace with {displayTokens.toLocaleString()} tokens.
-                    </p>
-                  )}
                 </div>
-
                 <div className="pt-3 border-t flex items-center justify-between gap-2" style={{ borderColor: 'var(--color-border)' }}>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-base font-black font-mono">
-                      {currencySymbol}{displayPrice.toFixed(2)}
-                    </span>
-                    <span className="text-[10px] opacity-60">{t('oneTimePayment', 'one-time')}</span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setConfirmModalPackage(pkg)}
-                    className="px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow cursor-pointer hover:opacity-90 active:scale-95"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
-                  >
-                    {t('buyNowBtn', 'Buy Now')}
-                  </button>
+                  <div className="h-6 w-20 rounded-lg bg-[var(--color-card)]" />
+                  <div className="h-8 w-20 rounded-xl bg-[var(--color-card)]" />
                 </div>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        ) : packages.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl border border-dashed text-xs opacity-60" style={{ borderColor: 'var(--color-border)' }}>
+            {t('noPackagesAvailable', 'No token bundles are currently available. Please check back later or contact your administrator.')}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+            {packages.map((pkg) => {
+              const displayTokens = Number(pkg.tokens ?? pkg.tokenAmount ?? 0);
+              const displayPrice = Number(pkg.price ?? pkg.priceDollars ?? 0);
+              const isPopular = Boolean(pkg.popular || (pkg.badge && pkg.badge.toLowerCase().includes('popular')));
+              const isBestValue = Boolean(pkg.bestValue || (pkg.badge && pkg.badge.toLowerCase().includes('value')));
+
+              return (
+                <div
+                  key={pkg.id}
+                  className="p-5 rounded-3xl border flex flex-col justify-between space-y-4 shadow-xs hover:shadow-md transition relative group"
+                  style={{
+                    backgroundColor: 'var(--color-inner-dark)',
+                    borderColor: isPopular ? 'var(--color-primary)' : 'var(--color-border)'
+                  }}
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-black text-sm" style={{ color: 'var(--color-text)' }}>
+                        {pkg.name}
+                      </h4>
+                      {isPopular && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider text-white" style={{ backgroundColor: 'var(--color-primary)' }}>
+                          {pkg.badge || t('popularBadge', 'Most Popular')}
+                        </span>
+                      )}
+                      {isBestValue && !isPopular && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider text-emerald-400 border border-emerald-500/30 bg-emerald-500/10">
+                          {pkg.badge || t('bestValueBadge', 'Best Value')}
+                        </span>
+                      )}
+                      {!isPopular && !isBestValue && pkg.badge && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider text-[var(--color-primary)] border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/10">
+                          {pkg.badge}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-baseline gap-1.5 font-mono">
+                      <span className="text-2xl font-black text-amber-500">
+                        +{displayTokens.toLocaleString()}
+                      </span>
+                      <span className="text-xs opacity-80 flex items-center gap-1">
+                        <DynamicTokenIcon symbol={tokenSymbol} icon={tokenIcon} size={14} className="w-3.5 h-3.5 inline-block" />
+                      </span>
+                      {pkg.bonusTokens && pkg.bonusTokens > 0 ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 ml-1">
+                          +{(pkg.bonusTokens).toLocaleString()} Bonus
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {pkg.description ? (
+                      <p className="text-xs leading-relaxed opacity-75">
+                        {pkg.description}
+                      </p>
+                    ) : (
+                      <p className="text-xs leading-relaxed opacity-60">
+                        Top up your culinary workspace with {displayTokens.toLocaleString()} tokens.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="pt-3 border-t flex items-center justify-between gap-2" style={{ borderColor: 'var(--color-border)' }}>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-base font-black font-mono">
+                        {currencySymbol}{displayPrice.toFixed(2)}
+                      </span>
+                      <span className="text-[10px] opacity-60">{t('oneTimePayment', 'one-time')}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setConfirmModalPackage(pkg)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow cursor-pointer hover:opacity-90 active:scale-95"
+                      style={{ backgroundColor: 'var(--color-primary)' }}
+                    >
+                      {t('buyNowBtn', 'Buy Now')}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* 3. Feature Consumption Information Bar (All 6 Rates) */}
+      {/* 3. Feature Consumption Information Bar (All 6 Rates with Shadow Loader) */}
       <div 
         className="p-4 rounded-3xl border flex flex-col xl:flex-row items-center justify-between gap-4 text-xs font-medium"
         style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
@@ -578,38 +675,50 @@ export default function TokenPortalPage() {
           {t('featureCostsHeading', 'Feature Consumption Rates')}:
         </span>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 w-full text-xs font-bold">
-          <div className="flex items-center gap-1.5 opacity-90 p-2 rounded-xl border" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}>
-            <Zap className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-            <span className="truncate">{t('chefCostLabel', 'AI Chef')}:</span>
-            <strong className="font-mono text-amber-500 ml-auto">{costs.chef} {tokenSymbol}</strong>
+        {loading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 w-full">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div 
+                key={i} 
+                className="h-9 rounded-xl border bg-[var(--color-inner-dark)] animate-pulse" 
+                style={{ borderColor: 'var(--color-border)' }} 
+              />
+            ))}
           </div>
-          <div className="flex items-center gap-1.5 opacity-90 p-2 rounded-xl border" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}>
-            <Zap className="h-3.5 w-3.5 text-sky-400 shrink-0" />
-            <span className="truncate">{t('importUrlCostLabel', 'URL Scraper')}:</span>
-            <strong className="font-mono text-sky-400 ml-auto">{costs.import_url} {tokenSymbol}</strong>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 w-full text-xs font-bold">
+            <div className="flex items-center gap-1.5 opacity-90 p-2 rounded-xl border" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}>
+              <Zap className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+              <span className="truncate">{t('chefCostLabel', 'AI Chef')}:</span>
+              <strong className="font-mono text-amber-500 ml-auto">{costs.chef} {tokenSymbol}</strong>
+            </div>
+            <div className="flex items-center gap-1.5 opacity-90 p-2 rounded-xl border" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}>
+              <Zap className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+              <span className="truncate">{t('importUrlCostLabel', 'URL Scraper')}:</span>
+              <strong className="font-mono text-sky-400 ml-auto">{costs.import_url} {tokenSymbol}</strong>
+            </div>
+            <div className="flex items-center gap-1.5 opacity-90 p-2 rounded-xl border" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}>
+              <Zap className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+              <span className="truncate">{t('importPhotoCostLabel', 'Photo OCR')}:</span>
+              <strong className="font-mono text-emerald-400 ml-auto">{costs.import_photo} {tokenSymbol}</strong>
+            </div>
+            <div className="flex items-center gap-1.5 opacity-90 p-2 rounded-xl border" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}>
+              <Zap className="h-3.5 w-3.5 text-purple-400 shrink-0" />
+              <span className="truncate">{t('importTextCostLabel', 'Text Parsing')}:</span>
+              <strong className="font-mono text-purple-400 ml-auto">{costs.import_text} {tokenSymbol}</strong>
+            </div>
+            <div className="flex items-center gap-1.5 opacity-90 p-2 rounded-xl border" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}>
+              <Zap className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+              <span className="truncate">{t('mealPlannerCostLabel', 'Meal Plan')}:</span>
+              <strong className="font-mono text-indigo-400 ml-auto">{costs.meal_planner} {tokenSymbol}</strong>
+            </div>
+            <div className="flex items-center gap-1.5 opacity-90 p-2 rounded-xl border" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}>
+              <Zap className="h-3.5 w-3.5 text-teal-400 shrink-0" />
+              <span className="truncate">{t('macroAnalysisCostLabel', 'Macro Analysis')}:</span>
+              <strong className="font-mono text-teal-400 ml-auto">{costs.macro_analysis} {tokenSymbol}</strong>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 opacity-90 p-2 rounded-xl border" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}>
-            <Zap className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-            <span className="truncate">{t('importPhotoCostLabel', 'Photo OCR')}:</span>
-            <strong className="font-mono text-emerald-400 ml-auto">{costs.import_photo} {tokenSymbol}</strong>
-          </div>
-          <div className="flex items-center gap-1.5 opacity-90 p-2 rounded-xl border" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}>
-            <Zap className="h-3.5 w-3.5 text-purple-400 shrink-0" />
-            <span className="truncate">{t('importTextCostLabel', 'Text Parsing')}:</span>
-            <strong className="font-mono text-purple-400 ml-auto">{costs.import_text} {tokenSymbol}</strong>
-          </div>
-          <div className="flex items-center gap-1.5 opacity-90 p-2 rounded-xl border" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}>
-            <Zap className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
-            <span className="truncate">{t('mealPlannerCostLabel', 'Meal Plan')}:</span>
-            <strong className="font-mono text-indigo-400 ml-auto">{costs.meal_planner} {tokenSymbol}</strong>
-          </div>
-          <div className="flex items-center gap-1.5 opacity-90 p-2 rounded-xl border" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}>
-            <Zap className="h-3.5 w-3.5 text-teal-400 shrink-0" />
-            <span className="truncate">{t('macroAnalysisCostLabel', 'Macro Analysis')}:</span>
-            <strong className="font-mono text-teal-400 ml-auto">{costs.macro_analysis} {tokenSymbol}</strong>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* 4. Token Audit Ledger Table (Autofill Guardrail & Accessible Region) */}
@@ -644,7 +753,7 @@ export default function TokenPortalPage() {
 
             <select
               value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
+              onChange={(e) => handleTypeFilterChange(e.target.value)}
               className="px-2.5 py-1.5 rounded-xl border text-xs font-bold outline-none cursor-pointer"
               style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
             >
@@ -659,24 +768,41 @@ export default function TokenPortalPage() {
           </div>
         </div>
 
-        {/* Transactions Table */}
+        {/* Transactions Table with Shadow Loader */}
         <div className="overflow-x-auto">
-          {transactions.length === 0 ? (
-            <div className="py-12 text-center text-xs opacity-50">
-              {t('noTransactionsFound', 'No transactions found matching your criteria.')}
-            </div>
-          ) : (
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b text-[10px] uppercase font-bold opacity-70" style={{ borderColor: 'var(--color-border)' }}>
-                  <th className="py-2.5 px-3">{t('colTxDate', 'Date')}</th>
-                  <th className="py-2.5 px-3">{t('colTxId', 'Transaction ID')}</th>
-                  <th className="py-2.5 px-3">{t('colTxType', 'Type')}</th>
-                  <th className="py-2.5 px-3">{t('colTxDesc', 'Description')}</th>
-                  <th className="py-2.5 px-3 text-right">{t('colTxAmount', 'Amount')}</th>
-                  <th className="py-2.5 px-3 text-right">{t('colTxBalanceAfter', 'Balance After')}</th>
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b text-[10px] uppercase font-bold opacity-70" style={{ borderColor: 'var(--color-border)' }}>
+                <th className="py-2.5 px-3">{t('colTxDate', 'Date')}</th>
+                <th className="py-2.5 px-3">{t('colTxId', 'Transaction ID')}</th>
+                <th className="py-2.5 px-3">{t('colTxType', 'Type')}</th>
+                <th className="py-2.5 px-3">{t('colTxDesc', 'Description')}</th>
+                <th className="py-2.5 px-3 text-right">{t('colTxAmount', 'Amount')}</th>
+                <th className="py-2.5 px-3 text-right">{t('colTxBalanceAfter', 'Balance After')}</th>
+              </tr>
+            </thead>
+            {loading ? (
+              <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="py-3 px-3"><div className="h-3 w-16 rounded bg-[var(--color-inner-dark)]" /></td>
+                    <td className="py-3 px-3"><div className="h-3 w-24 rounded bg-[var(--color-inner-dark)]" /></td>
+                    <td className="py-3 px-3"><div className="h-4 w-14 rounded bg-[var(--color-inner-dark)]" /></td>
+                    <td className="py-3 px-3"><div className="h-3 w-40 rounded bg-[var(--color-inner-dark)]" /></td>
+                    <td className="py-3 px-3 text-right"><div className="h-3 w-12 rounded bg-[var(--color-inner-dark)] ml-auto" /></td>
+                    <td className="py-3 px-3 text-right"><div className="h-3 w-10 rounded bg-[var(--color-inner-dark)] ml-auto" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            ) : transactions.length === 0 ? (
+              <tbody>
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-xs opacity-50">
+                    {t('noTransactionsFound', 'No transactions found matching your criteria.')}
+                  </td>
                 </tr>
-              </thead>
+              </tbody>
+            ) : (
               <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
                 {transactions.map((tx) => {
                   const isCredit = Number(tx.amount) > 0;
@@ -706,8 +832,8 @@ export default function TokenPortalPage() {
                   );
                 })}
               </tbody>
-            </table>
-          )}
+            )}
+          </table>
         </div>
 
         {/* Pagination Controls */}
@@ -771,9 +897,23 @@ export default function TokenPortalPage() {
             <div className="space-y-3.5">
               <div className="p-4 rounded-2xl border space-y-2.5" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}>
                 <div className="flex justify-between items-center">
-                  <span className="opacity-75">{t('tokensToCredit', 'Tokens to Credit')}:</span>
-                  <span className="text-base font-black font-mono text-amber-500 flex items-center gap-1">
+                  <span className="opacity-75">{t('baseTokensLabel', 'Base Tokens')}:</span>
+                  <span className="font-mono font-bold text-amber-500">
                     +{(Number(confirmModalPackage.tokens ?? confirmModalPackage.tokenAmount ?? 0)).toLocaleString()}
+                  </span>
+                </div>
+                {confirmModalPackage.bonusTokens && confirmModalPackage.bonusTokens > 0 ? (
+                  <div className="flex justify-between items-center">
+                    <span className="opacity-75">{t('bonusTokensLabel', 'Bonus Tokens')}:</span>
+                    <span className="font-mono font-bold text-emerald-400">
+                      +{confirmModalPackage.bonusTokens.toLocaleString()}
+                    </span>
+                  </div>
+                ) : null}
+                <div className="flex justify-between items-center border-t pt-2" style={{ borderColor: 'var(--color-border)' }}>
+                  <span className="font-bold">{t('totalTokensToCredit', 'Total Tokens to Credit')}:</span>
+                  <span className="text-base font-black font-mono text-amber-500 flex items-center gap-1">
+                    +{((Number(confirmModalPackage.tokens ?? confirmModalPackage.tokenAmount ?? 0)) + (Number(confirmModalPackage.bonusTokens || 0))).toLocaleString()}
                     <DynamicTokenIcon symbol={tokenSymbol} icon={tokenIcon} size={16} className="w-4 h-4 inline-block" />
                   </span>
                 </div>
@@ -798,9 +938,9 @@ export default function TokenPortalPage() {
               </div>
 
               {walletBalance < Number(confirmModalPackage.price ?? confirmModalPackage.priceDollars ?? 0) && (
-                <div className="p-3 rounded-2xl border flex items-center justify-between text-[11px] text-amber-500" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: '#f59e0b' }}>
+                <div className="p-3 rounded-2xl border flex items-center justify-between text-[11px] text-amber-500" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-warning, #f59e0b)' }}>
                   <span>
-                    {(t('shortfallWarning', 'Insufficient wallet funds. Short by {amount}.'))
+                    {(t('insufficientWalletFunds', 'Insufficient wallet funds. Short by {amount}.'))
                       .replace('{amount}', `${currencySymbol}${(Number(confirmModalPackage.price ?? confirmModalPackage.priceDollars ?? 0) - walletBalance).toFixed(2)}`)}
                   </span>
                   <Link
