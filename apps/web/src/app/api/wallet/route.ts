@@ -49,7 +49,6 @@ const DEFAULT_WALLET_CONFIG: WalletConfigData = {
 async function getAuthoritativeWalletConfig(): Promise<WalletConfigData> {
   let config: WalletConfigData = { ...DEFAULT_WALLET_CONFIG };
 
-  // 1. Check disk wallet_settings.json
   const candidatePaths = [
     path.join(process.cwd(), 'apps/web/data/wallet_settings.json'),
     path.join(process.cwd(), 'data/wallet_settings.json'),
@@ -75,7 +74,6 @@ async function getAuthoritativeWalletConfig(): Promise<WalletConfigData> {
     }
   }
 
-  // 2. Check Supabase PostgreSQL
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
@@ -106,7 +104,6 @@ async function getAuthoritativeWalletConfig(): Promise<WalletConfigData> {
     } catch (_) {}
   }
 
-  // 3. Check MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
     if (mysqlModule && typeof mysqlModule.query === 'function') {
@@ -145,7 +142,6 @@ async function creditUserWallet(
   const currentBalance = await calculateAuthoritativeUserBalance(userId, email, 0);
   const finalBalance = Math.max(0, currentBalance + creditDelta);
 
-  // 1. Supabase PostgreSQL
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
@@ -165,7 +161,6 @@ async function creditUserWallet(
     } catch (_) {}
   }
 
-  // 2. MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
     if (mysqlModule && typeof mysqlModule.query === 'function') {
@@ -176,7 +171,6 @@ async function creditUserWallet(
     }
   } catch (_) {}
 
-  // 3. Record authoritative transaction
   const recordedAmount = txAmount !== undefined ? txAmount : creditDelta;
   const isPending = gateway === 'manual' && creditDelta === 0;
 
@@ -258,7 +252,7 @@ export async function GET(req: NextRequest) {
     let totalSpent = 0;
     for (const t of userTransactions) {
       const amt = Number(t.amount || 0);
-      if (amt > 0 && t.status === 'completed') totalDeposited += amt;
+      if (amt > 0 && (t.status === 'completed' || t.status === 'succeeded')) totalDeposited += amt;
       else if (amt < 0) totalSpent += Math.abs(amt);
     }
 
@@ -402,7 +396,6 @@ export async function POST(req: NextRequest) {
       const orderId = body.orderId || body.token || body.paymentId;
       const topupBase = Number(body.amount || 50.00);
 
-      // Calculate dynamic bonus if applicable
       const walletConfig = await getAuthoritativeWalletConfig();
       let bonusAmt = 0;
       if (Array.isArray(walletConfig.bonusRules)) {
@@ -546,18 +539,19 @@ export async function POST(req: NextRequest) {
         }, { headers: CORS_HEADERS });
       }
 
-      // Bank Wire / Manual Settlement: Preserve requested amount and enforce requireReference
+      // Bank Wire / Manual Settlement: Enforce single-declared transferRef & validation
       if (chosenGw === 'manual') {
         const isRefRequired = gwSettings.manual_details?.requireReference !== false;
-        const transferRef = (body.transferReference || body.gatewayTxId || '').trim();
+        const rawRef = (body.transferReference || body.gatewayTxId || '').trim();
 
-        if (isRefRequired && !transferRef) {
+        if (isRefRequired && !rawRef) {
           return NextResponse.json({
             success: false,
             error: 'Transfer Reference / Receipt ID is required for bank wire submissions.'
           }, { status: 400, headers: CORS_HEADERS });
         }
-        const transferRef = (body.transferReference || body.gatewayTxId || `WIRE_${Date.now()}`).trim();
+
+        const transferRef = rawRef || `WIRE_${Date.now()}`;
         const credited = await creditUserWallet(
           currentUserId, 
           userEmail, 
