@@ -140,13 +140,20 @@ export async function autoHarmonizeTransactionSchema(): Promise<void> {
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
       `);
-      const alterQueries = [
-        "ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS confirmed_at DATETIME",
-        "ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS failure_reason TEXT",
-        "ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS notes TEXT"
+      const columnsToAdd = [
+        { col: 'confirmed_at', type: 'DATETIME NULL' },
+        { col: 'failure_reason', type: 'TEXT NULL' },
+        { col: 'notes', type: 'TEXT NULL' },
+        { col: 'confirmed_amount', type: 'DECIMAL(10,2) NULL' }
       ];
-      for (const aq of alterQueries) {
-        try { await mysqlModule.query(aq); } catch (_) {}
+      for (const { col, type } of columnsToAdd) {
+        try {
+          const checkSql = `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_transactions' AND COLUMN_NAME = ?`;
+          const rows: any = await mysqlModule.query(checkSql, [col]);
+          if (!Array.isArray(rows) || rows.length === 0) {
+            await mysqlModule.query(`ALTER TABLE \`payment_transactions\` ADD COLUMN \`${col}\` ${type}`);
+          }
+        } catch (_) {}
       }
     }
   } catch (_) {}

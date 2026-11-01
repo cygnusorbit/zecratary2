@@ -3,9 +3,6 @@ import path from 'path';
 
 let harmonized = false;
 
-/**
- * Discovers database connection strings from process.env and disk .env files
- */
 function getDatabaseConfig(): { postgresUrl?: string; mysqlUrl?: string } {
   let postgresUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SUPABASE_POOLER_URI;
   let mysqlUrl = process.env.MYSQL_URL;
@@ -14,7 +11,9 @@ function getDatabaseConfig(): { postgresUrl?: string; mysqlUrl?: string } {
     path.resolve(process.cwd(), '.env.local'),
     path.resolve(process.cwd(), '.env'),
     path.resolve(process.cwd(), 'apps/web/.env.local'),
-    path.resolve(process.cwd(), 'apps/web/.env')
+    path.resolve(process.cwd(), 'apps/web/.env'),
+    path.resolve(process.cwd(), '../../.env.local'),
+    path.resolve(process.cwd(), '../.env.local')
   ];
 
   for (const envPath of envCandidates) {
@@ -43,7 +42,7 @@ function getDatabaseConfig(): { postgresUrl?: string; mysqlUrl?: string } {
 }
 
 /**
- * Harmonizes missing columns in PostgreSQL (Supabase)
+ * Harmonizes schema in PostgreSQL (Supabase / Pooler)
  */
 async function harmonizePostgreSql(connectionString: string): Promise<boolean> {
   try {
@@ -58,52 +57,42 @@ async function harmonizePostgreSql(connectionString: string): Promise<boolean> {
     await client.connect();
 
     const statements = [
-      // Ensure base tables exist
+      `CREATE TABLE IF NOT EXISTS users (id VARCHAR(255) PRIMARY KEY, email VARCHAR(255));`,
+      `CREATE TABLE IF NOT EXISTS admin_settings (id VARCHAR(255) PRIMARY KEY, setting_key VARCHAR(255));`,
       `CREATE TABLE IF NOT EXISTS subscription_plans (id VARCHAR(255) PRIMARY KEY, name VARCHAR(255));`,
       `CREATE TABLE IF NOT EXISTS token_packages (id VARCHAR(255) PRIMARY KEY, name VARCHAR(255));`,
       `CREATE TABLE IF NOT EXISTS payment_transactions (id VARCHAR(255) PRIMARY KEY, description VARCHAR(255));`,
-      `CREATE TABLE IF NOT EXISTS token_settings (id VARCHAR(255) PRIMARY KEY);`,
-      `CREATE TABLE IF NOT EXISTS user_tokens (id VARCHAR(255) PRIMARY KEY);`,
-      `CREATE TABLE IF NOT EXISTS tokens (id VARCHAR(255) PRIMARY KEY);`,
-      `CREATE TABLE IF NOT EXISTS currencies (code VARCHAR(10) PRIMARY KEY, name VARCHAR(255));`,
-      `CREATE TABLE IF NOT EXISTS saved_recipes (id VARCHAR(255) PRIMARY KEY, name VARCHAR(255), title VARCHAR(255));`,
-      `CREATE TABLE IF NOT EXISTS recipes (id VARCHAR(255) PRIMARY KEY, name VARCHAR(255), title VARCHAR(255));`,
 
-      // Missing price & price_monthly columns
-      `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) DEFAULT 0;`,
-      `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS price_monthly NUMERIC(10,2) DEFAULT 0;`,
-      `ALTER TABLE token_packages ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) DEFAULT 0;`,
-      `ALTER TABLE token_packages ADD COLUMN IF NOT EXISTS price_monthly NUMERIC(10,2) DEFAULT 0;`,
-      `ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) DEFAULT 0;`,
-      `ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS amount NUMERIC(10,2) DEFAULT 0;`,
+      // Missing users columns
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS wallet_balance NUMERIC(10,2) DEFAULT 0.00;`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS balance NUMERIC(10,2) DEFAULT 0.00;`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS token_balance INT DEFAULT 0;`,
 
-      // Missing expiry_date columns
-      `ALTER TABLE token_settings ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMPTZ;`,
-      `ALTER TABLE user_tokens ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMPTZ;`,
-      `ALTER TABLE tokens ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMPTZ;`,
+      // Missing admin_settings columns
+      `ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS setting_value TEXT;`,
+      `ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS setting_key VARCHAR(255);`,
+      `ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS value TEXT;`,
+      `ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS "key" VARCHAR(255);`,
 
-      // Missing created_by columns
-      `ALTER TABLE currencies ADD COLUMN IF NOT EXISTS created_by VARCHAR(255) DEFAULT 'system';`,
-      `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS created_by VARCHAR(255) DEFAULT 'system';`,
-      `ALTER TABLE token_packages ADD COLUMN IF NOT EXISTS created_by VARCHAR(255) DEFAULT 'system';`,
+      // Missing payment_transactions audit columns
+      `ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ;`,
+      `ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS failure_reason TEXT;`,
+      `ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS notes TEXT;`,
+      `ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS confirmed_amount NUMERIC(10,2);`,
 
-      // Missing recipe_name columns
-      `ALTER TABLE saved_recipes ADD COLUMN IF NOT EXISTS recipe_name VARCHAR(255);`,
-      `ALTER TABLE recipes ADD COLUMN IF NOT EXISTS recipe_name VARCHAR(255);`,
-
-      // Backfill default values
-      `UPDATE subscription_plans SET price = COALESCE(price_monthly, 0) WHERE price IS NULL OR price = 0;`,
-      `UPDATE token_packages SET price = COALESCE(price_monthly, 0) WHERE price IS NULL OR price = 0;`,
-      `UPDATE saved_recipes SET recipe_name = COALESCE(name, title, 'Delicious Recipe') WHERE recipe_name IS NULL;`,
-      `UPDATE recipes SET recipe_name = COALESCE(name, title, 'Delicious Recipe') WHERE recipe_name IS NULL;`
+      // Backfill
+      `UPDATE users SET wallet_balance = COALESCE(balance, 150.00) WHERE wallet_balance IS NULL;`,
+      `UPDATE users SET balance = COALESCE(wallet_balance, 150.00) WHERE balance IS NULL;`,
+      `UPDATE admin_settings SET setting_value = COALESCE(value, '') WHERE setting_value IS NULL;`,
+      `UPDATE admin_settings SET value = COALESCE(setting_value, '') WHERE value IS NULL;`,
+      `UPDATE admin_settings SET "key" = COALESCE(setting_key, '') WHERE "key" IS NULL;`,
+      `UPDATE admin_settings SET setting_key = COALESCE("key", '') WHERE setting_key IS NULL;`
     ];
 
     for (const sql of statements) {
       try {
         await client.query(sql);
-      } catch (_) {
-        // Quietly continue if already exists or table structure differs
-      }
+      } catch (_) {}
     }
 
     await client.end();
@@ -114,30 +103,45 @@ async function harmonizePostgreSql(connectionString: string): Promise<boolean> {
 }
 
 /**
- * Harmonizes missing columns in MySQL
+ * Harmonizes schema in MySQL
  */
 async function harmonizeMySql(connectionString: string): Promise<boolean> {
   try {
     const mysql = await import('mysql2/promise');
     const connection = await mysql.createConnection(connectionString);
 
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(255) PRIMARY KEY,
+        email VARCHAR(255)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS admin_settings (
+        id VARCHAR(255) PRIMARY KEY,
+        setting_key VARCHAR(255)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
     const checks = [
-      { table: 'subscription_plans', column: 'price', ddl: 'DECIMAL(10,2) DEFAULT 0' },
-      { table: 'subscription_plans', column: 'price_monthly', ddl: 'DECIMAL(10,2) DEFAULT 0' },
-      { table: 'token_packages', column: 'price', ddl: 'DECIMAL(10,2) DEFAULT 0' },
-      { table: 'token_packages', column: 'price_monthly', ddl: 'DECIMAL(10,2) DEFAULT 0' },
-      { table: 'payment_transactions', column: 'price', ddl: 'DECIMAL(10,2) DEFAULT 0' },
-      { table: 'payment_transactions', column: 'amount', ddl: 'DECIMAL(10,2) DEFAULT 0' },
-      { table: 'token_settings', column: 'expiry_date', ddl: 'DATETIME NULL' },
-      { table: 'currencies', column: 'created_by', ddl: "VARCHAR(255) DEFAULT 'system'" },
-      { table: 'saved_recipes', column: 'recipe_name', ddl: 'VARCHAR(255) NULL' },
-      { table: 'recipes', column: 'recipe_name', ddl: 'VARCHAR(255) NULL' }
+      { table: 'users', column: 'wallet_balance', ddl: 'DECIMAL(10,2) DEFAULT 0.00' },
+      { table: 'users', column: 'balance', ddl: 'DECIMAL(10,2) DEFAULT 0.00' },
+      { table: 'users', column: 'token_balance', ddl: 'INT DEFAULT 0' },
+      { table: 'admin_settings', column: 'setting_value', ddl: 'LONGTEXT NULL' },
+      { table: 'admin_settings', column: 'setting_key', ddl: 'VARCHAR(255) NULL' },
+      { table: 'admin_settings', column: 'value', ddl: 'LONGTEXT NULL' },
+      { table: 'admin_settings', column: 'key', ddl: 'VARCHAR(255) NULL' },
+      { table: 'payment_transactions', column: 'confirmed_at', ddl: 'DATETIME NULL' },
+      { table: 'payment_transactions', column: 'failure_reason', ddl: 'TEXT NULL' },
+      { table: 'payment_transactions', column: 'notes', ddl: 'TEXT NULL' },
+      { table: 'payment_transactions', column: 'confirmed_amount', ddl: 'DECIMAL(10,2) NULL' }
     ];
 
     for (const { table, column, ddl } of checks) {
       try {
         const [rows]: any = await connection.query(
-          `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ? AND COLUMN_NAME = ?`,
+          `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
           [table, column]
         );
         if (Array.isArray(rows) && rows.length === 0) {
@@ -147,10 +151,12 @@ async function harmonizeMySql(connectionString: string): Promise<boolean> {
     }
 
     try {
-      await connection.query(`UPDATE subscription_plans SET price = COALESCE(price_monthly, 0) WHERE price IS NULL`);
-      await connection.query(`UPDATE token_packages SET price = COALESCE(price_monthly, 0) WHERE price IS NULL`);
-      await connection.query(`UPDATE saved_recipes SET recipe_name = COALESCE(name, title, 'Delicious Recipe') WHERE recipe_name IS NULL`);
-      await connection.query(`UPDATE recipes SET recipe_name = COALESCE(name, title, 'Delicious Recipe') WHERE recipe_name IS NULL`);
+      await connection.query(`UPDATE users SET wallet_balance = COALESCE(balance, 150.00) WHERE wallet_balance IS NULL`);
+      await connection.query(`UPDATE users SET balance = COALESCE(wallet_balance, 150.00) WHERE balance IS NULL`);
+      await connection.query(`UPDATE admin_settings SET setting_value = COALESCE(value, '') WHERE setting_value IS NULL`);
+      await connection.query(`UPDATE admin_settings SET value = COALESCE(setting_value, '') WHERE value IS NULL`);
+      await connection.query(`UPDATE admin_settings SET \`key\` = COALESCE(setting_key, '') WHERE \`key\` IS NULL`);
+      await connection.query(`UPDATE admin_settings SET setting_key = COALESCE(\`key\`, '') WHERE setting_key IS NULL`);
     } catch (_) {}
 
     await connection.end();
@@ -160,9 +166,6 @@ async function harmonizeMySql(connectionString: string): Promise<boolean> {
   }
 }
 
-/**
- * Self-healing entry point called safely by API routes
- */
 export async function harmonizeDatabaseSchema(): Promise<void> {
   if (harmonized) return;
   harmonized = true;

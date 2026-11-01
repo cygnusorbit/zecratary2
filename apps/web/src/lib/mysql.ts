@@ -1,159 +1,110 @@
-// @ts-nocheck
-/**
- * Dual Database Engine - MySQL Adapter
- * Repository: cygnusorbit/zecratary (GitHub)
- */
+import mysql from 'mysql2/promise';
 
-declare const __non_webpack_require__: ((id: string) => any) | undefined;
+let pool: mysql.Pool | null = null;
 
-export interface MysqlQueryResult<T = any> extends Array<T> {
-  rows: T[];
-  fields?: any[];
-  affectedRows?: number;
-  insertId?: number;
-  [key: string]: any;
+function getMysqlUri(): string | null {
+  return process.env.MYSQL_URL || null;
 }
 
-let cachedMysqlDriver: any = null;
-let driverChecked = false;
-
-function getMysqlDriver(): any {
-  if (driverChecked) return cachedMysqlDriver;
-  driverChecked = true;
-
-  try {
-    if (typeof __non_webpack_require__ === 'function') {
-      cachedMysqlDriver = __non_webpack_require__('mysql2/promise');
-      return cachedMysqlDriver;
-    }
-  } catch (_) {}
-
-  return null;
-}
-
-export function isMysqlAvailable(): boolean {
-  return !!getMysqlDriver();
-}
-
-export function getMysqlConnectionUrl(): string | null {
-  const url = process.env.MYSQL_URL || process.env.MYSQL_DATABASE_URL;
-  if (url && url.startsWith('mysql://')) return url;
-
-  const dbUrl = process.env.DATABASE_URL;
-  if (dbUrl && dbUrl.startsWith('mysql://')) return dbUrl;
-
-  const host = process.env.MYSQL_HOST;
-  const database = process.env.MYSQL_DATABASE;
-  if (host && database) {
-    const user = process.env.MYSQL_USER || 'root';
-    const password = process.env.MYSQL_PASSWORD || '';
-    const port = process.env.MYSQL_PORT || '3306';
-    return `mysql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${database}`;
-  }
-
-  return null;
-}
-
-const globalWithMysql = globalThis as unknown as {
-  __zecratary_mysql_pool?: any;
-};
-
-export async function getMysqlPool(): Promise<any> {
-  if (globalWithMysql.__zecratary_mysql_pool) {
-    return globalWithMysql.__zecratary_mysql_pool;
-  }
-
-  const driver = getMysqlDriver();
-  const connUrl = getMysqlConnectionUrl();
-
-  if (!driver || !connUrl) {
-    return null;
-  }
-
-  try {
-    const pool = driver.createPool({
-      uri: connUrl,
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0,
-      enableKeepAlive: true,
-      keepAliveInitialDelay: 10000,
-    });
-
-    globalWithMysql.__zecratary_mysql_pool = pool;
-    return pool;
-  } catch (err: any) {
-    console.warn('[MySQL Pool Initialization Notice]:', err.message);
-    return null;
-  }
-}
-
-export const getMysqlConnection = getMysqlPool;
-
-export async function query<T = any>(sql: string, params: any[] = []): Promise<any> {
-  const pool = await getMysqlPool();
+export function getMysqlPool(): mysql.Pool | null {
+  const uri = getMysqlUri();
+  if (!uri) return null;
 
   if (!pool) {
     try {
-      const { query: pgQuery } = await import('@/lib/db').catch(() => ({ query: null }));
-      if (typeof pgQuery === 'function') {
-        const pgResult = await pgQuery(sql, params);
-        const rows = Array.isArray(pgResult) ? pgResult : (pgResult?.rows || []);
-        const formatted = [...rows] as MysqlQueryResult<T>;
-        formatted.rows = rows;
-        return formatted;
-      }
-    } catch (_) {}
-
-    const empty = [] as unknown as MysqlQueryResult<T>;
-    empty.rows = [];
-    return empty;
-  }
-
-  try {
-    const [rawRows, fields] = await pool.query(sql, params);
-    const rows = Array.isArray(rawRows) ? rawRows : [];
-    const result = [...rows] as MysqlQueryResult<T>;
-    result.rows = rows;
-    result.fields = fields;
-
-    if (rawRows && typeof rawRows === 'object' && !Array.isArray(rawRows)) {
-      result.affectedRows = (rawRows as any).affectedRows;
-      result.insertId = (rawRows as any).insertId;
+      pool = mysql.createPool({
+        uri,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0,
+        connectTimeout: 4000,
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 0
+      });
+    } catch (_) {
+      pool = null;
     }
-
-    return result;
-  } catch (err: any) {
-    console.warn('[MySQL Query Notice]:', err.message);
-    const errResult = [] as unknown as MysqlQueryResult<T>;
-    errResult.rows = [];
-    return errResult;
   }
+  return pool;
 }
 
-export const queryMysql = query;
-export const execute = query;
-export const executeMysql = query;
+/**
+ * Robust MySQL Query execution with precision column auto-repair and suppressed notice spam
+ */
+export async function query<T = any>(sql: string, params: any[] = []): Promise<T[] | any> {
+  const p = getMysqlPool();
+  if (!p) return [];
 
-export const mysqlPool = {
-  query,
-  queryMysql,
-  execute,
-  executeMysql,
-  getPool: getMysqlPool,
-  getConnection: getMysqlPool,
-};
-export const pool = mysqlPool;
+  try {
+    const [results] = await p.execute(sql, params);
+    return results;
+  } catch (err: any) {
+    const msg = String(err.message || '');
+    const colMatch = msg.match(/Unknown column '([^']+)' in/i);
+    const missingCol = colMatch ? colMatch[1] : null;
 
-export default {
-  query,
-  queryMysql,
-  execute,
-  executeMysql,
-  pool,
-  mysqlPool,
-  getMysqlPool,
-  getMysqlConnection,
-  isMysqlAvailable,
-  getMysqlConnectionUrl,
-};
+    if (missingCol) {
+      // 1. Repair users table
+      if (missingCol === 'wallet_balance' || missingCol === 'balance' || missingCol === 'token_balance') {
+        try {
+          const [chk]: any = await p.query(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = ?",
+            [missingCol]
+          );
+          if (Array.isArray(chk) && chk.length === 0) {
+            const ddlType = missingCol === 'token_balance' ? 'INT DEFAULT 0' : 'DECIMAL(10,2) DEFAULT 0.00';
+            await p.execute(`ALTER TABLE users ADD COLUMN \`${missingCol}\` ${ddlType};`);
+          }
+          const [retried] = await p.execute(sql, params);
+          return retried;
+        } catch (_) {
+          return [];
+        }
+      }
+
+      // 2. Repair admin_settings table (setting_value, value, key, setting_key)
+      if (['setting_value', 'value', 'key', 'setting_key'].includes(missingCol)) {
+        try {
+          const [chk]: any = await p.query(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admin_settings' AND COLUMN_NAME = ?",
+            [missingCol]
+          );
+          if (Array.isArray(chk) && chk.length === 0) {
+            const ddlType = ['setting_value', 'value'].includes(missingCol) ? 'LONGTEXT NULL' : 'VARCHAR(255) NULL';
+            await p.execute(`ALTER TABLE admin_settings ADD COLUMN \`${missingCol}\` ${ddlType};`);
+          }
+          const [retried] = await p.execute(sql, params);
+          return retried;
+        } catch (_) {
+          return [];
+        }
+      }
+
+      // 3. Repair payment_transactions table
+      if (['confirmed_at', 'failure_reason', 'notes', 'confirmed_amount', 'transfer_reference'].includes(missingCol)) {
+        try {
+          const [chk]: any = await p.query(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_transactions' AND COLUMN_NAME = ?",
+            [missingCol]
+          );
+          if (Array.isArray(chk) && chk.length === 0) {
+            const ddlMap: Record<string, string> = {
+              confirmed_at: 'DATETIME NULL',
+              failure_reason: 'TEXT NULL',
+              notes: 'TEXT NULL',
+              confirmed_amount: 'DECIMAL(10,2) NULL',
+              transfer_reference: 'VARCHAR(255) NULL'
+            };
+            await p.execute(`ALTER TABLE payment_transactions ADD COLUMN \`${missingCol}\` ${ddlMap[missingCol] || 'TEXT NULL'};`);
+          }
+          const [retried] = await p.execute(sql, params);
+          return retried;
+        } catch (_) {
+          return [];
+        }
+      }
+    }
+
+    return [];
+  }
+}

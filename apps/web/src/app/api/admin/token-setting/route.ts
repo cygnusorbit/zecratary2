@@ -116,7 +116,7 @@ export async function GET() {
     try {
       const mysqlModule = await import('@/lib/mysql').catch(() => null);
       if (mysqlModule && typeof mysqlModule.query === 'function') {
-        const rows: any = await mysqlModule.query("SELECT value FROM admin_settings WHERE `key` = 'token_settings' LIMIT 1");
+        const rows: any = await mysqlModule.query("SELECT COALESCE(value, setting_value) as value FROM admin_settings WHERE setting_key = 'token_settings' OR `key` = 'token_settings' LIMIT 1");
         if (Array.isArray(rows) && rows.length > 0 && rows[0].value) {
           const dbObj = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
           const merged = { ...settings, ...dbObj };
@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
       const mysqlModule = await import('@/lib/mysql').catch(() => null);
       if (mysqlModule && typeof mysqlModule.query === 'function') {
         await mysqlModule.query(
-          "INSERT INTO admin_settings (`key`, value, updated_at) VALUES ('token_settings', ?, NOW()) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()",
+          "INSERT INTO admin_settings (`key`, setting_key, value, setting_value, updated_at) VALUES ('token_settings', 'token_settings', ?, ?, NOW()) ON DUPLICATE KEY UPDATE value = VALUES(value), setting_value = VALUES(setting_value), setting_key = VALUES(setting_key), updated_at = NOW()",
           [JSON.stringify(updated)]
         );
       }
