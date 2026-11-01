@@ -148,6 +148,9 @@ function WalletContent() {
       window.dispatchEvent(new Event('storage'));
       try {
         const bc = new BroadcastChannel('zecratary_balance_channel');
+        const wbc = new BroadcastChannel('zecratary_wallet_channel');
+        wbc.postMessage({ type: 'WALLET_TRANSACTION_UPDATED', wallet: newBal });
+        wbc.close();
         bc.postMessage({ type: 'WALLET_UPDATED', wallet: newBal });
         bc.close();
       } catch (_) {}

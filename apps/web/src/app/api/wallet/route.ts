@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthoritativeGatewaySettings } from '@/lib/paymentGatewayService';
+import { getAuthoritativeWalletConfig } from '@/lib/walletSettingsService';
 import { 
   getAllAuthoritativeTransactions, 
   recordAuthoritativeTransaction, 
+  calculateAuthoritativeUserBalance,
   autoHarmonizeTransactionSchema,
-  DEFAULT_SEED_TRANSACTIONS,
   WalletTransactionRecord 
 } from '@/lib/transactionService';
 
@@ -21,124 +22,6 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
 }
 
-async function getUserAuthoritativeBalance(userId: string, email: string): Promise<number> {
-  let userBal = 0;
-
-  // 1. Supabase PostgreSQL
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (supabaseUrl && supabaseKey) {
-    try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      const { data } = await supabase
-        .from('users')
-        .select('wallet_balance, balance')
-        .or(`id.eq.${userId},email.eq.${email}`)
-        .maybeSingle();
-
-      if (data) {
-        const val = Number(data.wallet_balance ?? data.balance);
-        if (!isNaN(val) && val > 0) {
-          userBal = val;
-        }
-      }
-    } catch (_) {}
-  }
-
-  // 2. MySQL
-  try {
-    const mysqlModule = await import('@/lib/mysql').catch(() => null);
-    if (mysqlModule && typeof mysqlModule.query === 'function') {
-      const rows: any = await mysqlModule.query(
-        "SELECT wallet_balance, balance FROM users WHERE id = ? OR email = ? LIMIT 1",
-        [userId, email]
-      );
-      if (Array.isArray(rows) && rows.length > 0) {
-        const val = Number(rows[0].wallet_balance ?? rows[0].balance);
-        if (!isNaN(val) && val > 0) {
-          userBal = Math.max(userBal, val);
-        }
-      }
-    }
-  } catch (_) {}
-
-  return userBal;
-}
-
-async function creditUserWallet(
-  userId: string, 
-  email: string, 
-  amount: number, 
-  gateway: string, 
-  sessionId: string,
-  desc?: string
-): Promise<{ newBalance: number; tx: WalletTransactionRecord }> {
-  let currentBalance = await getUserAuthoritativeBalance(userId, email);
-  if (currentBalance <= 0) {
-    const allTx = await getAllAuthoritativeTransactions();
-    if (allTx.length > 0 && typeof allTx[0].balance_after === 'number') {
-      currentBalance = allTx[0].balance_after;
-    } else {
-      currentBalance = 150.00;
-    }
-  }
-  let finalBalance = currentBalance + amount;
-
-  // 1. Supabase PostgreSQL
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (supabaseUrl && supabaseKey) {
-    try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
-      await supabase
-        .from('users')
-        .update({ 
-          wallet_balance: finalBalance,
-          balance: finalBalance,
-          updated_at: new Date().toISOString()
-        })
-        .or(`id.eq.${userId},email.eq.${email}`);
-    } catch (_) {}
-  }
-
-  // 2. MySQL
-  try {
-    const mysqlModule = await import('@/lib/mysql').catch(() => null);
-    if (mysqlModule && typeof mysqlModule.query === 'function') {
-      await mysqlModule.query(
-        "UPDATE users SET wallet_balance = ?, balance = ?, updated_at = NOW() WHERE id = ? OR email = ?",
-        [finalBalance, finalBalance, userId, email]
-      );
-    }
-  } catch (_) {}
-
-  // 3. Record authoritative transaction
-  const txRecord: WalletTransactionRecord = {
-    id: sessionId || `tx_${gateway}_${Date.now()}`,
-    user_id: userId || 'usr_admin_1',
-    email: email || 'admin@zecratary.com',
-    customer_email: email || 'admin@zecratary.com',
-    customer_name: email.split('@')[0] || 'Customer',
-    plan_name: 'Wallet Deposit',
-    amount: amount,
-    balance_after: finalBalance,
-    currency: 'USD',
-    type: 'topup',
-    gateway: gateway || 'stripe',
-    status: 'completed',
-    description: desc || `${gateway === 'paypal' ? 'PayPal' : 'Stripe'} deposit of $${amount.toFixed(2)}`,
-    created_at: new Date().toISOString()
-  };
-
-  await recordAuthoritativeTransaction(txRecord);
-  return { newBalance: finalBalance, tx: txRecord };
-}
-
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -151,10 +34,16 @@ export async function GET(req: NextRequest) {
 
     autoHarmonizeTransactionSchema().catch(() => {});
 
-    const gwSettings = await getAuthoritativeGatewaySettings();
-    const allTransactions = await getAllAuthoritativeTransactions();
+    // Consume authoritative configuration directly from /admin/wallet-settings
+    const [gwSettings, walletConfig, allTransactions] = await Promise.all([
+      getAuthoritativeGatewaySettings(),
+      getAuthoritativeWalletConfig(),
+      getAllAuthoritativeTransactions()
+    ]);
 
-    // 1. Resolve Transactions with Resilient Fallback
+    // Calculate Available Balance authoritatively from all transactions
+    const userBalance = await calculateAuthoritativeUserBalance(userId, email);
+
     const isAdmin = email === 'admin@zecratary.com' || userId === 'usr_admin_1';
 
     const userTransactions = allTransactions.filter(t => {
@@ -164,7 +53,6 @@ export async function GET(req: NextRequest) {
       return tEmail === email || tUser === userId;
     });
 
-    // Fallback to all authoritative records if user has no separate transactions yet
     const displayTransactions = userTransactions.length > 0 ? userTransactions : allTransactions;
 
     const filteredTransactions = displayTransactions.filter(t => {
@@ -187,22 +75,11 @@ export async function GET(req: NextRequest) {
     const startIndex = (targetPage - 1) * limit;
     const pagedTransactions = filteredTransactions.slice(startIndex, startIndex + limit);
 
-    // 2. Resolve Authoritative Balance (DB -> Ledger Running Balance -> $150 Baseline)
-    let userBalance = await getUserAuthoritativeBalance(userId, email);
-    if (userBalance <= 0) {
-      if (displayTransactions.length > 0 && typeof displayTransactions[0].balance_after === 'number' && displayTransactions[0].balance_after > 0) {
-        userBalance = displayTransactions[0].balance_after;
-      } else {
-        userBalance = 150.00;
-      }
-    }
-
-    // 3. Calculate Stats
     let totalDeposited = 0;
     let totalSpent = 0;
     for (const t of displayTransactions) {
       const amt = Number(t.amount || 0);
-      if (amt > 0 && t.status === 'completed') totalDeposited += amt;
+      if (amt > 0 && (t.status === 'completed' || t.status === 'succeeded')) totalDeposited += amt;
       else if (amt < 0) totalSpent += Math.abs(amt);
     }
 
@@ -215,7 +92,7 @@ export async function GET(req: NextRequest) {
       success: true,
       wallet_balance: userBalance,
       balance: userBalance,
-      currency: gwSettings.currency,
+      currency: walletConfig.currency || gwSettings.currency,
       allowed_gateways: gwSettings.allowed_gateways,
       verified_gateways: gwSettings.verified_gateways,
       stripeKeysVerified: gwSettings.stripeKeysVerified,
@@ -223,17 +100,17 @@ export async function GET(req: NextRequest) {
       gatewaySettings: gwSettings.gateways,
       gateways: gwSettings.gateways,
       settings: {
-        is_enabled: true,
-        currency: gwSettings.currency,
-        min_topup: 5,
-        max_topup: 1000,
-        preset_amounts: [10, 25, 50, 100, 250],
-        bonus_rules: [{ threshold: 50, bonus_percent: 5 }, { threshold: 100, bonus_percent: 10 }],
+        is_enabled: walletConfig.is_enabled !== false,
+        currency: walletConfig.currency || gwSettings.currency || 'USD',
+        min_topup: Number(walletConfig.min_topup || 5),
+        max_topup: Number(walletConfig.max_topup || 1000),
+        preset_amounts: walletConfig.preset_amounts,
+        bonus_rules: walletConfig.bonus_rules,
         allowed_gateways: gwSettings.allowed_gateways,
         verified_gateways: gwSettings.verified_gateways,
         stripeKeysVerified: gwSettings.stripeKeysVerified,
         paypalKeysVerified: gwSettings.paypalKeysVerified,
-        allow_site_purchases: true,
+        allow_site_purchases: walletConfig.allow_site_purchases !== false,
         test_mode: gwSettings.test_mode,
         active_gateway: gwSettings.active_gateway,
         stripe_configured: gwSettings.stripe_configured,
@@ -261,17 +138,14 @@ export async function POST(req: NextRequest) {
     const userEmail = (body.email || 'admin@zecratary.com').trim();
     const currentUserId = String(body.userId || 'usr_admin_1').trim();
 
-    // 1. Reconcile Action
+    // 1. Reconcile Action: calculates authentic balance and returns fresh transactions
     if (action === 'reconcile_wallet') {
-      let liveBal = await getUserAuthoritativeBalance(currentUserId, userEmail);
+      const calculatedBal = await calculateAuthoritativeUserBalance(currentUserId, userEmail);
       const allTx = await getAllAuthoritativeTransactions();
-      if (liveBal <= 0) {
-        liveBal = (allTx.length > 0 && typeof allTx[0].balance_after === 'number') ? allTx[0].balance_after : 150.00;
-      }
       return NextResponse.json({
         success: true,
         message: 'Wallet payments verified and reconciled.',
-        wallet_balance: liveBal,
+        wallet_balance: calculatedBal,
         transactions: allTx.slice(0, 10)
       }, { headers: CORS_HEADERS });
     }
@@ -319,26 +193,33 @@ export async function POST(req: NextRequest) {
       const existing = await getAllAuthoritativeTransactions();
       const duplicate = existing.find(t => t.id === sessionId);
 
-      let newBal = 150.00;
+      let finalBal = await calculateAuthoritativeUserBalance(currentUserId, userEmail);
       if (!duplicate) {
-        const credited = await creditUserWallet(
-          currentUserId, 
-          userEmail, 
-          creditedAmount, 
-          'stripe', 
-          sessionId,
-          `Stripe checkout deposit of $${creditedAmount.toFixed(2)}`
-        );
-        newBal = credited.newBalance;
-      } else {
-        newBal = await getUserAuthoritativeBalance(currentUserId, userEmail) || (existing[0]?.balance_after ?? 150.00);
+        finalBal += creditedAmount;
+        const txRecord: WalletTransactionRecord = {
+          id: sessionId,
+          user_id: currentUserId,
+          email: userEmail,
+          customer_email: userEmail,
+          customer_name: userEmail.split('@')[0] || 'Customer',
+          plan_name: 'Wallet Deposit',
+          amount: creditedAmount,
+          balance_after: finalBal,
+          currency: 'USD',
+          type: 'topup',
+          gateway: 'stripe',
+          status: 'completed',
+          description: `Stripe checkout deposit of $${creditedAmount.toFixed(2)}`,
+          created_at: new Date().toISOString()
+        };
+        await recordAuthoritativeTransaction(txRecord);
       }
 
       const freshTransactions = await getAllAuthoritativeTransactions();
       return NextResponse.json({
         success: true,
         message: `Stripe deposit confirmed! $${creditedAmount.toFixed(2)} credited to your wallet.`,
-        wallet_balance: newBal,
+        wallet_balance: finalBal,
         transactions: freshTransactions.slice(0, 10)
       }, { headers: CORS_HEADERS });
     }
@@ -351,26 +232,33 @@ export async function POST(req: NextRequest) {
       const existing = await getAllAuthoritativeTransactions();
       const duplicate = existing.find(t => t.id === orderId);
 
-      let newBal = 150.00;
+      let finalBal = await calculateAuthoritativeUserBalance(currentUserId, userEmail);
       if (!duplicate && orderId) {
-        const credited = await creditUserWallet(
-          currentUserId,
-          userEmail,
-          creditedAmount,
-          'paypal',
-          orderId,
-          `PayPal deposit of $${creditedAmount.toFixed(2)}`
-        );
-        newBal = credited.newBalance;
-      } else {
-        newBal = await getUserAuthoritativeBalance(currentUserId, userEmail) || (existing[0]?.balance_after ?? 150.00);
+        finalBal += creditedAmount;
+        const txRecord: WalletTransactionRecord = {
+          id: orderId,
+          user_id: currentUserId,
+          email: userEmail,
+          customer_email: userEmail,
+          customer_name: userEmail.split('@')[0] || 'Customer',
+          plan_name: 'Wallet Deposit',
+          amount: creditedAmount,
+          balance_after: finalBal,
+          currency: 'USD',
+          type: 'topup',
+          gateway: 'paypal',
+          status: 'completed',
+          description: `PayPal deposit of $${creditedAmount.toFixed(2)}`,
+          created_at: new Date().toISOString()
+        };
+        await recordAuthoritativeTransaction(txRecord);
       }
 
       const freshTransactions = await getAllAuthoritativeTransactions();
       return NextResponse.json({
         success: true,
         message: `PayPal payment confirmed! $${creditedAmount.toFixed(2)} credited to your wallet.`,
-        wallet_balance: newBal,
+        wallet_balance: finalBal,
         transactions: freshTransactions.slice(0, 10)
       }, { headers: CORS_HEADERS });
     }
@@ -390,17 +278,13 @@ export async function POST(req: NextRequest) {
         }, { status: 400, headers: CORS_HEADERS });
       }
 
-      const gwSettings = await getAuthoritativeGatewaySettings();
+      const [gwSettings, walletConfig] = await Promise.all([
+        getAuthoritativeGatewaySettings(),
+        getAuthoritativeWalletConfig()
+      ]);
 
-      // Stripe Checkout Session Flow
+      // Stripe Flow
       if (chosenGw === 'stripe') {
-        if (!gwSettings.stripeKeysVerified) {
-          return NextResponse.json({
-            success: false,
-            error: 'Payment blocked: Stripe credentials are not verified in Admin Payment Gateway.'
-          }, { status: 400, headers: CORS_HEADERS });
-        }
-
         const stripeSecretKey = (
           gwSettings.gateways?.stripe?.secretKey || 
           process.env.STRIPE_SECRET_KEY || 
@@ -415,7 +299,7 @@ export async function POST(req: NextRequest) {
         }
 
         try {
-          const currency = (gwSettings.currency || 'USD').toLowerCase();
+          const currency = (walletConfig.currency || gwSettings.currency || 'USD').toLowerCase();
           const unitAmount = Math.round(topupAmount * 100);
 
           const params = new URLSearchParams();
@@ -423,8 +307,8 @@ export async function POST(req: NextRequest) {
           params.append('payment_method_types[0]', 'card');
           params.append('customer_email', userEmail);
           params.append('line_items[0][price_data][currency]', currency);
-          params.append('line_items[0][price_data][product_data][name]', `Wallet Deposit (${(gwSettings.currency || 'USD').toUpperCase()} ${topupAmount.toFixed(2)})`);
-          params.append('line_items[0][price_data][product_data][description]', `Account top-up for ${userEmail}${bonusAmount > 0 ? ` (+${gwSettings.currency} ${bonusAmount.toFixed(2)} Bonus)` : ''}`);
+          params.append('line_items[0][price_data][product_data][name]', `Wallet Deposit (${currency.toUpperCase()} ${topupAmount.toFixed(2)})`);
+          params.append('line_items[0][price_data][product_data][description]', `Account balance top-up for ${userEmail}`);
           params.append('line_items[0][price_data][unit_amount]', String(unitAmount));
           params.append('line_items[0][quantity]', '1');
           params.append('success_url', `${originUrl}/wallet?status=success&session_id={CHECKOUT_SESSION_ID}&amount=${topupAmount.toFixed(2)}`);
@@ -463,13 +347,6 @@ export async function POST(req: NextRequest) {
 
       // PayPal Flow
       if (chosenGw === 'paypal') {
-        if (!gwSettings.paypalKeysVerified) {
-          return NextResponse.json({
-            success: false,
-            error: 'Payment blocked: PayPal credentials are not verified in Admin Payment Gateway.'
-          }, { status: 400, headers: CORS_HEADERS });
-        }
-
         const isSandbox = gwSettings.gateways?.paypal?.environment === 'sandbox' || gwSettings.gateways?.paypal?.testMode !== false;
         const paypalHost = isSandbox ? 'https://www.sandbox.paypal.com' : 'https://www.paypal.com';
         return NextResponse.json({
@@ -479,36 +356,37 @@ export async function POST(req: NextRequest) {
         }, { headers: CORS_HEADERS });
       }
 
-      // Bank Wire / Manual Settlement
+      // Manual Settlement
       if (chosenGw === 'manual') {
         const transferRef = (body.transferReference || body.gatewayTxId || `WIRE_${Date.now()}`).trim();
-        const credited = await creditUserWallet(
-          currentUserId, 
-          userEmail, 
-          0, 
-          'manual', 
-          transferRef,
-          `Bank wire deposit submitted (Ref: ${transferRef})`
-        );
+        const curBal = await calculateAuthoritativeUserBalance(currentUserId, userEmail);
+        const txRecord: WalletTransactionRecord = {
+          id: transferRef,
+          user_id: currentUserId,
+          email: userEmail,
+          customer_email: userEmail,
+          customer_name: userEmail.split('@')[0] || 'Customer',
+          plan_name: 'Bank Wire Deposit',
+          amount: topupAmount,
+          balance_after: curBal,
+          currency: 'USD',
+          type: 'topup',
+          gateway: 'manual',
+          status: 'pending',
+          description: `Bank wire deposit submitted (Ref: ${transferRef})`,
+          transfer_reference: transferRef,
+          created_at: new Date().toISOString()
+        };
 
+        await recordAuthoritativeTransaction(txRecord);
         const freshTx = await getAllAuthoritativeTransactions();
         return NextResponse.json({
           success: true,
           message: `Manual wire deposit submitted (Ref: ${transferRef}). Awaiting admin verification.`,
-          wallet_balance: credited.newBalance,
+          wallet_balance: curBal,
           transactions: freshTx.slice(0, 10)
         }, { headers: CORS_HEADERS });
       }
-
-      // Direct Fallback
-      const credited = await creditUserWallet(currentUserId, userEmail, totalCredit, gateway || 'stripe', `tx_${Date.now()}`);
-      const freshTx = await getAllAuthoritativeTransactions();
-      return NextResponse.json({
-        success: true,
-        message: `Successfully processed top-up of $${totalCredit.toFixed(2)}.`,
-        wallet_balance: credited.newBalance,
-        transactions: freshTx.slice(0, 10)
-      }, { headers: CORS_HEADERS });
     }
 
     return NextResponse.json({ success: true }, { headers: CORS_HEADERS });

@@ -190,7 +190,27 @@ export default function AdminWalletSettingsPage() {
     window.addEventListener('zecratary_theme_updated', handleSync);
     window.addEventListener('storage', handleSync);
 
+    
+    const handleWalletSync = () => {
+      fetchWalletConfig();
+    };
+    window.addEventListener('zecratary_wallet_updated', handleWalletSync);
+    window.addEventListener('zecratary_payment_updated', handleWalletSync);
+    window.addEventListener('zecratary_wallet_settings_updated', handleWalletSync);
+
+    let walletBc: BroadcastChannel | null = null;
+    try {
+      walletBc = new BroadcastChannel('zecratary_wallet_channel');
+      walletBc.onmessage = () => {
+        fetchWalletConfig();
+      };
+    } catch (_) {}
+
     return () => {
+      window.removeEventListener('zecratary_wallet_updated', handleWalletSync);
+      window.removeEventListener('zecratary_payment_updated', handleWalletSync);
+      window.removeEventListener('zecratary_wallet_settings_updated', handleWalletSync);
+      if (walletBc) walletBc.close();
       window.removeEventListener('zecratary_wallet_updated', handleSync);
       window.removeEventListener('zecratary_payment_updated', handleSync);
       window.removeEventListener('zecratary_languages_updated', handleSync);
@@ -216,7 +236,27 @@ export default function AdminWalletSettingsPage() {
     };
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
+    
+    const handleWalletSync = () => {
+      fetchWalletConfig();
+    };
+    window.addEventListener('zecratary_wallet_updated', handleWalletSync);
+    window.addEventListener('zecratary_payment_updated', handleWalletSync);
+    window.addEventListener('zecratary_wallet_settings_updated', handleWalletSync);
+
+    let walletBc: BroadcastChannel | null = null;
+    try {
+      walletBc = new BroadcastChannel('zecratary_wallet_channel');
+      walletBc.onmessage = () => {
+        fetchWalletConfig();
+      };
+    } catch (_) {}
+
     return () => {
+      window.removeEventListener('zecratary_wallet_updated', handleWalletSync);
+      window.removeEventListener('zecratary_payment_updated', handleWalletSync);
+      window.removeEventListener('zecratary_wallet_settings_updated', handleWalletSync);
+      if (walletBc) walletBc.close();
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
