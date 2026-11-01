@@ -598,7 +598,7 @@ export default function AdminWalletSettingsPage() {
     } catch (_) {}
   };
 
-  // Robust Blob-based CSV Export
+  // Robust Blob-based CSV Export using safe line feeds
   const handleExportCSV = () => {
     if (filteredTransactions.length === 0) return;
     const headers = ['Transaction ID', 'Customer Name', 'Customer Email', 'Type', 'Amount', 'Currency', 'Balance After', 'Gateway', 'Date'];
@@ -614,8 +614,8 @@ export default function AdminWalletSettingsPage() {
       t.created_at
     ]);
 
-    const csvBody = [headers.join(','), ...rows.map(e => e.join(','))].join('
-');
+    const newlineChar = String.fromCharCode(10);
+    const csvBody = [headers.join(','), ...rows.map(e => e.join(','))].join(newlineChar);
     const blob = new Blob([csvBody], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -635,7 +635,7 @@ export default function AdminWalletSettingsPage() {
       style={{ color: 'var(--color-text)' }}
     >
       {/* Scoped Autofill Guardrail Style */}
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style jsx global>{`
         .wallet-input:-webkit-autofill,
         .wallet-input:-webkit-autofill:hover,
         .wallet-input:-webkit-autofill:focus {
@@ -644,7 +644,7 @@ export default function AdminWalletSettingsPage() {
           box-shadow: 0 0 0px 1000px var(--color-inner-dark) inset !important;
           transition: background-color 5000s ease-in-out 0s;
         }
-      `}} />
+      `}</style>
 
       {/* 1. Header & Save Action */}
       <div 

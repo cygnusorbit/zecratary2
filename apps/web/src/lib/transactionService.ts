@@ -414,3 +414,6 @@ export async function deleteAllAuthoritativeTransactions(): Promise<boolean> {
 
 export const deleteAllTransactions = deleteAllAuthoritativeTransactions;
 export const getUserAuthoritativeBalance = calculateAuthoritativeUserBalance;
+export const getAuthoritativeTransactions = getAllAuthoritativeTransactions;
+export const recordTransaction = recordAuthoritativeTransaction;
+export const deleteAuthoritativeTransaction = async (id: string) => deleteAuthoritativeTransactions([id]);
