@@ -6,7 +6,8 @@ export const dynamic = 'force-dynamic';
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
 };
 
 export async function OPTIONS() {
@@ -21,6 +22,7 @@ export async function GET() {
       allowed_gateways: settings.allowed_gateways,
       settings: settings,
       gatewaySettings: settings.gateways,
+      gateways: settings.gateways,
       manual_details: settings.manual_details,
       currency: settings.currency
     }, { headers: CORS_HEADERS });
@@ -28,7 +30,7 @@ export async function GET() {
     return NextResponse.json({
       success: false,
       error: err.message,
-      allowed_gateways: ['stripe', 'manual']
+      allowed_gateways: []
     }, { status: 500, headers: CORS_HEADERS });
   }
 }

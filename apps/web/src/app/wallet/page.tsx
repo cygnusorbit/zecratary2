@@ -57,6 +57,12 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   USD: '$', EUR: '€', GBP: '£', CAD: 'CA$', AUD: 'AU$', JPY: '¥', SGD: 'S$', CHF: 'Fr', NZD: 'NZ$', THB: '฿'
 };
 
+const isFalseVal = (v: any): boolean =>
+  v === false || v === 0 || v === 'false' || v === '0' || v === 'disabled' || v === 'inactive';
+
+const isTrueVal = (v: any): boolean =>
+  v === true || v === 1 || v === 'true' || v === '1' || v === 'active' || v === 'enabled';
+
 function WalletContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -143,76 +149,91 @@ function WalletContent() {
     }
   }, [syncLocalBalanceQuietly]);
 
-  // Deep Audit Gateways Normalizer with Absolute Negative Enforcement
-  const normalizeGatewaysList = useCallback((rawLoaded: any[], rawData: any): string[] => {
-    const isStripeDisabled = 
-      rawData?.settings?.gateways?.stripe?.enabled === false ||
-      rawData?.gatewaySettings?.stripe?.enabled === false ||
-      rawData?.gateways?.stripe?.enabled === false ||
-      rawData?.settings?.stripe_enabled === false ||
-      rawData?.stripe_enabled === false;
+  // Universal Gateway Validator with Strict Negative Enforcement
+  const isGatewayActive = useCallback((key: 'stripe' | 'paypal' | 'manual', data: any): boolean => {
+    if (!data) return false;
 
-    const isPaypalDisabled = 
-      rawData?.settings?.gateways?.paypal?.enabled === false ||
-      rawData?.gatewaySettings?.paypal?.enabled === false ||
-      rawData?.gateways?.paypal?.enabled === false ||
-      rawData?.settings?.paypal_enabled === false ||
-      rawData?.paypal_enabled === false;
+    // 1. Direct gateway object lookup
+    const gwObj = 
+      data?.gateways?.[key === 'manual' ? 'manualSettlement' : key] ||
+      data?.settings?.gateways?.[key === 'manual' ? 'manualSettlement' : key] ||
+      data?.gatewaySettings?.[key === 'manual' ? 'manualSettlement' : key] ||
+      data?.gateways?.[key] ||
+      data?.settings?.gateways?.[key] ||
+      data?.gatewaySettings?.[key] ||
+      (key === 'manual' ? (data?.settings?.manual_details || data?.manual_details || data?.manualSettlement) : null);
 
-    const isManualDisabled = 
-      rawData?.settings?.manual_details?.enabled === false ||
-      rawData?.gatewaySettings?.manualSettlement?.enabled === false ||
-      rawData?.gateways?.manualSettlement?.enabled === false ||
-      rawData?.settings?.gateways?.manualSettlement?.enabled === false ||
-      rawData?.settings?.manual_enabled === false ||
-      rawData?.manualEnabled === false ||
-      rawData?.manual_enabled === false;
-
-    const loadedAllowed: string[] = [];
-
-    for (const item of rawLoaded) {
-      const lower = String(item).toLowerCase().trim();
-      if (['manualsettlement', 'manual_settlement', 'bank_wire', 'wire', 'manual'].includes(lower)) {
-        if (!isManualDisabled && !loadedAllowed.includes('manual')) loadedAllowed.push('manual');
-      } else if (lower === 'stripe') {
-        if (!isStripeDisabled && !loadedAllowed.includes('stripe')) loadedAllowed.push('stripe');
-      } else if (lower === 'paypal') {
-        if (!isPaypalDisabled && !loadedAllowed.includes('paypal')) loadedAllowed.push('paypal');
+    if (gwObj) {
+      if (isFalseVal(gwObj.enabled) || isFalseVal(gwObj.is_enabled) || isFalseVal(gwObj.active) || gwObj.status === 'disabled' || gwObj.status === 'inactive') {
+        return false;
       }
     }
 
-    // Explicit check for enabled flags
-    const stripeExplicit = !isStripeDisabled && Boolean(
-      rawData?.settings?.gateways?.stripe?.enabled ||
-      rawData?.gatewaySettings?.stripe?.enabled ||
-      rawData?.gateways?.stripe?.enabled
-    );
-    if (stripeExplicit && !loadedAllowed.includes('stripe')) loadedAllowed.push('stripe');
+    // 2. Direct property flags
+    if (key === 'paypal') {
+      if (isFalseVal(data?.paypal_enabled) || isFalseVal(data?.settings?.paypal_enabled) || isFalseVal(data?.paypalEnabled)) {
+        return false;
+      }
+    } else if (key === 'stripe') {
+      if (isFalseVal(data?.stripe_enabled) || isFalseVal(data?.settings?.stripe_enabled) || isFalseVal(data?.stripeEnabled)) {
+        return false;
+      }
+    } else if (key === 'manual') {
+      if (isFalseVal(data?.manual_enabled) || isFalseVal(data?.settings?.manual_enabled) || isFalseVal(data?.manualEnabled)) {
+        return false;
+      }
+    }
 
-    const paypalExplicit = !isPaypalDisabled && Boolean(
-      rawData?.settings?.gateways?.paypal?.enabled ||
-      rawData?.gatewaySettings?.paypal?.enabled ||
-      rawData?.gateways?.paypal?.enabled
-    );
-    if (paypalExplicit && !loadedAllowed.includes('paypal')) loadedAllowed.push('paypal');
+    // 3. Whitelist Check
+    const allowedList = data?.allowed_gateways || data?.settings?.allowed_gateways || data?.allowedGateways;
+    if (Array.isArray(allowedList)) {
+      const normalizedList = allowedList.map(item => {
+        const lower = String(item).toLowerCase().trim();
+        if (['manualsettlement', 'manual_settlement', 'bank_wire', 'wire'].includes(lower)) return 'manual';
+        return lower;
+      });
+      if (!normalizedList.includes(key)) {
+        return false;
+      }
+    }
 
-    const manualExplicit = !isManualDisabled && Boolean(
-      rawData?.settings?.manual_details?.enabled ||
-      rawData?.gatewaySettings?.manualSettlement?.enabled ||
-      rawData?.gateways?.manualSettlement?.enabled
-    );
-    if (manualExplicit && !loadedAllowed.includes('manual')) loadedAllowed.push('manual');
-
-    // Final filter: Purge any disabled channel
-    return loadedAllowed.filter(g => {
-      if (g === 'paypal' && isPaypalDisabled) return false;
-      if (g === 'stripe' && isStripeDisabled) return false;
-      if (g === 'manual' && isManualDisabled) return false;
+    // 4. Positive Enabled Check
+    if (gwObj && (isTrueVal(gwObj.enabled) || isTrueVal(gwObj.is_enabled) || isTrueVal(gwObj.active))) {
       return true;
-    });
+    }
+
+    if (key === 'paypal' && (isTrueVal(data?.paypal_enabled) || isTrueVal(data?.settings?.paypal_enabled) || isTrueVal(data?.paypalEnabled))) {
+      return true;
+    }
+    if (key === 'stripe' && (isTrueVal(data?.stripe_enabled) || isTrueVal(data?.settings?.stripe_enabled) || isTrueVal(data?.stripeEnabled))) {
+      return true;
+    }
+    if (key === 'manual' && (isTrueVal(data?.manual_enabled) || isTrueVal(data?.settings?.manual_enabled) || isTrueVal(data?.manualEnabled))) {
+      return true;
+    }
+
+    // If in allowedList and not disqualified above
+    if (Array.isArray(allowedList)) {
+      const normalizedList = allowedList.map(item => {
+        const lower = String(item).toLowerCase().trim();
+        if (['manualsettlement', 'manual_settlement', 'bank_wire', 'wire'].includes(lower)) return 'manual';
+        return lower;
+      });
+      return normalizedList.includes(key);
+    }
+
+    return false;
   }, []);
 
-  // Fetch Wallet Data, Settings & Audit Ledger
+  const resolveAllowedChannels = useCallback((data: any): string[] => {
+    const list: string[] = [];
+    if (isGatewayActive('stripe', data)) list.push('stripe');
+    if (isGatewayActive('paypal', data)) list.push('paypal');
+    if (isGatewayActive('manual', data)) list.push('manual');
+    return list;
+  }, [isGatewayActive]);
+
+  // Fetch Wallet Data & Gateway Settings with Parallel Query
   const fetchWalletData = useCallback(async (
     activeUser: User | null, 
     targetPage = 1, 
@@ -238,81 +259,71 @@ function WalletContent() {
         t: String(Date.now())
       });
 
-      // TIER 1: Fetch via /api/wallet
-      const res = await fetch(`/api/wallet?${qParams.toString()}`, { cache: 'no-store' });
-      let data: any = {};
-      if (res.ok) {
-        try {
-          data = await res.json();
-        } catch (_) {
-          data = {};
-        }
+      // Query /api/wallet (for balance & ledger) and /api/payment-gateways (for live channel state) in parallel
+      const [walletRes, gwRes] = await Promise.all([
+        fetch(`/api/wallet?${qParams.toString()}`, { cache: 'no-store' }).catch(() => null),
+        fetch(`/api/payment-gateways?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null)
+      ]);
+
+      let walletData: any = {};
+      let gwData: any = {};
+
+      if (walletRes && walletRes.ok) {
+        try { walletData = await walletRes.json(); } catch (_) {}
+      }
+      if (gwRes && gwRes.ok) {
+        try { gwData = await gwRes.json(); } catch (_) {}
       }
 
-      if (data.success) {
-        const wBal = typeof data.wallet_balance === 'number' 
-          ? data.wallet_balance 
-          : (typeof data.balance === 'number' ? data.balance : Number(data.user?.wallet_balance || 0));
+      const activePayload = gwData?.success ? gwData : walletData;
+
+      if (walletData.success || gwData.success) {
+        const wBal = typeof walletData.wallet_balance === 'number' 
+          ? walletData.wallet_balance 
+          : (typeof walletData.balance === 'number' ? walletData.balance : Number(walletData.user?.wallet_balance || 0));
         
         syncLocalBalanceQuietly(wBal);
 
-        let rawLoaded: any[] = Array.isArray(data.settings?.allowed_gateways)
-          ? data.settings.allowed_gateways
-          : Array.isArray(data.allowed_gateways)
-          ? data.allowed_gateways
-          : Array.isArray(data.allowedGateways)
-          ? data.allowedGateways
-          : [];
+        // Derive allowed channels directly from the fresh authoritative payload
+        const loadedAllowed = resolveAllowedChannels(activePayload);
 
-        let loadedAllowed = normalizeGatewaysList(rawLoaded, data);
-
-        // TIER 2: Secondary verification via public endpoint
-        if (loadedAllowed.length === 0) {
-          try {
-            const gwRes = await fetch(`/api/payment-gateways?t=${Date.now()}`, { cache: 'no-store' });
-            if (gwRes.ok) {
-              const gwData = await gwRes.json();
-              if (gwData.success && Array.isArray(gwData.allowed_gateways)) {
-                loadedAllowed = normalizeGatewaysList(gwData.allowed_gateways, gwData);
-                data.settings = { ...(data.settings || {}), ...gwData.settings };
-              }
-            }
-          } catch (_) {}
-        }
-
-        const resolvedManualDetails = data.settings?.manual_details || data.gatewaySettings?.manualSettlement || {};
+        const resolvedManualDetails = 
+          activePayload.settings?.manual_details || 
+          activePayload.manual_details || 
+          activePayload.gatewaySettings?.manualSettlement || 
+          walletData.settings?.manual_details || {};
 
         setSettings({
-          is_enabled: data.settings?.is_enabled !== false,
-          currency: data.settings?.currency || data.currency || 'USD',
-          min_topup: Number(data.settings?.min_topup || 5),
-          max_topup: Number(data.settings?.max_topup || 1000),
-          preset_amounts: Array.isArray(data.settings?.preset_amounts) && data.settings.preset_amounts.length > 0 
-            ? data.settings.preset_amounts.map(Number) 
+          is_enabled: activePayload.settings?.is_enabled !== false,
+          currency: activePayload.settings?.currency || activePayload.currency || walletData.currency || 'USD',
+          min_topup: Number(walletData.settings?.min_topup || 5),
+          max_topup: Number(walletData.settings?.max_topup || 1000),
+          preset_amounts: Array.isArray(walletData.settings?.preset_amounts) && walletData.settings.preset_amounts.length > 0 
+            ? walletData.settings.preset_amounts.map(Number) 
             : [10, 25, 50, 100, 250],
-          bonus_rules: Array.isArray(data.settings?.bonus_rules) ? data.settings.bonus_rules : [],
+          bonus_rules: Array.isArray(walletData.settings?.bonus_rules) ? walletData.settings.bonus_rules : [],
           allowed_gateways: loadedAllowed,
-          allow_site_purchases: data.settings?.allow_site_purchases !== false,
-          test_mode: Boolean(data.settings?.test_mode),
-          active_gateway: data.settings?.active_gateway || (loadedAllowed[0] || ''),
-          stripe_configured: Boolean(data.settings?.stripe_configured),
-          paypal_configured: Boolean(data.settings?.paypal_configured),
+          allow_site_purchases: walletData.settings?.allow_site_purchases !== false,
+          test_mode: Boolean(activePayload.settings?.test_mode),
+          active_gateway: loadedAllowed[0] || '',
+          stripe_configured: Boolean(activePayload.settings?.stripe_configured),
+          paypal_configured: Boolean(activePayload.settings?.paypal_configured),
           manual_details: resolvedManualDetails
         });
 
         setGatewaysLoaded(true);
 
-        // Ensure selected gateway is always currently enabled
+        // Ensure selected gateway is currently an active channel
         setSelectedGateway((prev) => {
           if (prev && loadedAllowed.includes(prev)) return prev;
           return loadedAllowed[0] || '';
         });
 
-        if (Array.isArray(data.transactions)) {
-          setTransactions(data.transactions);
+        if (Array.isArray(walletData.transactions)) {
+          setTransactions(walletData.transactions);
         }
-        if (data.totalPages) setTotalPages(data.totalPages);
-        if (data.stats) setStats(data.stats);
+        if (walletData.totalPages) setTotalPages(walletData.totalPages);
+        if (walletData.stats) setStats(walletData.stats);
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
@@ -322,7 +333,7 @@ function WalletContent() {
       isFetchingRef.current = false;
       setLoading(false);
     }
-  }, [syncLocalBalanceQuietly, normalizeGatewaysList]);
+  }, [syncLocalBalanceQuietly, resolveAllowedChannels]);
 
   // Reconciliation Handler
   const handleReconcile = async () => {
@@ -425,7 +436,7 @@ function WalletContent() {
           setUser(active);
           fetchWalletData(active, page, searchQuery, typeFilter, true);
         }
-      }, 200);
+      }, 150);
     };
 
     window.addEventListener('storage', debouncedSync);
@@ -449,7 +460,12 @@ function WalletContent() {
         }
       };
       gwBc = new BroadcastChannel('zecratary_gateway_channel');
-      gwBc.onmessage = () => {
+      gwBc.onmessage = (ev) => {
+        if (ev.data?.settings) {
+          const fresh = resolveAllowedChannels(ev.data.settings);
+          setSettings(prev => ({ ...prev, allowed_gateways: fresh }));
+          setSelectedGateway(prev => (fresh.includes(prev) ? prev : fresh[0] || ''));
+        }
         debouncedSync();
       };
     } catch (_) {}
@@ -469,7 +485,7 @@ function WalletContent() {
       if (bc) bc.close();
       if (gwBc) gwBc.close();
     };
-  }, []);
+  }, [resolveAllowedChannels]);
 
   useEffect(() => {
     if (user) {
@@ -771,7 +787,7 @@ function WalletContent() {
             </div>
           </div>
 
-          {/* Payment Gateway Options - Excludes Disabled Channels */}
+          {/* Payment Gateway Options - Excludes Disabled Channels Dynamically */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-bold opacity-80">{t('paymentGateway', 'Payment Gateway')}</label>

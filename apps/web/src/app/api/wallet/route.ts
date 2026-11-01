@@ -6,7 +6,8 @@ export const dynamic = 'force-dynamic';
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+  'Cache-Control': 'no-store, no-cache, must-revalidate'
 };
 
 export async function OPTIONS() {
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
     const userId = searchParams.get('userId') || 'usr_admin_1';
     const email = searchParams.get('email') || 'admin@zecratary.com';
 
-    // Fetch authoritative gateway settings where disabled channels are purged
+    // Authoritative gateway configuration
     const gwSettings = await getAuthoritativeGatewaySettings();
 
     let userBalance = 150.00;
@@ -72,6 +73,7 @@ export async function GET(req: NextRequest) {
       currency: gwSettings.currency,
       allowed_gateways: gwSettings.allowed_gateways,
       gatewaySettings: gwSettings.gateways,
+      gateways: gwSettings.gateways,
       settings: {
         is_enabled: true,
         currency: gwSettings.currency,

@@ -23,10 +23,16 @@ export interface PaymentGatewaySettings {
   manual_details?: ManualDetails;
   gateways: {
     stripe: { enabled: boolean; mode?: string; publishableKey?: string; secretKey?: string };
-    paypal: { enabled: boolean; mode?: string; clientId?: string };
+    paypal: { enabled: boolean; mode?: string; clientId?: string; clientSecret?: string };
     manualSettlement: ManualDetails;
   };
 }
+
+export const isFalseVal = (v: any): boolean =>
+  v === false || v === 0 || v === 'false' || v === '0' || v === 'disabled' || v === 'inactive';
+
+export const isTrueVal = (v: any): boolean =>
+  v === true || v === 1 || v === 'true' || v === '1' || v === 'active' || v === 'enabled';
 
 function getCandidateSeedPaths(): string[] {
   const cwd = process.cwd();
@@ -41,56 +47,48 @@ function getCandidateSeedPaths(): string[] {
 export function normalizeGatewaySettings(raw: any): PaymentGatewaySettings {
   const gateways = raw.gateways || raw.gatewaySettings || raw;
 
-  // 1. Strict Stripe State
+  // 1. Strict Stripe Evaluation
   let stripeEnabled = true;
-  if (gateways.stripe?.enabled !== undefined) {
-    stripeEnabled = Boolean(gateways.stripe.enabled);
-  } else if (raw.stripe_enabled !== undefined) {
-    stripeEnabled = Boolean(raw.stripe_enabled);
-  } else if (raw.stripeEnabled !== undefined) {
-    stripeEnabled = Boolean(raw.stripeEnabled);
+  if (isFalseVal(gateways.stripe?.enabled) || isFalseVal(raw.stripe_enabled) || isFalseVal(raw.stripeEnabled)) {
+    stripeEnabled = false;
+  } else if (isTrueVal(gateways.stripe?.enabled) || isTrueVal(raw.stripe_enabled) || isTrueVal(raw.stripeEnabled)) {
+    stripeEnabled = true;
   }
 
-  // 2. Strict PayPal State (Must NOT be resurrected if enabled is false)
+  // 2. Strict PayPal Evaluation
   let paypalEnabled = true;
-  if (gateways.paypal?.enabled !== undefined) {
-    paypalEnabled = Boolean(gateways.paypal.enabled);
-  } else if (raw.paypal_enabled !== undefined) {
-    paypalEnabled = Boolean(raw.paypal_enabled);
-  } else if (raw.paypalEnabled !== undefined) {
-    paypalEnabled = Boolean(raw.paypalEnabled);
+  if (isFalseVal(gateways.paypal?.enabled) || isFalseVal(raw.paypal_enabled) || isFalseVal(raw.paypalEnabled)) {
+    paypalEnabled = false;
+  } else if (isTrueVal(gateways.paypal?.enabled) || isTrueVal(raw.paypal_enabled) || isTrueVal(raw.paypalEnabled)) {
+    paypalEnabled = true;
   }
 
-  // 3. Strict Manual / Bank Wire State
+  // 3. Strict Manual / Bank Wire Evaluation
   const manualObj = raw.manual_details || gateways.manualSettlement || gateways.bank_wire || gateways.manual || {};
   let manualEnabled = true;
-  if (manualObj.enabled !== undefined) {
-    manualEnabled = Boolean(manualObj.enabled);
-  } else if (raw.manual_enabled !== undefined) {
-    manualEnabled = Boolean(raw.manual_enabled);
-  } else if (raw.manualEnabled !== undefined) {
-    manualEnabled = Boolean(raw.manualEnabled);
+  if (isFalseVal(manualObj.enabled) || isFalseVal(raw.manual_enabled) || isFalseVal(raw.manualEnabled)) {
+    manualEnabled = false;
+  } else if (isTrueVal(manualObj.enabled) || isTrueVal(raw.manual_enabled) || isTrueVal(raw.manualEnabled)) {
+    manualEnabled = true;
   }
 
-  // 4. Construct authoritative allowed list: Only gateways explicitly enabled
+  // 4. Construct Whitelist: Only channels whose enabled state is positively true
   const allowed: string[] = [];
   if (stripeEnabled) allowed.push('stripe');
   if (paypalEnabled) allowed.push('paypal');
   if (manualEnabled) allowed.push('manual');
 
-  // 5. Whitelist intersection if raw.allowed_gateways is provided
+  // 5. Intersect with raw.allowed_gateways if explicitly supplied
   if (Array.isArray(raw.allowed_gateways) && raw.allowed_gateways.length > 0) {
-    const rawNormalized = raw.allowed_gateways.map((g: any) => {
+    const rawAllowed = raw.allowed_gateways.map((g: any) => {
       const lower = String(g).toLowerCase().trim();
       if (['manualsettlement', 'manual_settlement', 'bank_wire', 'wire'].includes(lower)) return 'manual';
       return lower;
     });
-    // Filter to only those present in both lists
-    const intersected = allowed.filter(g => rawNormalized.includes(g));
-    if (intersected.length > 0) {
-      allowed.length = 0;
-      allowed.push(...intersected);
-    }
+    // Strict intersection
+    const filtered = allowed.filter(g => rawAllowed.includes(g));
+    allowed.length = 0;
+    allowed.push(...filtered);
   }
 
   return {
@@ -119,7 +117,8 @@ export function normalizeGatewaySettings(raw: any): PaymentGatewaySettings {
       paypal: {
         enabled: paypalEnabled,
         mode: gateways.paypal?.mode || 'sandbox',
-        clientId: gateways.paypal?.clientId || ''
+        clientId: gateways.paypal?.clientId || '',
+        clientSecret: gateways.paypal?.clientSecret || ''
       },
       manualSettlement: {
         enabled: manualEnabled,
