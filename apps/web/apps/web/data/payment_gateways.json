@@ -5,17 +5,17 @@
     "manual"
   ],
   "verified_gateways": [
-    "stripe",
-    "manual"
+    "manual",
+    "stripe"
   ],
   "active_gateway": "stripe",
   "stripeConnected": true,
-  "stripe_configured": true,
-  "paypal_configured": false,
   "stripeKeysVerified": true,
   "stripeWebhookVerified": true,
   "paypalKeysVerified": false,
   "paypalWebhookVerified": false,
+  "stripe_configured": true,
+  "paypal_configured": false,
   "test_mode": true,
   "manual_details": {
     "enabled": true,
@@ -37,8 +37,7 @@
       "publishableKey": "pk_test_51UJEgrCcmLZF49WGZiAF30eLSt4Sxpyv3G9nl2rxqEkrOwaoDVFuVRHvkniacq7Fh2xOZooi3IctzwDtGIXneyNb00wfpLn6xG",
       "secretKey": "sk_test_51UJEgrCcmLZF49WGIS4IucDaZiaEweJSIpDvksgk3aMB0riI98YVSjzhLwJQFjnR07FiGoN8wNrzQAgymdYZErod00oG8EYYDp",
       "webhookSecret": "whsec_f3f6748cc981d7bb11d7ef47c61c000cd34adb7d8178896bd2dd391695a94019",
-      "keysVerified": true,
-      "webhookVerified": true
+      "keysVerified": true
     },
     "paypal": {
       "enabled": false,
@@ -48,8 +47,7 @@
       "clientSecret": "",
       "webhookId": "",
       "environment": "sandbox",
-      "keysVerified": false,
-      "webhookVerified": false
+      "keysVerified": false
     },
     "manualSettlement": {
       "enabled": true,

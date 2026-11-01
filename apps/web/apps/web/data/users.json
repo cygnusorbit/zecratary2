@@ -5,7 +5,9 @@
     "email": "admin@zecratary.com",
     "role": "admin",
     "subscriptionPlan": "taster",
-    "createdAt": "2026-01-01T00:00:00.000Z"
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "wallet_balance": 16,
+    "balance": 16
   },
   {
     "id": "usr_user_1",
