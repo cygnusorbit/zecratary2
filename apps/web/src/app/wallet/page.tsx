@@ -707,6 +707,10 @@ function WalletContent() {
   }, [finalDepositAmount, activeBonusPercent]);
 
   const handleDeposit = async () => {
+    if (selectedGateway === 'manual' && settings.manual_details?.requireReference !== false && !manualReference.trim()) {
+      showToast(t('referenceRequiredError', 'Please enter your Transfer Reference or Receipt ID before submitting.'), 'error');
+      return;
+    }
     if (settings.allowed_gateways.length === 0) {
       showToast(t('noGatewaysEnabledNotice', 'No payment gateways are currently enabled in Payment Gateway settings.'), 'error');
       return;

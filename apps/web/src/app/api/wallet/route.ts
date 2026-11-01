@@ -546,8 +546,17 @@ export async function POST(req: NextRequest) {
         }, { headers: CORS_HEADERS });
       }
 
-      // Bank Wire / Manual Settlement: Preserve requested amount in transaction audit
+      // Bank Wire / Manual Settlement: Preserve requested amount and enforce requireReference
       if (chosenGw === 'manual') {
+        const isRefRequired = gwSettings.manual_details?.requireReference !== false;
+        const transferRef = (body.transferReference || body.gatewayTxId || '').trim();
+
+        if (isRefRequired && !transferRef) {
+          return NextResponse.json({
+            success: false,
+            error: 'Transfer Reference / Receipt ID is required for bank wire submissions.'
+          }, { status: 400, headers: CORS_HEADERS });
+        }
         const transferRef = (body.transferReference || body.gatewayTxId || `WIRE_${Date.now()}`).trim();
         const credited = await creditUserWallet(
           currentUserId, 

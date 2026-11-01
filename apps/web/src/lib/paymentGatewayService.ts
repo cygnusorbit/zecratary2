@@ -17,15 +17,15 @@ export interface ManualDetails {
 export interface PaymentGatewaySettings {
   currency: string;
   allowed_gateways: string[];
-  verified_gateways: string[];
+  verified_gateways?: string[];
   active_gateway?: string;
   stripeConnected?: boolean;
+  stripeKeysVerified?: boolean;
+  stripeWebhookVerified?: boolean;
+  paypalKeysVerified?: boolean;
+  paypalWebhookVerified?: boolean;
   stripe_configured?: boolean;
   paypal_configured?: boolean;
-  stripeKeysVerified: boolean;
-  stripeWebhookVerified: boolean;
-  paypalKeysVerified: boolean;
-  paypalWebhookVerified: boolean;
   test_mode?: boolean;
   manual_details?: ManualDetails;
   gateways: {
@@ -84,7 +84,6 @@ export function normalizeGatewaySettings(raw: any, existingSettings?: PaymentGat
   const toggleGw = String(raw.gateway || '').toLowerCase().trim();
   const toggleEnabled = raw.enabled !== undefined ? isTrueVal(raw.enabled) : undefined;
 
-  // Stripe Enabled Evaluation
   let stripeEnabled = true;
   if (isToggle && toggleGw === 'stripe' && toggleEnabled !== undefined) {
     stripeEnabled = toggleEnabled;
@@ -96,7 +95,6 @@ export function normalizeGatewaySettings(raw: any, existingSettings?: PaymentGat
     stripeEnabled = existingSettings.gateways.stripe.enabled;
   }
 
-  // PayPal Enabled Evaluation
   let paypalEnabled = false;
   if (isToggle && toggleGw === 'paypal' && toggleEnabled !== undefined) {
     paypalEnabled = toggleEnabled;
@@ -108,7 +106,6 @@ export function normalizeGatewaySettings(raw: any, existingSettings?: PaymentGat
     paypalEnabled = existingSettings.gateways.paypal.enabled;
   }
 
-  // Manual Settlement Evaluation
   let manualEnabled = true;
   if (isToggle && (toggleGw === 'manual' || toggleGw === 'bank_wire' || toggleGw === 'manualsettlement') && toggleEnabled !== undefined) {
     manualEnabled = toggleEnabled;
@@ -120,36 +117,14 @@ export function normalizeGatewaySettings(raw: any, existingSettings?: PaymentGat
     manualEnabled = existingSettings.gateways.manualSettlement.enabled ?? true;
   }
 
-  // Verification Flags Persistence
-  const stripeKeysVerified = raw.stripeKeysVerified !== undefined
-    ? isTrueVal(raw.stripeKeysVerified)
-    : (source.stripeKeysVerified !== undefined
-      ? isTrueVal(source.stripeKeysVerified)
-      : (stripeObj.keysVerified !== undefined
-        ? isTrueVal(stripeObj.keysVerified)
-        : (existingSettings?.stripeKeysVerified ?? false)));
+  const reqRef = manualObj.requireReference !== undefined 
+    ? isTrueVal(manualObj.requireReference) 
+    : (existingSettings?.manual_details?.requireReference ?? true);
 
-  const stripeWebhookVerified = raw.stripeWebhookVerified !== undefined
-    ? isTrueVal(raw.stripeWebhookVerified)
-    : (source.stripeWebhookVerified !== undefined
-      ? isTrueVal(source.stripeWebhookVerified)
-      : (existingSettings?.stripeWebhookVerified ?? false));
+  const reqApp = manualObj.requireApproval !== undefined 
+    ? isTrueVal(manualObj.requireApproval) 
+    : (existingSettings?.manual_details?.requireApproval ?? true);
 
-  const paypalKeysVerified = raw.paypalKeysVerified !== undefined
-    ? isTrueVal(raw.paypalKeysVerified)
-    : (source.paypalKeysVerified !== undefined
-      ? isTrueVal(source.paypalKeysVerified)
-      : (paypalObj.keysVerified !== undefined
-        ? isTrueVal(paypalObj.keysVerified)
-        : (existingSettings?.paypalKeysVerified ?? false)));
-
-  const paypalWebhookVerified = raw.paypalWebhookVerified !== undefined
-    ? isTrueVal(raw.paypalWebhookVerified)
-    : (source.paypalWebhookVerified !== undefined
-      ? isTrueVal(source.paypalWebhookVerified)
-      : (existingSettings?.paypalWebhookVerified ?? false));
-
-  // Allowed channels
   const allowed: string[] = [];
   if (stripeEnabled) allowed.push('stripe');
   if (paypalEnabled) allowed.push('paypal');
@@ -167,12 +142,6 @@ export function normalizeGatewaySettings(raw: any, existingSettings?: PaymentGat
     allowed.push(...filtered);
   }
 
-  // Verified channels (Strictly authenticated channels)
-  const verified: string[] = [];
-  if (stripeEnabled && stripeKeysVerified) verified.push('stripe');
-  if (paypalEnabled && paypalKeysVerified) verified.push('paypal');
-  if (manualEnabled) verified.push('manual'); // Bank wire has no API keys and is verified by nature
-
   const activeGw = (stripeEnabled && paypalEnabled)
     ? 'both'
     : stripeEnabled
@@ -186,31 +155,36 @@ export function normalizeGatewaySettings(raw: any, existingSettings?: PaymentGat
   const stripeTest = stripeObj.testMode !== undefined ? isTrueVal(stripeObj.testMode) : (raw.stripeTestMode !== undefined ? isTrueVal(raw.stripeTestMode) : true);
   const paypalTest = paypalObj.testMode !== undefined ? isTrueVal(paypalObj.testMode) : (raw.paypalTestMode !== undefined ? isTrueVal(raw.paypalTestMode) : true);
 
+  const sKeysVerified = raw.stripeKeysVerified ?? source.stripeKeysVerified ?? existingSettings?.stripeKeysVerified ?? false;
+  const pKeysVerified = raw.paypalKeysVerified ?? source.paypalKeysVerified ?? existingSettings?.paypalKeysVerified ?? false;
+
+  const resolvedManual: ManualDetails = {
+    enabled: manualEnabled,
+    bankName: manualObj.bankName || 'Bangkok Bank',
+    accountHolder: manualObj.accountHolder || 'Zecratary Culinary Ltd',
+    accountNumber: manualObj.accountNumber || '123-4-56789-0',
+    routingNumber: manualObj.routingNumber || '002',
+    swiftBic: manualObj.swiftBic || 'BKKBTHBK',
+    branchName: manualObj.branchName || 'Siam Paragon Branch',
+    instructions: manualObj.instructions || 'Please transfer the exact subscription or wallet balance amount and upload your transfer slip.',
+    requireReference: reqRef,
+    requireApproval: reqApp
+  };
+
   return {
     currency: source.currency || raw.currency || existingSettings?.currency || 'USD',
     allowed_gateways: allowed,
-    verified_gateways: verified,
+    verified_gateways: ['manual', ...(sKeysVerified ? ['stripe'] : []), ...(pKeysVerified ? ['paypal'] : [])],
     active_gateway: source.activeGateway || raw.activeGateway || activeGw,
     stripeConnected: source.stripeConnected ?? raw.stripeConnected ?? existingSettings?.stripeConnected ?? true,
+    stripeKeysVerified: sKeysVerified,
+    stripeWebhookVerified: source.stripeWebhookVerified ?? raw.stripeWebhookVerified ?? existingSettings?.stripeWebhookVerified ?? false,
+    paypalKeysVerified: pKeysVerified,
+    paypalWebhookVerified: source.paypalWebhookVerified ?? raw.paypalWebhookVerified ?? existingSettings?.paypalWebhookVerified ?? false,
     stripe_configured: Boolean(stripeObj.publishableKey || process.env.STRIPE_PUBLISHABLE_KEY),
     paypal_configured: Boolean(paypalObj.clientId || process.env.PAYPAL_CLIENT_ID),
-    stripeKeysVerified,
-    stripeWebhookVerified,
-    paypalKeysVerified,
-    paypalWebhookVerified,
     test_mode: stripeTest,
-    manual_details: {
-      enabled: manualEnabled,
-      bankName: manualObj.bankName || 'Bangkok Bank',
-      accountHolder: manualObj.accountHolder || 'Zecratary Culinary Ltd',
-      accountNumber: manualObj.accountNumber || '123-4-56789-0',
-      routingNumber: manualObj.routingNumber || '002',
-      swiftBic: manualObj.swiftBic || 'BKKBTHBK',
-      branchName: manualObj.branchName || 'Siam Paragon Branch',
-      instructions: manualObj.instructions || 'Please transfer the exact amount and upload your reference slip.',
-      requireReference: manualObj.requireReference ?? true,
-      requireApproval: manualObj.requireApproval ?? true
-    },
+    manual_details: resolvedManual,
     gateways: {
       stripe: {
         enabled: stripeEnabled,
@@ -219,8 +193,7 @@ export function normalizeGatewaySettings(raw: any, existingSettings?: PaymentGat
         publishableKey: stripeObj.publishableKey || '',
         secretKey: stripeObj.secretKey || '',
         webhookSecret: stripeObj.webhookSecret || '',
-        keysVerified: stripeKeysVerified,
-        webhookVerified: stripeWebhookVerified
+        keysVerified: sKeysVerified
       },
       paypal: {
         enabled: paypalEnabled,
@@ -230,21 +203,9 @@ export function normalizeGatewaySettings(raw: any, existingSettings?: PaymentGat
         clientSecret: paypalObj.clientSecret || '',
         webhookId: paypalObj.webhookId || '',
         environment: paypalTest ? 'sandbox' : 'live',
-        keysVerified: paypalKeysVerified,
-        webhookVerified: paypalWebhookVerified
+        keysVerified: pKeysVerified
       },
-      manualSettlement: {
-        enabled: manualEnabled,
-        bankName: manualObj.bankName || 'Bangkok Bank',
-        accountHolder: manualObj.accountHolder || 'Zecratary Culinary Ltd',
-        accountNumber: manualObj.accountNumber || '123-4-56789-0',
-        routingNumber: manualObj.routingNumber || '002',
-        swiftBic: manualObj.swiftBic || 'BKKBTHBK',
-        branchName: manualObj.branchName || 'Siam Paragon Branch',
-        instructions: manualObj.instructions || 'Please transfer the exact amount and upload your reference slip.',
-        requireReference: manualObj.requireReference ?? true,
-        requireApproval: manualObj.requireApproval ?? true
-      }
+      manualSettlement: resolvedManual
     }
   };
 }
@@ -268,28 +229,30 @@ export function readDiskGatewaySettings(): PaymentGatewaySettings {
     verified_gateways: ['manual'],
     active_gateway: 'stripe',
     stripeConnected: true,
-    stripe_configured: false,
-    paypal_configured: false,
     stripeKeysVerified: false,
-    stripeWebhookVerified: false,
     paypalKeysVerified: false,
-    paypalWebhookVerified: false,
+    stripe_configured: true,
+    paypal_configured: false,
     test_mode: true,
     gateways: {
-      stripe: { enabled: true, mode: 'test', testMode: true, publishableKey: '', secretKey: '', keysVerified: false },
-      paypal: { enabled: false, mode: 'sandbox', testMode: true, clientId: '', clientSecret: '', environment: 'sandbox', keysVerified: false },
+      stripe: { enabled: true, mode: 'test', testMode: true, publishableKey: '', secretKey: '' },
+      paypal: { enabled: false, mode: 'sandbox', testMode: true, clientId: '', clientSecret: '', environment: 'sandbox' },
       manualSettlement: {
         enabled: true,
         bankName: 'Bangkok Bank',
         accountHolder: 'Zecratary Culinary Ltd',
-        accountNumber: '123-4-56789-0'
+        accountNumber: '123-4-56789-0',
+        requireReference: true,
+        requireApproval: true
       }
     },
     manual_details: {
       enabled: true,
       bankName: 'Bangkok Bank',
       accountHolder: 'Zecratary Culinary Ltd',
-      accountNumber: '123-4-56789-0'
+      accountNumber: '123-4-56789-0',
+      requireReference: true,
+      requireApproval: true
     }
   };
 }
@@ -315,7 +278,7 @@ export function writeDiskGatewaySettings(settings: PaymentGatewaySettings): void
 export async function getAuthoritativeGatewaySettings(): Promise<PaymentGatewaySettings> {
   let settings = readDiskGatewaySettings();
 
-  // PostgreSQL (Supabase)
+  // 1. PostgreSQL (Supabase)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
@@ -330,9 +293,7 @@ export async function getAuthoritativeGatewaySettings(): Promise<PaymentGatewayS
         .maybeSingle();
 
       if (!error && data?.setting_value) {
-        const parsed = typeof data.setting_value === 'string' 
-          ? JSON.parse(data.setting_value) 
-          : data.setting_value;
+        const parsed = typeof data.setting_value === 'string' ? JSON.parse(data.setting_value) : data.setting_value;
         settings = normalizeGatewaySettings(parsed, settings);
         writeDiskGatewaySettings(settings);
         return settings;
@@ -340,7 +301,7 @@ export async function getAuthoritativeGatewaySettings(): Promise<PaymentGatewayS
     } catch (_) {}
   }
 
-  // MySQL
+  // 2. MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
     if (mysqlModule && typeof mysqlModule.query === 'function') {
@@ -363,7 +324,7 @@ export async function saveAuthoritativeGatewaySettings(input: any): Promise<Paym
   const normalized = normalizeGatewaySettings(input, current);
   writeDiskGatewaySettings(normalized);
 
-  // PostgreSQL (Supabase)
+  // 1. PostgreSQL (Supabase)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
@@ -381,7 +342,7 @@ export async function saveAuthoritativeGatewaySettings(input: any): Promise<Paym
     } catch (_) {}
   }
 
-  // MySQL
+  // 2. MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
     if (mysqlModule && typeof mysqlModule.query === 'function') {
