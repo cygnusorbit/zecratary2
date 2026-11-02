@@ -105,7 +105,8 @@ export default function AdminTokenSettingPage() {
     return fallback;
   }, [t]);
 
-  const [activeTab, setActiveTab] = useState<'system' | 'packages' | 'plans' | 'adjustment' | 'ledger'>('system');
+  // Default active tab is now 'ledger' (Token Audit Ledger)
+  const [activeTab, setActiveTab] = useState<'system' | 'packages' | 'plans' | 'adjustment' | 'ledger'>('ledger');
   
   const [settings, setSettings] = useState<TokenSettings>(() => memoryCachedSettings || {
     tokenName: '',
@@ -222,7 +223,6 @@ export default function AdminTokenSettingPage() {
         }
 
         if (Array.isArray(data.users)) {
-          // Normalize and cast numeric token balance
           const sanitizedUsers: CustomerUserRecord[] = data.users.map((u: any) => {
             const rawBal = u.token_balance !== undefined ? u.token_balance : (u.tokens !== undefined ? u.tokens : 0);
             const numBal = !isNaN(Number(rawBal)) ? Number(rawBal) : 0;
@@ -236,7 +236,6 @@ export default function AdminTokenSettingPage() {
           setUsers(sanitizedUsers);
           memoryCachedUsers = sanitizedUsers;
 
-          // Set default selected customer if not set or missing
           setSelectedUserEmail(prev => {
             if (prev && sanitizedUsers.some(u => u.email.toLowerCase() === prev.toLowerCase())) {
               return prev;
@@ -547,7 +546,6 @@ export default function AdminTokenSettingPage() {
       if (res.ok && data.success) {
         const resolvedNewBal = Number(data.new_balance ?? data.balance_after ?? 0);
 
-        // Update local users list with verified authoritative balance
         setUsers(prev => {
           const exists = prev.some(u => u.email.toLowerCase() === targetEmail.toLowerCase());
           if (exists) {
@@ -573,7 +571,6 @@ export default function AdminTokenSettingPage() {
           );
         }
 
-        // Prepend transaction to local ledger
         if (data.transaction) {
           setTransactions(prev => [data.transaction, ...prev]);
           if (memoryCachedTransactions) {
@@ -581,7 +578,6 @@ export default function AdminTokenSettingPage() {
           }
         }
 
-        // Real-time broadcast
         try {
           const bc = new BroadcastChannel('zecratary_token_channel');
           bc.postMessage({ type: 'TOKEN_ADJUSTMENT_SUCCESS', email: targetEmail, balance: resolvedNewBal });
@@ -724,7 +720,6 @@ export default function AdminTokenSettingPage() {
     return filteredTransactions.slice(start, start + ledgerPageSize);
   }, [filteredTransactions, ledgerPage, ledgerPageSize]);
 
-  // Filtered User options for dropdown
   const filteredUsers = useMemo(() => {
     if (!userDropdownSearch.trim()) return users;
     const q = userDropdownSearch.toLowerCase();
@@ -746,7 +741,6 @@ export default function AdminTokenSettingPage() {
     };
   }, [users, adjustCustomerMode, selectedUserEmail, manualUserEmail]);
 
-  // Live preview calculation for adjustment
   const currentCustomerBalance = Number(activeCustomer?.token_balance ?? activeCustomer?.tokens ?? 0);
   const calculatedBalanceAfter = useMemo(() => {
     const amt = Math.max(0, Number(adjustAmount) || 0);
@@ -836,17 +830,17 @@ export default function AdminTokenSettingPage() {
         </div>
       )}
 
-      {/* Workspace Sub-Tabs (Including "Token Adjustment") */}
+      {/* Workspace Sub-Tabs with 'Token Audit Ledger' moved to the left */}
       <div 
         className="flex p-1.5 rounded-2xl border transition-colors duration-200 overflow-x-auto"
         style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
       >
         {[
+          { id: 'ledger', label: tr('tabTokenLedger', 'Token Audit Ledger'), icon: History },
           { id: 'system', label: tr('tabTokenSystem', 'Economy & Feature Costs'), icon: Sliders },
           { id: 'packages', label: tr('tabTokenPackages', 'Purchasable Packages'), icon: CreditCard },
           { id: 'plans', label: tr('tabTokenPlans', 'Plan Monthly Grants'), icon: Layers },
-          { id: 'adjustment', label: tr('tabTokenAdjustment', 'Token Adjustment'), icon: ArrowUpDown },
-          { id: 'ledger', label: tr('tabTokenLedger', 'Token Audit Ledger'), icon: History }
+          { id: 'adjustment', label: tr('tabTokenAdjustment', 'Token Adjustment'), icon: ArrowUpDown }
         ].map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -870,7 +864,260 @@ export default function AdminTokenSettingPage() {
         })}
       </div>
 
-      {/* TAB 1: SYSTEM IDENTITY & CONSUMPTION COSTS */}
+      {/* TAB: TOKEN AUDIT LEDGER (Default Entry Page) */}
+      <div 
+        role="region"
+        aria-label="Token Transaction Audit Ledger"
+        data-lpignore="true"
+        className={activeTab === 'ledger' ? 'space-y-4 animate-in fade-in' : 'hidden'}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+          <div>
+            <h2 className="text-base font-black flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+              <History className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
+              {tr('ledgerHeading', 'Recent Token Transaction Activity')}
+            </h2>
+            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+              {tr('ledgerDesc', 'Audit ledger tracking user token consumption, bundle purchases, promotional grants, and manual adjustments.')}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="h-3.5 w-3.5 absolute left-3 top-2.5 pointer-events-none opacity-60" />
+              <input
+                type="text"
+                autoComplete="off"
+                data-lpignore="true"
+                data-form-type="other"
+                spellCheck="false"
+                placeholder={tr('searchLedgerPlaceholder', 'Search by customer, description, ID...')}
+                value={ledgerSearch}
+                onChange={(e) => setLedgerSearch(e.target.value)}
+                className="pl-8 pr-3 py-1.5 rounded-xl border text-xs outline-none font-medium w-48 sm:w-56"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+              />
+            </div>
+
+            <select
+              value={ledgerFilterType}
+              onChange={(e) => {
+                setLedgerFilterType(e.target.value);
+                setLedgerPage(1);
+              }}
+              className="px-3 py-1.5 rounded-xl border text-xs font-bold outline-none cursor-pointer"
+              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+            >
+              <option value="all">{tr('filterAllTypes', 'All Transaction Types')}</option>
+              <option value="purchases">{tr('filterPurchases', 'Purchases')}</option>
+              <option value="deductions">{tr('filterDeductions', 'Consumption / Deductions')}</option>
+              <option value="grants">{tr('filterGrants', 'Grants & Signups')}</option>
+              <option value="adjustments">{tr('filterAdjustments', 'Manual Adjustments')}</option>
+            </select>
+
+            <div 
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs"
+              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
+            >
+              <span className="text-[11px] font-bold" style={{ color: 'var(--color-text-secondary)' }}>
+                {tr('perPage', 'Rows:')}
+              </span>
+              <select
+                value={ledgerPageSize}
+                onChange={(e) => {
+                  setLedgerPageSize(Number(e.target.value));
+                  setLedgerPage(1);
+                }}
+                className="bg-transparent text-xs font-bold outline-none cursor-pointer"
+                style={{ color: 'var(--color-text)' }}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleClearLedger}
+              className="px-3 py-1.5 rounded-xl border text-xs font-bold transition hover:bg-rose-500/10 text-rose-400 border-rose-500/30 cursor-pointer"
+            >
+              {tr('btnClearLedger', 'Clear Audit Trail')}
+            </button>
+          </div>
+        </div>
+
+        <div 
+          className="border rounded-3xl overflow-hidden shadow-xl transition-colors duration-200"
+          style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead 
+                className="border-b uppercase font-bold text-[10px] tracking-wider"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+              >
+                <tr>
+                  <th className="px-5 py-4">{tr('colUser', 'Customer')}</th>
+                  <th className="px-5 py-4">{tr('colType', 'Transaction Type')}</th>
+                  <th className="px-5 py-4">{tr('colAmount', 'Amount')}</th>
+                  <th className="px-5 py-4">{tr('colBalanceAfter', 'Balance After')}</th>
+                  <th className="px-5 py-4">{tr('colDate', 'Timestamp')}</th>
+                  <th className="px-5 py-4">{tr('colDescription', 'Description')}</th>
+                </tr>
+              </thead>
+              {loading && transactions.length === 0 ? (
+                <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td className="px-5 py-4"><div className="h-3 w-28 rounded bg-[var(--color-inner-dark)]" /></td>
+                      <td className="px-5 py-4"><div className="h-4 w-16 rounded-full bg-[var(--color-inner-dark)]" /></td>
+                      <td className="px-5 py-4"><div className="h-3 w-14 rounded bg-[var(--color-inner-dark)]" /></td>
+                      <td className="px-5 py-4"><div className="h-3 w-10 rounded bg-[var(--color-inner-dark)]" /></td>
+                      <td className="px-5 py-4"><div className="h-3 w-24 rounded bg-[var(--color-inner-dark)]" /></td>
+                      <td className="px-5 py-4"><div className="h-3 w-44 rounded bg-[var(--color-inner-dark)]" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              ) : (
+                <tbody className="divide-y" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}>
+                  {paginatedTransactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center py-10" style={{ color: 'var(--color-text-secondary)' }}>
+                        {tr('noLedgerRecords', 'No recent token transactions recorded.')}
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedTransactions.map((tx) => {
+                      const isPositive = Number(tx.amount) > 0;
+                      return (
+                        <tr key={tx.id} className="transition" style={{ borderColor: 'var(--color-border)' }}>
+                          <td className="px-5 py-4 font-mono font-bold text-xs" style={{ color: 'var(--color-text)' }}>
+                            {tx.customer_email || tx.user_email || 'System User'}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <span 
+                              className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border"
+                              style={{
+                                backgroundColor: 'var(--color-inner-dark)',
+                                borderColor: isPositive ? 'var(--color-emerald, #10b981)' : 'var(--color-warning, #f59e0b)',
+                                color: isPositive ? 'var(--color-emerald, #10b981)' : 'var(--color-warning, #fbbf24)'
+                              }}
+                            >
+                              {tx.type}
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4 font-mono font-black" style={{ color: isPositive ? 'var(--color-emerald, #10b981)' : 'var(--color-danger, #ef4444)' }}>
+                            {isPositive ? `+${tx.amount}` : tx.amount} {activeTokenSymbol}
+                          </td>
+
+                          <td className="px-5 py-4 font-mono font-bold" style={{ color: 'var(--color-text)' }}>
+                            {tx.balance_after !== undefined ? tx.balance_after : '—'}
+                          </td>
+
+                          <td className="px-5 py-4 text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+                            {tx.created_at ? new Date(tx.created_at).toLocaleDateString(locale === 'th' ? 'th-TH' : (locale || 'en-US'), { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                          </td>
+
+                          <td className="px-5 py-4 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                            {formatLedgerDescription(tx.description, activeTokenSymbol)}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              )}
+            </table>
+          </div>
+        </div>
+
+        {/* Ledger Pagination Bar */}
+        <div 
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 px-1 text-xs"
+          style={{ color: 'var(--color-text-secondary)' }}
+        >
+          <div className="font-mono text-xs font-semibold">
+            {totalLedgerRecords > 0 ? (
+              <>
+                {tr('showingRecords', 'Showing')}{' '}
+                <strong style={{ color: 'var(--color-text)' }}>
+                  {(ledgerPage - 1) * ledgerPageSize + 1}
+                </strong>
+                {' - '}
+                <strong style={{ color: 'var(--color-text)' }}>
+                  {Math.min(ledgerPage * ledgerPageSize, totalLedgerRecords)}
+                </strong>
+                {' '}{tr('ofTotal', 'of')}{' '}
+                <strong style={{ color: 'var(--color-text)' }}>
+                  {totalLedgerRecords}
+                </strong>
+                {' '}{tr('records', 'transactions')}
+              </>
+            ) : (
+              <span>0 {tr('records', 'transactions')}</span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={ledgerPage <= 1}
+              onClick={() => setLedgerPage(1)}
+              className="px-2.5 py-1.5 rounded-xl border font-bold text-xs transition disabled:opacity-30 cursor-pointer shadow-xs hover:border-[var(--color-primary)]"
+              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+              title={tr('firstPage', 'First Page')}
+            >
+              «
+            </button>
+
+            <button
+              type="button"
+              disabled={ledgerPage <= 1}
+              onClick={() => setLedgerPage(prev => Math.max(1, prev - 1))}
+              className="p-1.5 rounded-xl border transition disabled:opacity-30 cursor-pointer shadow-xs hover:border-[var(--color-primary)]"
+              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+              title={tr('prevPage', 'Previous Page')}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+
+            <span 
+              className="px-3.5 py-1.5 rounded-xl font-mono font-bold border shadow-xs text-xs"
+              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+            >
+              {tr('page', 'Page')} {ledgerPage} / {totalLedgerPages}
+            </span>
+
+            <button
+              type="button"
+              disabled={ledgerPage >= totalLedgerPages}
+              onClick={() => setLedgerPage(prev => Math.min(totalLedgerPages, prev + 1))}
+              className="p-1.5 rounded-xl border transition disabled:opacity-30 cursor-pointer shadow-xs hover:border-[var(--color-primary)]"
+              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+              title={tr('nextPage', 'Next Page')}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+
+            <button
+              type="button"
+              disabled={ledgerPage >= totalLedgerPages}
+              onClick={() => setLedgerPage(totalLedgerPages)}
+              className="px-2.5 py-1.5 rounded-xl border font-bold text-xs transition disabled:opacity-30 cursor-pointer shadow-xs hover:border-[var(--color-primary)]"
+              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+              title={tr('lastPage', 'Last Page')}
+            >
+              »
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* TAB: SYSTEM IDENTITY & CONSUMPTION COSTS */}
       <div 
         role="region"
         aria-label="Economy and Consumption Costs"
@@ -1090,7 +1337,7 @@ export default function AdminTokenSettingPage() {
         )}
       </div>
 
-      {/* TAB 2: USER PURCHASABLE TOKEN PACKAGES */}
+      {/* TAB: USER PURCHASABLE TOKEN PACKAGES */}
       <div 
         role="region"
         aria-label="User Purchasable Packages"
@@ -1323,7 +1570,7 @@ export default function AdminTokenSettingPage() {
         </div>
       </div>
 
-      {/* TAB 3: SUBSCRIPTION PLAN MONTHLY INCLUDED TOKENS */}
+      {/* TAB: SUBSCRIPTION PLAN MONTHLY INCLUDED TOKENS */}
       <div 
         role="region"
         aria-label="Subscription Plan Monthly Included Tokens"
@@ -1444,7 +1691,7 @@ export default function AdminTokenSettingPage() {
         </div>
       </div>
 
-      {/* TAB 4: TOKEN ADJUSTMENT - MANUAL CUSTOMER BALANCE ADJUSTMENT */}
+      {/* TAB: TOKEN ADJUSTMENT - MANUAL CUSTOMER BALANCE ADJUSTMENT */}
       <div 
         role="region"
         aria-label="Manual Token Customer Balance Adjustment"
@@ -1807,244 +2054,6 @@ export default function AdminTokenSettingPage() {
                 )}
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* TAB 5: TOKEN AUDIT LEDGER */}
-      <div 
-        role="region"
-        aria-label="Token Transaction Audit Ledger"
-        data-lpignore="true"
-        className={activeTab === 'ledger' ? 'space-y-4 animate-in fade-in' : 'hidden'}
-      >
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
-          <div>
-            <h2 className="text-base font-black flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
-              <History className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
-              {tr('ledgerHeading', 'Recent Token Transaction Activity')}
-            </h2>
-            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              {tr('ledgerDesc', 'Audit ledger tracking user token consumption, bundle purchases, promotional grants, and manual adjustments.')}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <Search className="h-3.5 w-3.5 absolute left-3 top-2.5 pointer-events-none opacity-60" />
-              <input
-                type="text"
-                autoComplete="off"
-                data-lpignore="true"
-                data-form-type="other"
-                spellCheck="false"
-                placeholder={tr('searchLedgerPlaceholder', 'Search by customer, description, ID...')}
-                value={ledgerSearch}
-                onChange={(e) => setLedgerSearch(e.target.value)}
-                className="pl-8 pr-3 py-1.5 rounded-xl border text-xs outline-none font-medium w-48 sm:w-56"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              />
-            </div>
-
-            <select
-              value={ledgerFilterType}
-              onChange={(e) => {
-                setLedgerFilterType(e.target.value);
-                setLedgerPage(1);
-              }}
-              className="px-3 py-1.5 rounded-xl border text-xs font-bold outline-none cursor-pointer"
-              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-            >
-              <option value="all">{tr('filterAllTypes', 'All Transaction Types')}</option>
-              <option value="purchases">{tr('filterPurchases', 'Purchases')}</option>
-              <option value="deductions">{tr('filterDeductions', 'Consumption / Deductions')}</option>
-              <option value="grants">{tr('filterGrants', 'Grants & Signups')}</option>
-              <option value="adjustments">{tr('filterAdjustments', 'Manual Adjustments')}</option>
-            </select>
-
-            <div 
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs"
-              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
-            >
-              <span className="text-[11px] font-bold" style={{ color: 'var(--color-text-secondary)' }}>
-                {tr('perPage', 'Rows:')}
-              </span>
-              <select
-                value={ledgerPageSize}
-                onChange={(e) => {
-                  setLedgerPageSize(Number(e.target.value));
-                  setLedgerPage(1);
-                }}
-                className="bg-transparent text-xs font-bold outline-none cursor-pointer"
-                style={{ color: 'var(--color-text)' }}
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleClearLedger}
-              className="px-3 py-1.5 rounded-xl border text-xs font-bold transition hover:bg-rose-500/10 text-rose-400 border-rose-500/30 cursor-pointer"
-            >
-              {tr('btnClearLedger', 'Clear Audit Trail')}
-            </button>
-          </div>
-        </div>
-
-        <div 
-          className="border rounded-3xl overflow-hidden shadow-xl transition-colors duration-200"
-          style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead 
-                className="border-b uppercase font-bold text-[10px] tracking-wider"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
-              >
-                <tr>
-                  <th className="px-5 py-4">{tr('colUser', 'Customer')}</th>
-                  <th className="px-5 py-4">{tr('colType', 'Transaction Type')}</th>
-                  <th className="px-5 py-4">{tr('colAmount', 'Amount')}</th>
-                  <th className="px-5 py-4">{tr('colBalanceAfter', 'Balance After')}</th>
-                  <th className="px-5 py-4">{tr('colDate', 'Timestamp')}</th>
-                  <th className="px-5 py-4">{tr('colDescription', 'Description')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}>
-                {paginatedTransactions.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-10" style={{ color: 'var(--color-text-secondary)' }}>
-                      {tr('noLedgerRecords', 'No recent token transactions recorded.')}
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedTransactions.map((tx) => {
-                    const isPositive = Number(tx.amount) > 0;
-                    return (
-                      <tr key={tx.id} className="transition" style={{ borderColor: 'var(--color-border)' }}>
-                        <td className="px-5 py-4 font-mono font-bold text-xs" style={{ color: 'var(--color-text)' }}>
-                          {tx.customer_email || tx.user_email || 'System User'}
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <span 
-                            className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border"
-                            style={{
-                              backgroundColor: 'var(--color-inner-dark)',
-                              borderColor: isPositive ? 'var(--color-emerald, #10b981)' : 'var(--color-warning, #f59e0b)',
-                              color: isPositive ? 'var(--color-emerald, #10b981)' : 'var(--color-warning, #fbbf24)'
-                            }}
-                          >
-                            {tx.type}
-                          </span>
-                        </td>
-
-                        <td className="px-5 py-4 font-mono font-black" style={{ color: isPositive ? 'var(--color-emerald, #10b981)' : 'var(--color-danger, #ef4444)' }}>
-                          {isPositive ? `+${tx.amount}` : tx.amount} {activeTokenSymbol}
-                        </td>
-
-                        <td className="px-5 py-4 font-mono font-bold" style={{ color: 'var(--color-text)' }}>
-                          {tx.balance_after !== undefined ? tx.balance_after : '—'}
-                        </td>
-
-                        <td className="px-5 py-4 text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
-                          {tx.created_at ? new Date(tx.created_at).toLocaleDateString(locale === 'th' ? 'th-TH' : (locale || 'en-US'), { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
-                        </td>
-
-                        <td className="px-5 py-4 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                          {formatLedgerDescription(tx.description, activeTokenSymbol)}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Ledger Pagination Bar */}
-        <div 
-          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 px-1 text-xs"
-          style={{ color: 'var(--color-text-secondary)' }}
-        >
-          <div className="font-mono text-xs font-semibold">
-            {totalLedgerRecords > 0 ? (
-              <>
-                {tr('showingRecords', 'Showing')}{' '}
-                <strong style={{ color: 'var(--color-text)' }}>
-                  {(ledgerPage - 1) * ledgerPageSize + 1}
-                </strong>
-                {' - '}
-                <strong style={{ color: 'var(--color-text)' }}>
-                  {Math.min(ledgerPage * ledgerPageSize, totalLedgerRecords)}
-                </strong>
-                {' '}{tr('ofTotal', 'of')}{' '}
-                <strong style={{ color: 'var(--color-text)' }}>
-                  {totalLedgerRecords}
-                </strong>
-                {' '}{tr('records', 'transactions')}
-              </>
-            ) : (
-              <span>0 {tr('records', 'transactions')}</span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              disabled={ledgerPage <= 1}
-              onClick={() => setLedgerPage(1)}
-              className="px-2.5 py-1.5 rounded-xl border font-bold text-xs transition disabled:opacity-30 cursor-pointer shadow-xs hover:border-[var(--color-primary)]"
-              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              title={tr('firstPage', 'First Page')}
-            >
-              «
-            </button>
-
-            <button
-              type="button"
-              disabled={ledgerPage <= 1}
-              onClick={() => setLedgerPage(prev => Math.max(1, prev - 1))}
-              className="p-1.5 rounded-xl border transition disabled:opacity-30 cursor-pointer shadow-xs hover:border-[var(--color-primary)]"
-              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              title={tr('prevPage', 'Previous Page')}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-
-            <span 
-              className="px-3.5 py-1.5 rounded-xl font-mono font-bold border shadow-xs text-xs"
-              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-            >
-              {tr('page', 'Page')} {ledgerPage} / {totalLedgerPages}
-            </span>
-
-            <button
-              type="button"
-              disabled={ledgerPage >= totalLedgerPages}
-              onClick={() => setLedgerPage(prev => Math.min(totalLedgerPages, prev + 1))}
-              className="p-1.5 rounded-xl border transition disabled:opacity-30 cursor-pointer shadow-xs hover:border-[var(--color-primary)]"
-              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              title={tr('nextPage', 'Next Page')}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-
-            <button
-              type="button"
-              disabled={ledgerPage >= totalLedgerPages}
-              onClick={() => setLedgerPage(totalLedgerPages)}
-              className="px-2.5 py-1.5 rounded-xl border font-bold text-xs transition disabled:opacity-30 cursor-pointer shadow-xs hover:border-[var(--color-primary)]"
-              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              title={tr('lastPage', 'Last Page')}
-            >
-              »
-            </button>
           </div>
         </div>
       </div>
