@@ -1,5 +1,21 @@
 [
   {
+    "id": "adj_1793566048912_a0gzy",
+    "user_id": "usr_admin_1",
+    "email": "admin@zecratary.com",
+    "customer_email": "admin@zecratary.com",
+    "customer_name": "System Administrator",
+    "plan_name": "Manual Adjustment",
+    "amount": 1,
+    "balance_after": 28,
+    "currency": "USD",
+    "type": "adjustment",
+    "gateway": "manual",
+    "status": "completed",
+    "description": "reward",
+    "created_at": "2026-11-01T20:47:28.912Z"
+  },
+  {
     "id": "cs_test_a1hCBPDHd7F80BqZUxafqQTgWZBUIzHHZZWza37L3pZFrtfzrIEA6eEANP",
     "user_id": "usr_admin_1",
     "email": "admin@zecratary.com",

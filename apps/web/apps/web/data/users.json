@@ -16,8 +16,8 @@
     "role": "admin",
     "subscriptionPlan": "taster",
     "createdAt": "2026-01-01T00:00:00.000Z",
-    "wallet_balance": 16,
-    "balance": 16,
+    "wallet_balance": 28,
+    "balance": 28,
     "token_balance": 250,
     "tokens": 250
   },
