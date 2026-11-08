@@ -1,8 +1,9 @@
-import { migrateSupabaseToMysql } from '@/lib/supabaseToMysqlMigrator';
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import net from 'net';
+import { migrateSupabaseToMysql } from '@/lib/supabaseToMysqlMigrator';
+import { injectCompleteMysqlDatabase } from '@/lib/mysqlSchemaInjector';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,12 +27,6 @@ function readCurrentEnv(): Record<string, string> {
   for (const p of paths) {
     if (fs.existsSync(p)) {
       try {
-    if (action === 'migrate_supabase_to_mysql' || body.action === 'migrate_supabase_to_mysql') {
-      const migRes = await migrateSupabaseToMysql();
-      return NextResponse.json(migRes);
-    }
-
-    
         const content = fs.readFileSync(p, 'utf-8');
         const lines = content.split('\n');
         for (const line of lines) {
@@ -58,7 +53,8 @@ function readCurrentEnv(): Record<string, string> {
     'DATABASE_URL',
     'POSTGRES_URL',
     'MYSQL_URL',
-    'ACTIVE_DB_PROFILE'
+    'ACTIVE_DB_PROFILE',
+    'DB_PROVIDER'
   ];
 
   for (const k of keysToInspect) {
@@ -151,12 +147,12 @@ function parseConnectionDetails(uriString: string, defaultEngine: 'postgresql' |
     const isMysql = trimmed.startsWith('mysql://');
 
     if (isMysql) {
-      const m = trimmed.match(/^mysql:\/\/([^:]+):(.*)@([^@:\/]+)(?::(\d+))?\/([^?]+)/);
+      const m = trimmed.match(/^mysql:\/\/([^:@]+)(?::(.*))?@([^@:\/]+)(?::(\d+))?\/([^?]+)/);
       if (m) {
         return {
-          host: m[3],
+          host: m[3] || '127.0.0.1',
           port: m[4] ? parseInt(m[4], 10) : 3306,
-          dbName: m[5],
+          dbName: m[5] || 'zecratary',
           engine: 'mysql' as const,
           valid: true
         };
@@ -174,9 +170,9 @@ function parseConnectionDetails(uriString: string, defaultEngine: 'postgresql' |
   } catch (_) {}
 
   return {
-    host: '148.222.53.10',
+    host: defaultEngine === 'mysql' ? '127.0.0.1' : 'localhost',
     port: defaultEngine === 'mysql' ? 3306 : 5432,
-    dbName: 'u472824187_zecratary',
+    dbName: 'zecratary',
     engine: defaultEngine,
     valid: false
   };
@@ -282,6 +278,18 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { action, uri, config, targetProfile } = body;
+
+    // 0. SUPABASE TO HOSTINGER / LOCALHOST MYSQL MIGRATION
+    if (action === 'migrate_supabase_to_mysql' || body.action === 'migrate_supabase_to_mysql') {
+      const migRes = await migrateSupabaseToMysql();
+      return NextResponse.json(migRes);
+    }
+
+    // 0.1 INJECT MYSQL SCHEMA & SEED DATA
+    if (action === 'inject_mysql_schema' || body.action === 'inject_mysql_schema') {
+      const injectRes = await injectCompleteMysqlDatabase();
+      return NextResponse.json(injectRes);
+    }
 
     // 1. TEST CONNECTION (Unified HTTP REST & TCP Socket Handshake)
     if (action === 'test_connection' || action === 'auto_detect_connect') {
