@@ -2,8 +2,17 @@ import mysql from 'mysql2/promise';
 
 let pool: mysql.Pool | null = null;
 
-function getMysqlUri(): string | null {
-  return process.env.MYSQL_URL || null;
+export function getMysqlUri(): string | null {
+  if (process.env.MYSQL_URL) return process.env.MYSQL_URL;
+  if (process.env.MYSQL_DATABASE && process.env.MYSQL_USER) {
+    const host = process.env.MYSQL_HOST || 'localhost';
+    const port = process.env.MYSQL_PORT || '3306';
+    const user = encodeURIComponent(process.env.MYSQL_USER);
+    const pass = process.env.MYSQL_PASSWORD ? encodeURIComponent(process.env.MYSQL_PASSWORD) : '';
+    const db = process.env.MYSQL_DATABASE;
+    return `mysql://${user}:${pass}@${host}:${port}/${db}`;
+  }
+  return null;
 }
 
 export function getMysqlPool(): mysql.Pool | null {
@@ -17,7 +26,7 @@ export function getMysqlPool(): mysql.Pool | null {
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
-        connectTimeout: 4000,
+        connectTimeout: 5000,
         enableKeepAlive: true,
         keepAliveInitialDelay: 0
       });
@@ -30,9 +39,6 @@ export function getMysqlPool(): mysql.Pool | null {
 
 export const getPool = getMysqlPool;
 
-/**
- * Robust MySQL Query execution with precision column auto-repair and suppressed notice spam
- */
 export async function query<T = any>(sql: string, params: any[] = []): Promise<T[] | any> {
   const p = getMysqlPool();
   if (!p) return [];
@@ -46,8 +52,7 @@ export async function query<T = any>(sql: string, params: any[] = []): Promise<T
     const missingCol = colMatch ? colMatch[1] : null;
 
     if (missingCol) {
-      // 1. Repair users table
-      if (missingCol === 'wallet_balance' || missingCol === 'balance' || missingCol === 'token_balance') {
+      if (['wallet_balance', 'balance', 'token_balance'].includes(missingCol)) {
         try {
           const [chk]: any = await p.query(
             "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = ?",
@@ -64,7 +69,6 @@ export async function query<T = any>(sql: string, params: any[] = []): Promise<T
         }
       }
 
-      // 2. Repair admin_settings table (setting_value, value, key, setting_key)
       if (['setting_value', 'value', 'key', 'setting_key'].includes(missingCol)) {
         try {
           const [chk]: any = await p.query(
@@ -81,43 +85,17 @@ export async function query<T = any>(sql: string, params: any[] = []): Promise<T
           return [];
         }
       }
-
-      // 3. Repair payment_transactions table
-      if (['confirmed_at', 'failure_reason', 'notes', 'confirmed_amount', 'transfer_reference'].includes(missingCol)) {
-        try {
-          const [chk]: any = await p.query(
-            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_transactions' AND COLUMN_NAME = ?",
-            [missingCol]
-          );
-          if (Array.isArray(chk) && chk.length === 0) {
-            const ddlMap: Record<string, string> = {
-              confirmed_at: 'DATETIME NULL',
-              failure_reason: 'TEXT NULL',
-              notes: 'TEXT NULL',
-              confirmed_amount: 'DECIMAL(10,2) NULL',
-              transfer_reference: 'VARCHAR(255) NULL'
-            };
-            await p.execute(`ALTER TABLE payment_transactions ADD COLUMN \`${missingCol}\` ${ddlMap[missingCol] || 'TEXT NULL'};`);
-          }
-          const [retried] = await p.execute(sql, params);
-          return retried;
-        } catch (_) {
-          return [];
-        }
-      }
     }
 
     return [];
   }
 }
 
-// Authoritative named aliases for consumers expecting queryMysql or execute
 export const queryMysql = query;
 export const execute = query;
 export const executeMysql = query;
 export const mysqlQuery = query;
 
-// Default export for dynamic module imports (e.g. await import('@/lib/mysql'))
 const mysqlExport = {
   query,
   queryMysql,
@@ -125,7 +103,8 @@ const mysqlExport = {
   executeMysql,
   mysqlQuery,
   getMysqlPool,
-  getPool
+  getPool,
+  getMysqlUri
 };
 
 export default mysqlExport;
