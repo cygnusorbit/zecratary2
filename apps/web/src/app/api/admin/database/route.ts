@@ -148,21 +148,35 @@ function testTcpSocket(host: string, port: number, timeoutMs = 3500): Promise<{ 
 function parseConnectionDetails(uriString: string, defaultEngine: 'postgresql' | 'mysql' = 'postgresql') {
   try {
     const trimmed = (uriString || '').trim();
-    if (trimmed.startsWith('postgres://') || trimmed.startsWith('postgresql://') || trimmed.startsWith('mysql://')) {
-      const fakeUrl = trimmed.replace('postgresql://', 'http://').replace('postgres://', 'http://').replace('mysql://', 'http://');
+    const isMysql = trimmed.startsWith('mysql://');
+
+    if (isMysql) {
+      const m = trimmed.match(/^mysql:\/\/([^:]+):(.*)@([^@:\/]+)(?::(\d+))?\/([^?]+)/);
+      if (m) {
+        return {
+          host: m[3],
+          port: m[4] ? parseInt(m[4], 10) : 3306,
+          dbName: m[5],
+          engine: 'mysql' as const,
+          valid: true
+        };
+      }
+    }
+
+    if (trimmed.startsWith('postgres://') || trimmed.startsWith('postgresql://')) {
+      const fakeUrl = trimmed.replace('postgresql://', 'http://').replace('postgres://', 'http://');
       const u = new URL(fakeUrl);
-      const isMysql = trimmed.startsWith('mysql://');
       const host = u.hostname || 'localhost';
-      const port = u.port ? parseInt(u.port, 10) : (isMysql ? 3306 : 5432);
-      const dbName = u.pathname.replace(/^\//, '').split('?')[0] || (isMysql ? 'zecratary' : 'postgres');
-      return { host, port, dbName, engine: isMysql ? 'mysql' : 'postgresql', valid: true };
+      const port = u.port ? parseInt(u.port, 10) : 5432;
+      const dbName = u.pathname.replace(/^\//, '').split('?')[0] || 'postgres';
+      return { host, port, dbName, engine: 'postgresql' as const, valid: true };
     }
   } catch (_) {}
 
   return {
-    host: 'localhost',
+    host: '148.222.53.10',
     port: defaultEngine === 'mysql' ? 3306 : 5432,
-    dbName: 'zecratary',
+    dbName: 'u472824187_zecratary',
     engine: defaultEngine,
     valid: false
   };

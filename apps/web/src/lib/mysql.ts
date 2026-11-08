@@ -3,15 +3,26 @@ import mysql from 'mysql2/promise';
 let pool: mysql.Pool | null = null;
 
 export function getMysqlUri(): string | null {
-  if (process.env.MYSQL_URL) return process.env.MYSQL_URL;
-  if (process.env.MYSQL_DATABASE && process.env.MYSQL_USER) {
-    const host = process.env.MYSQL_HOST || 'localhost';
-    const port = process.env.MYSQL_PORT || '3306';
-    const user = encodeURIComponent(process.env.MYSQL_USER);
-    const pass = process.env.MYSQL_PASSWORD ? encodeURIComponent(process.env.MYSQL_PASSWORD) : '';
-    const db = process.env.MYSQL_DATABASE;
-    return `mysql://${user}:${pass}@${host}:${port}/${db}`;
-  }
+  return process.env.MYSQL_URL || null;
+}
+
+/**
+ * Robustly parses MySQL connection strings even when password contains special '#' or '@' characters
+ */
+export function parseMysqlConfig(uriString: string) {
+  try {
+    const trimmed = (uriString || '').trim();
+    const match = trimmed.match(/^mysql:\/\/([^:]+):(.*)@([^@:\/]+)(?::(\d+))?\/([^?]+)(?:\?(.*))?$/);
+    if (match) {
+      return {
+        user: decodeURIComponent(match[1]),
+        password: match[2],
+        host: match[3],
+        port: match[4] ? parseInt(match[4], 10) : 3306,
+        database: match[5]
+      };
+    }
+  } catch (_) {}
   return null;
 }
 
@@ -21,15 +32,32 @@ export function getMysqlPool(): mysql.Pool | null {
 
   if (!pool) {
     try {
-      pool = mysql.createPool({
-        uri,
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0,
-        connectTimeout: 5000,
-        enableKeepAlive: true,
-        keepAliveInitialDelay: 0
-      });
+      const parsed = parseMysqlConfig(uri);
+      if (parsed) {
+        pool = mysql.createPool({
+          host: parsed.host,
+          port: parsed.port,
+          user: parsed.user,
+          password: parsed.password,
+          database: parsed.database,
+          waitForConnections: true,
+          connectionLimit: 10,
+          queueLimit: 0,
+          connectTimeout: 5000,
+          enableKeepAlive: true,
+          keepAliveInitialDelay: 0
+        });
+      } else {
+        pool = mysql.createPool({
+          uri,
+          waitForConnections: true,
+          connectionLimit: 10,
+          queueLimit: 0,
+          connectTimeout: 5000,
+          enableKeepAlive: true,
+          keepAliveInitialDelay: 0
+        });
+      }
     } catch (_) {
       pool = null;
     }
@@ -104,7 +132,8 @@ const mysqlExport = {
   mysqlQuery,
   getMysqlPool,
   getPool,
-  getMysqlUri
+  getMysqlUri,
+  parseMysqlConfig
 };
 
 export default mysqlExport;
