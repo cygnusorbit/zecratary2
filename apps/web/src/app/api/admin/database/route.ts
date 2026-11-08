@@ -1,3 +1,4 @@
+import { migrateSupabaseToMysql } from '@/lib/supabaseToMysqlMigrator';
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
@@ -25,6 +26,12 @@ function readCurrentEnv(): Record<string, string> {
   for (const p of paths) {
     if (fs.existsSync(p)) {
       try {
+    if (action === 'migrate_supabase_to_mysql' || body.action === 'migrate_supabase_to_mysql') {
+      const migRes = await migrateSupabaseToMysql();
+      return NextResponse.json(migRes);
+    }
+
+    
         const content = fs.readFileSync(p, 'utf-8');
         const lines = content.split('\n');
         for (const line of lines) {

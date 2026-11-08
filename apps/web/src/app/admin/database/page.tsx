@@ -315,7 +315,39 @@ export default function AdminDatabasePage() {
   };
 
   // Full Data Migration across all 17 Tables
-  const handleCloneLocalToSupabase = async () => {
+    const [migratingToMysql, setMigratingToMysql] = useState(false);
+
+  // Migrate Supabase Cloud Rows to Hostinger MySQL
+  const handleMigrateSupabaseToMysql = async () => {
+    setMigratingToMysql(true);
+    setToast(null);
+    try {
+      const res = await fetch('/api/admin/database', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'migrate_supabase_to_mysql' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setToast({
+          type: 'success',
+          message: `${t('migrationSuccessToast', 'Successfully migrated')} ${data.totalRowsMigrated} ${t('rowsFromSupabase', 'rows from Supabase Cloud into Hostinger MySQL across 19 operational tables!')}`
+        });
+        loadDatabaseData();
+      } else {
+        setToast({
+          type: 'error',
+          message: data.error || t('migrationErrorToast', 'Failed to copy data from Supabase to MySQL.')
+        });
+      }
+    } catch (e: any) {
+      setToast({ type: 'error', message: e.message || 'Error executing Supabase to MySQL migration.' });
+    } finally {
+      setMigratingToMysql(false);
+    }
+  };
+
+const handleCloneLocalToSupabase = async () => {
     setCloning(true);
     setToast(null);
     try {
@@ -1333,6 +1365,41 @@ export default function AdminDatabasePage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Live Supabase Cloud to Hostinger MySQL Replication Card */}
+            <div 
+              className="p-5 rounded-2xl border space-y-3 flex flex-col justify-between shadow-sm transition-colors duration-200"
+              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-primary)' }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
+                      Copy Supabase Cloud Data into Hostinger MySQL
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border" style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'var(--color-emerald)', color: 'var(--color-emerald)' }}>
+                      19 Tables Ready
+                    </span>
+                  </div>
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+                    Transfers all existing rows (users, wallets, tokens, recipes, payment history, meal plans, audit logs) from Supabase Cloud directly into your connected Hostinger MySQL database.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleMigrateSupabaseToMysql}
+                  disabled={migratingToMysql}
+                  className="w-full py-2.5 rounded-xl text-xs font-bold text-white shadow transition hover:opacity-90 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
+                  <RefreshCw className={`h-4 w-4 ${migratingToMysql ? 'animate-spin' : ''}`} />
+                  <span>{migratingToMysql ? 'Migrating records from Supabase to Hostinger MySQL...' : 'Execute Supabase Cloud → Hostinger MySQL Migration'}</span>
+                </button>
+              </div>
+            </div>
+
               <div 
                 className="p-5 rounded-2xl border space-y-3 flex flex-col justify-between"
                 style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
