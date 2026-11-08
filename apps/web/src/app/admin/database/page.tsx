@@ -7,13 +7,15 @@ import {
   AlertCircle, ShieldCheck, Zap, Activity, HardDrive, 
   Cpu, Lock, Check, ArrowRightLeft, Layers, Wrench, AlertTriangle,
   ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, Radio, FileCode2,
-  Power, Globe, CheckCircle, Search, Filter, Hash
+  Power, Globe, CheckCircle, Search, Filter, Hash, ArrowUpRight, ArrowDownLeft
 } from 'lucide-react';
 import { useTranslation } from '@/components/LanguageProvider';
 
 interface TableInfo {
   name: string;
-  rowCount: number;
+  rowCount?: number;
+  sourceRows?: number;
+  targetRows?: number;
   size: string;
   status: string;
   category?: string;
@@ -23,7 +25,7 @@ export default function AdminDatabasePage() {
   const { t } = useTranslation();
 
   // Navigation tab state
-  const [activeTab, setActiveTab] = useState<'supabase' | 'localhost' | 'migration' | 'telemetry'>('supabase');
+  const [activeTab, setActiveTab] = useState<'supabase' | 'localhost' | 'migration' | 'telemetry'>('migration');
 
   // Connection & Active Profile States
   const [activeProfile, setActiveProfile] = useState<'localhost_postgres' | 'localhost_mysql' | 'supabase_cloud'>('supabase_cloud');
@@ -33,27 +35,25 @@ export default function AdminDatabasePage() {
   const [databaseType, setDatabaseType] = useState<string>('Supabase Cloud (PostgreSQL 15.x)');
   const [hostEndpoint, setHostEndpoint] = useState<string>('aws-0-ap-southeast-1.pooler.supabase.com:6543');
   const [latency, setLatency] = useState<number>(38);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [errorCode, setErrorCode] = useState<string | null>(null);
 
-  // Form State - Localhost
-  const [localhostType, setLocalhostType] = useState<'postgresql' | 'mysql'>('postgresql');
-  const [localhostUri, setLocalhostUri] = useState('postgresql://postgres:postgres@localhost:5432/zecratary?schema=public');
-  const [host, setHost] = useState('localhost');
-  const [port, setPort] = useState('5432');
+  // Form State - Localhost / MySQL
+  const [localhostType, setLocalhostType] = useState<'postgresql' | 'mysql'>('mysql');
+  const [localhostUri, setLocalhostUri] = useState('mysql://root:@127.0.0.1:3306/zecratary');
+  const [host, setHost] = useState('127.0.0.1');
+  const [port, setPort] = useState('3306');
   const [dbName, setDbName] = useState('zecratary');
-  const [username, setUsername] = useState('postgres');
-  const [password, setPassword] = useState('postgres');
+  const [username, setUsername] = useState('root');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Form State - Supabase Cloud (.env synchronized)
+  // Form State - Supabase Cloud
   const [supabaseUrl, setSupabaseUrl] = useState('https://tnhrkjtujdfgvwhsuuxb.supabase.co');
   const [supabaseAnonKey, setSupabaseAnonKey] = useState('sb_publishable_afBBLw4l9N08lDX60x_5XQ_z6TIP7HI');
   const [supabaseServiceKey, setSupabaseServiceKey] = useState('');
   const [supabasePoolerUri, setSupabasePoolerUri] = useState('');
   const [showSupabaseSecret, setShowSupabaseSecret] = useState(false);
 
-  // Telemetry
+  // Telemetry Metrics
   const [telemetry, setTelemetry] = useState({
     version: 'PostgreSQL 15.x / Supabase Cloud',
     databaseSize: '19.5 MB',
@@ -63,45 +63,30 @@ export default function AdminDatabasePage() {
     ssl: true
   });
 
-  // Complete 17 Operational Tables Initial Catalog
-  const [tables, setTables] = useState<TableInfo[]>([
-    { name: 'admin_settings', rowCount: 14, size: '48 kB', status: 'Synchronized', category: 'Core Config' },
-    { name: 'users', rowCount: 8, size: '64 kB', status: 'Synchronized', category: 'Auth & Identity' },
-    { name: 'user_profiles', rowCount: 8, size: '40 kB', status: 'Synchronized', category: 'Auth & Identity' },
-    { name: 'subscription_plans', rowCount: 4, size: '32 kB', status: 'Synchronized', category: 'Billing & Plans' },
-    { name: 'token_packages', rowCount: 6, size: '36 kB', status: 'Synchronized', category: 'Billing & Plans' },
-    { name: 'token_settings', rowCount: 3, size: '16 kB', status: 'Synchronized', category: 'Token Economics' },
-    { name: 'user_tokens', rowCount: 8, size: '48 kB', status: 'Synchronized', category: 'Token Economics' },
-    { name: 'payment_transactions', rowCount: 22, size: '80 kB', status: 'Synchronized', category: 'Billing & Plans' },
-    { name: 'user_wallets', rowCount: 8, size: '32 kB', status: 'Synchronized', category: 'Billing & Plans' },
-    { name: 'saved_recipes', rowCount: 142, size: '512 kB', status: 'Synchronized', category: 'Culinary Intelligence' },
-    { name: 'recipes', rowCount: 380, size: '1.2 MB', status: 'Synchronized', category: 'Culinary Intelligence' },
-    { name: 'meal_plans', rowCount: 64, size: '240 kB', status: 'Synchronized', category: 'Culinary Intelligence' },
-    { name: 'grocery_items', rowCount: 210, size: '180 kB', status: 'Synchronized', category: 'Pantry & Grocery' },
-    { name: 'currencies', rowCount: 6, size: '24 kB', status: 'Synchronized', category: 'Localization' },
-    { name: 'frontend_pages', rowCount: 5, size: '128 kB', status: 'Synchronized', category: 'CMS & Frontend' },
-    { name: 'notifications', rowCount: 45, size: '96 kB', status: 'Synchronized', category: 'System & Alerts' },
-    { name: 'audit_logs', rowCount: 312, size: '420 kB', status: 'Synchronized', category: 'System & Alerts' }
-  ]);
+  // Dynamic Operational Tables (No hardcoded metrics; populated by shadow loader)
+  const [tables, setTables] = useState<TableInfo[]>([]);
+  const [tablesLoading, setTablesLoading] = useState(true);
 
-  // Operational Tables Pagination & Filtering States
+  // Filtering & Pagination States
   const [tableSearch, setTableSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(6);
 
-  // UI Interactive States
+  // Action & Sync States
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [cloning, setCloning] = useState(false);
+  const [syncingToMysql, setSyncingToMysql] = useState(false);
+  const [syncingToSupabase, setSyncingToSupabase] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
   const [syncingEnv, setSyncingEnv] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [lastSyncTelemetry, setLastSyncTelemetry] = useState<any | null>(null);
 
   const isSavingRef = useRef(false);
 
-  // Synchronize granular parameters with connection URI
   const updateGranularToUri = (h: string, p: string, db: string, u: string, pwd: string, type: 'postgresql' | 'mysql') => {
     if (type === 'postgresql') {
       const auth = u ? (pwd ? `${u}:${encodeURIComponent(pwd)}@` : `${u}@`) : '';
@@ -112,11 +97,14 @@ export default function AdminDatabasePage() {
     }
   };
 
-  // Load Database Telemetry & Read Active Settings
+  // Dynamic Data Fetcher (Shadow loader replaces hardcoded elements)
   const loadDatabaseData = useCallback(async (quiet = false) => {
     if (isSavingRef.current) return;
     try {
-      if (!quiet) setLoading(true);
+      if (!quiet) {
+        setLoading(true);
+        setTablesLoading(true);
+      }
       const res = await fetch(`/api/admin/database?t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
@@ -130,7 +118,9 @@ export default function AdminDatabasePage() {
 
         if (data.config) {
           if (data.config.postgresUri) setLocalhostUri(data.config.postgresUri);
-          if (data.config.mysqlUri && data.engine === 'mysql') setLocalhostUri(data.config.mysqlUri);
+          if (data.config.mysqlUri && (data.engine === 'mysql' || localhostType === 'mysql')) {
+            setLocalhostUri(data.config.mysqlUri);
+          }
           if (data.config.supabaseUrl) setSupabaseUrl(data.config.supabaseUrl);
           if (data.config.supabaseAnonKey) setSupabaseAnonKey(data.config.supabaseAnonKey);
           if (data.config.supabaseServiceKey) setSupabaseServiceKey(data.config.supabaseServiceKey);
@@ -138,17 +128,22 @@ export default function AdminDatabasePage() {
         }
 
         if (data.telemetry) setTelemetry(data.telemetry);
-        if (Array.isArray(data.tables) && data.tables.length > 0) setTables(data.tables);
+        if (Array.isArray(data.tables)) {
+          setTables(data.tables);
+        }
       }
     } catch (err) {
       console.warn('Notice loading /admin/database telemetry:', err);
     } finally {
-      if (!quiet) setLoading(false);
+      if (!quiet) {
+        setLoading(false);
+        setTablesLoading(false);
+      }
     }
-  }, []);
+  }, [localhostType]);
 
   useEffect(() => {
-    document.title = `${t('dbPageTitle', 'Database Management & Configuration')} - Zecratary`;
+    document.title = `${t('dbPageTitle', 'Database Management & Sync')} - Zecratary`;
     loadDatabaseData();
 
     const handleThemeChange = () => {};
@@ -163,25 +158,90 @@ export default function AdminDatabasePage() {
     };
   }, [loadDatabaseData, t]);
 
-  // Quick Preset Handlers
-  const handleSelectPostgresPreset = () => {
-    setLocalhostType('postgresql');
-    setHost('localhost');
-    setPort('5432');
-    setDbName('zecratary');
-    setUsername('postgres');
-    setPassword('postgres');
-    setLocalhostUri('postgresql://postgres:postgres@localhost:5432/zecratary?schema=public');
+  // Synchronize to MySQL (PostgreSQL -> MySQL)
+  const handleSyncToMysql = async () => {
+    setSyncingToMysql(true);
+    setToast(null);
+    try {
+      const res = await fetch('/api/admin/database', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync_to_mysql' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLastSyncTelemetry(data);
+        setToast({
+          type: 'success',
+          message: `${t('syncSuccessToast', 'Successfully synchronized')} ${data.totalRowsTransferred} ${t('rowsToMysql', 'rows to MySQL across')} ${data.totalTables} ${t('tablesCount', 'tables in')} ${data.durationMs}ms!`
+        });
+        await loadDatabaseData(true);
+      } else {
+        setToast({
+          type: 'error',
+          message: data.error || t('syncFailedToast', 'Database sync to MySQL failed. Verify connection string.')
+        });
+      }
+    } catch (e: any) {
+      setToast({ type: 'error', message: e.message || 'Error executing sync to MySQL.' });
+    } finally {
+      setSyncingToMysql(false);
+    }
   };
 
-  const handleSelectMysqlPreset = () => {
-    setLocalhostType('mysql');
-    setHost('127.0.0.1');
-    setPort('3306');
-    setDbName('zecratary');
-    setUsername('root');
-    setPassword('');
-    setLocalhostUri('mysql://root:@127.0.0.1:3306/zecratary');
+  // Synchronize to Supabase Cloud (MySQL -> PostgreSQL)
+  const handleSyncToSupabase = async () => {
+    setSyncingToSupabase(true);
+    setToast(null);
+    try {
+      const res = await fetch('/api/admin/database', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync_to_supabase' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLastSyncTelemetry(data);
+        setToast({
+          type: 'success',
+          message: `${t('syncSuccessToast', 'Successfully synchronized')} ${data.totalRowsTransferred} ${t('rowsToSupabase', 'rows to Supabase Cloud in')} ${data.durationMs}ms!`
+        });
+        await loadDatabaseData(true);
+      } else {
+        setToast({
+          type: 'error',
+          message: data.error || 'Database sync to Supabase failed.'
+        });
+      }
+    } catch (e: any) {
+      setToast({ type: 'error', message: e.message || 'Error executing sync to Supabase.' });
+    } finally {
+      setSyncingToSupabase(false);
+    }
+  };
+
+  // Optimize & Vacuum Catalogs
+  const handleOptimizeTables = async () => {
+    setOptimizing(true);
+    try {
+      const res = await fetch('/api/admin/database', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'optimize_tables' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setToast({
+          type: 'success',
+          message: data.message || t('optimizingSuccessToast', 'All database schemas optimized and vacuumed successfully!')
+        });
+        loadDatabaseData(true);
+      }
+    } catch (e: any) {
+      setToast({ type: 'error', message: e.message || 'Error optimizing database tables.' });
+    } finally {
+      setOptimizing(false);
+    }
   };
 
   // Test Connection
@@ -196,10 +256,7 @@ export default function AdminDatabasePage() {
           action: 'test_connection', 
           uri: targetUri,
           targetProfile: profileHint,
-          config: {
-            supabaseUrl,
-            supabaseAnonKey
-          }
+          config: { supabaseUrl, supabaseAnonKey }
         })
       });
       const data = await res.json();
@@ -222,7 +279,7 @@ export default function AdminDatabasePage() {
     }
   };
 
-  // Connect to target database
+  // Switch Active Database
   const handleConnectDatabase = async (targetType: 'supabase_cloud' | 'localhost_postgres' | 'localhost_mysql', uriToConnect?: string) => {
     setConnecting(true);
     setToast(null);
@@ -261,7 +318,7 @@ export default function AdminDatabasePage() {
     }
   };
 
-  // Save Credentials Strictly to .env Files
+  // Save Settings to .env Files
   const handleSaveConnection = async (targetType: typeof activeProfile, uriToSave: string) => {
     setSaving(true);
     setToast(null);
@@ -298,107 +355,7 @@ export default function AdminDatabasePage() {
     }
   };
 
-  // Reload Fresh Values directly from .env Files
-  const handleReloadFromEnv = async () => {
-    setSyncingEnv(true);
-    try {
-      await loadDatabaseData(false);
-      setToast({
-        type: 'success',
-        message: 'Successfully refreshed active database connection parameters from .env.local!'
-      });
-    } catch (err: any) {
-      setToast({ type: 'error', message: 'Failed to reload environment keys.' });
-    } finally {
-      setSyncingEnv(false);
-    }
-  };
-
-  // Full Data Migration across all 17 Tables
-    const [migratingToMysql, setMigratingToMysql] = useState(false);
-
-  // Migrate Supabase Cloud Rows to Hostinger MySQL
-  const handleMigrateSupabaseToMysql = async () => {
-    setMigratingToMysql(true);
-    setToast(null);
-    try {
-      const res = await fetch('/api/admin/database', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'migrate_supabase_to_mysql' })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setToast({
-          type: 'success',
-          message: `${t('migrationSuccessToast', 'Successfully migrated')} ${data.totalRowsMigrated} ${t('rowsFromSupabase', 'rows from Supabase Cloud into Hostinger MySQL across 19 operational tables!')}`
-        });
-        loadDatabaseData();
-      } else {
-        setToast({
-          type: 'error',
-          message: data.error || t('migrationErrorToast', 'Failed to copy data from Supabase to MySQL.')
-        });
-      }
-    } catch (e: any) {
-      setToast({ type: 'error', message: e.message || 'Error executing Supabase to MySQL migration.' });
-    } finally {
-      setMigratingToMysql(false);
-    }
-  };
-
-const handleCloneLocalToSupabase = async () => {
-    setCloning(true);
-    setToast(null);
-    try {
-      const res = await fetch('/api/admin/database', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'clone_local_to_supabase',
-          config: { supabasePoolerUri, supabaseUrl }
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setToast({
-          type: 'success',
-          message: data.message || 'All 17 operational tables successfully synced to Supabase Cloud!'
-        });
-        loadDatabaseData(true);
-      } else {
-        setToast({
-          type: 'error',
-          message: data.error || t('cloningErrorToast', 'Failed to clone database. Check connection sockets.')
-        });
-      }
-    } catch (e: any) {
-      setToast({ type: 'error', message: e.message || t('cloningErrorToast', 'Failed to clone database.') });
-    } finally {
-      setCloning(false);
-    }
-  };
-
-  // Optimize Tables
-  const handleOptimizeTables = async () => {
-    try {
-      const res = await fetch('/api/admin/database', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'optimize_tables' })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setToast({
-          type: 'success',
-          message: t('optimizingSuccessToast', 'All 17 operational table statistics analyzed & vacuumed successfully!')
-        });
-        loadDatabaseData(true);
-      }
-    } catch (_) {}
-  };
-
-  // Filtering & Pagination Calculations
+  // Filtering & Pagination
   const categories = useMemo(() => {
     const set = new Set<string>();
     tables.forEach(t => { if (t.category) set.add(t.category); });
@@ -416,7 +373,6 @@ const handleCloneLocalToSupabase = async () => {
 
   const totalPages = Math.max(1, Math.ceil(filteredTables.length / pageSize));
 
-  // Reset to page 1 on filter or search change
   useEffect(() => {
     setCurrentPage(1);
   }, [tableSearch, selectedCategory, pageSize]);
@@ -430,7 +386,7 @@ const handleCloneLocalToSupabase = async () => {
   const isSupabaseActive = activeProfile === 'supabase_cloud' && isConnected;
   const isLocalhostActive = (activeProfile === 'localhost_postgres' || activeProfile === 'localhost_mysql') && isConnected;
 
-  // Reusable Paginated Tables Component
+  // Reusable Paginated Tables Section with Shadow Loaders
   const renderPaginatedTableSection = (titleText: string, subtitleText: string) => (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -446,7 +402,7 @@ const handleCloneLocalToSupabase = async () => {
                 color: 'var(--color-primary)' 
               }}
             >
-              {filteredTables.length} {t('tablesCount', 'Tables')}
+              {tablesLoading ? '...' : `${filteredTables.length} ${t('tablesCount', 'Tables')}`}
             </span>
           </h4>
           <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
@@ -454,9 +410,8 @@ const handleCloneLocalToSupabase = async () => {
           </p>
         </div>
 
-        {/* Search, Category Filter & Rows Per Page */}
+        {/* Search, Filter & Rows Per Page */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Search Box */}
           <div className="relative min-w-[160px] sm:min-w-[200px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 opacity-50 pointer-events-none" style={{ color: 'var(--color-text)' }} />
             <input
@@ -476,7 +431,6 @@ const handleCloneLocalToSupabase = async () => {
             />
           </div>
 
-          {/* Category Dropdown */}
           <div className="relative">
             <select
               value={selectedCategory}
@@ -497,7 +451,6 @@ const handleCloneLocalToSupabase = async () => {
             <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none opacity-50" style={{ color: 'var(--color-text)' }} />
           </div>
 
-          {/* Rows Per Page Dropdown */}
           <div className="relative">
             <select
               value={pageSize}
@@ -530,13 +483,34 @@ const handleCloneLocalToSupabase = async () => {
               <tr className="border-b" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-card)' }}>
                 <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>{t('colTableName', 'Table Name')}</th>
                 <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>Category</th>
-                <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>{t('colRowCount', 'Estimated Rows')}</th>
+                <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>Live MySQL Rows</th>
                 <th className="py-2.5 px-4 font-bold" style={{ color: 'var(--color-text)' }}>{t('colTableSize', 'Size on Disk')}</th>
                 <th className="py-2.5 px-4 font-bold text-right" style={{ color: 'var(--color-text)' }}>{t('colTableStatus', 'Status')}</th>
               </tr>
             </thead>
             <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
-              {paginatedTables.length === 0 ? (
+              {tablesLoading ? (
+                // Pure Monorepo Shadow Loader Skeletons (No hardcoded elements)
+                Array.from({ length: pageSize }).map((_, i) => (
+                  <tr key={`tbl-skel-${i}`} className="animate-pulse">
+                    <td className="py-3 px-4">
+                      <div className="h-4 w-32 rounded-md bg-white/10" />
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="h-4 w-20 rounded-md bg-white/10" />
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="h-4 w-12 rounded-md bg-white/10" />
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="h-4 w-16 rounded-md bg-white/10" />
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="h-4 w-20 rounded-md bg-white/10 ml-auto" />
+                    </td>
+                  </tr>
+                ))
+              ) : paginatedTables.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                     No tables found matching your search.
@@ -562,7 +536,7 @@ const handleCloneLocalToSupabase = async () => {
                       </span>
                     </td>
                     <td className="py-2 px-4 font-mono font-bold" style={{ color: 'var(--color-text)' }}>
-                      {tbl.rowCount.toLocaleString()}
+                      {(tbl.targetRows ?? tbl.rowCount ?? 0).toLocaleString()}
                     </td>
                     <td className="py-2 px-4 font-mono text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
                       {tbl.size}
@@ -586,7 +560,7 @@ const handleCloneLocalToSupabase = async () => {
           </table>
         </div>
 
-        {/* Pagination Bottom Navigation Bar */}
+        {/* Pagination Navigation */}
         <div 
           className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2.5 border-t"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-card)' }}
@@ -598,7 +572,7 @@ const handleCloneLocalToSupabase = async () => {
           <div className="flex items-center gap-1.5 self-center sm:self-auto">
             <button
               type="button"
-              disabled={currentPage <= 1}
+              disabled={currentPage <= 1 || tablesLoading}
               onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
               className="p-1.5 rounded-xl border text-xs font-bold transition hover:opacity-80 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center shadow-xs"
               style={{
@@ -636,7 +610,7 @@ const handleCloneLocalToSupabase = async () => {
 
             <button
               type="button"
-              disabled={currentPage >= totalPages}
+              disabled={currentPage >= totalPages || tablesLoading}
               onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
               className="p-1.5 rounded-xl border text-xs font-bold transition hover:opacity-80 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center shadow-xs"
               style={{
@@ -666,14 +640,14 @@ const handleCloneLocalToSupabase = async () => {
       >
         <div>
           <h1 className="text-2xl font-black tracking-tight flex items-center gap-2" style={{ color: 'var(--color-primary)' }}>
-            <Database className="h-6 w-6" /> {t('dbPageTitle', 'Database Management & Configuration')}
+            <Database className="h-6 w-6" /> {t('dbPageTitle', 'Database Management & Synchronization')}
           </h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
-            {t('dbPageSubtitle', 'Manage database connections, configure localhost & Supabase cloud instances, inspect live engine telemetry, and execute migrations.')}
+            {t('dbPageSubtitle', 'Synchronize live operational data between Supabase PostgreSQL and Hostinger/Local MySQL, monitor live latencies, and optimize catalogs.')}
           </p>
         </div>
 
-        {/* Top Status Indicators */}
+        {/* Top Badges */}
         <div className="flex flex-wrap items-center gap-2.5">
           <div 
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-bold shadow-sm"
@@ -684,7 +658,7 @@ const handleCloneLocalToSupabase = async () => {
             }}
           >
             <ShieldCheck className="h-3.5 w-3.5" />
-            <span>.env Isolated (Zero Secret Storage)</span>
+            <span>.env Isolated (Zero Secret Leak)</span>
           </div>
 
           <div 
@@ -803,8 +777,8 @@ const handleCloneLocalToSupabase = async () => {
           <div className="flex items-center gap-2.5 self-start lg:self-center shrink-0">
             <button
               type="button"
-              onClick={handleReloadFromEnv}
-              disabled={syncingEnv || loading}
+              onClick={() => loadDatabaseData(false)}
+              disabled={loading}
               className="px-4 py-2 rounded-xl border text-xs font-bold transition hover:opacity-90 cursor-pointer flex items-center gap-2 shadow-sm disabled:opacity-50"
               style={{
                 backgroundColor: 'var(--color-card)',
@@ -812,8 +786,8 @@ const handleCloneLocalToSupabase = async () => {
                 color: 'var(--color-text)'
               }}
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${syncingEnv || loading ? 'animate-spin' : ''}`} style={{ color: 'var(--color-primary)' }} />
-              <span>{syncingEnv ? 'Syncing...' : 'Refresh Status'}</span>
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} style={{ color: 'var(--color-primary)' }} />
+              <span>Refresh Status</span>
             </button>
           </div>
         </div>
@@ -830,7 +804,7 @@ const handleCloneLocalToSupabase = async () => {
           borderColor: 'var(--color-border)'
         }}
       >
-        {/* NAVIGATION TABS BAR WITH ACTIVE BADGES */}
+        {/* NAVIGATION TABS BAR */}
         <div 
           className="flex p-1.5 rounded-2xl border transition-colors duration-200 overflow-x-auto gap-1"
           style={{
@@ -838,13 +812,29 @@ const handleCloneLocalToSupabase = async () => {
             borderColor: 'var(--color-border)'
           }}
         >
-          {/* TAB 1: Supabase Cloud */}
+          {/* TAB 1: Data Migration & Sync */}
           <button
             type="button"
-            onClick={() => {
-              setActiveTab('supabase');
-              setToast(null);
+            onClick={() => { setActiveTab('migration'); setToast(null); }}
+            className="flex-1 min-w-[170px] py-3 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer"
+            style={activeTab === 'migration' ? {
+              backgroundColor: 'var(--color-card)',
+              color: 'var(--color-primary)',
+              borderColor: 'var(--color-primary)',
+              borderWidth: '1px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+            } : {
+              color: 'var(--color-text-secondary)'
             }}
+          >
+            <ArrowRightLeft className="h-4 w-4 shrink-0" />
+            <span>{t('tabMigration', 'Data Migration & Sync')}</span>
+          </button>
+
+          {/* TAB 2: Supabase Cloud */}
+          <button
+            type="button"
+            onClick={() => { setActiveTab('supabase'); setToast(null); }}
             className="flex-1 min-w-[170px] py-3 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer relative"
             style={activeTab === 'supabase' ? {
               backgroundColor: 'var(--color-card)',
@@ -873,13 +863,10 @@ const handleCloneLocalToSupabase = async () => {
             )}
           </button>
 
-          {/* TAB 2: Localhost Database */}
+          {/* TAB 3: MySQL / Localhost Database */}
           <button
             type="button"
-            onClick={() => {
-              setActiveTab('localhost');
-              setToast(null);
-            }}
+            onClick={() => { setActiveTab('localhost'); setToast(null); }}
             className="flex-1 min-w-[170px] py-3 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer relative"
             style={activeTab === 'localhost' ? {
               backgroundColor: 'var(--color-card)',
@@ -892,7 +879,7 @@ const handleCloneLocalToSupabase = async () => {
             }}
           >
             <Server className="h-4 w-4 shrink-0" />
-            <span>{t('tabLocalhost', 'Localhost Database')}</span>
+            <span>{t('tabLocalhost', 'MySQL / Local Database')}</span>
             {isLocalhostActive && (
               <span 
                 className="px-2 py-0.5 rounded-full text-[10px] font-extrabold flex items-center gap-1 border shrink-0"
@@ -908,35 +895,10 @@ const handleCloneLocalToSupabase = async () => {
             )}
           </button>
 
-          {/* TAB 3: Data Migration & Sync */}
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('migration');
-              setToast(null);
-            }}
-            className="flex-1 min-w-[170px] py-3 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer"
-            style={activeTab === 'migration' ? {
-              backgroundColor: 'var(--color-card)',
-              color: 'var(--color-primary)',
-              borderColor: 'var(--color-primary)',
-              borderWidth: '1px',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-            } : {
-              color: 'var(--color-text-secondary)'
-            }}
-          >
-            <ArrowRightLeft className="h-4 w-4 shrink-0" />
-            <span>{t('tabMigration', 'Data Migration & Sync')}</span>
-          </button>
-
           {/* TAB 4: Telemetry */}
           <button
             type="button"
-            onClick={() => {
-              setActiveTab('telemetry');
-              setToast(null);
-            }}
+            onClick={() => { setActiveTab('telemetry'); setToast(null); }}
             className="flex-1 min-w-[170px] py-3 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer"
             style={activeTab === 'telemetry' ? {
               backgroundColor: 'var(--color-card)',
@@ -953,7 +915,158 @@ const handleCloneLocalToSupabase = async () => {
           </button>
         </div>
 
-        {/* TAB 1: SUPABASE CLOUD */}
+        {/* TAB 1: FULL DATA MIGRATION & SYNC */}
+        {activeTab === 'migration' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+                  <ArrowRightLeft className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
+                  {t('tabMigration', 'Database Migration & Parity Synchronization')}
+                </h3>
+                <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+                  Synchronize all operational schemas and live records between Supabase Cloud (PostgreSQL) and Hostinger / Local MySQL.
+                </p>
+              </div>
+            </div>
+
+            {/* SYNC ACTIONS GRID */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Card 1: Sync to MySQL */}
+              <div 
+                className="p-5 rounded-2xl border space-y-3 flex flex-col justify-between shadow-sm transition-colors duration-200"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-primary)' }}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
+                      Sync Database to MySQL
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border" style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'var(--color-emerald)', color: 'var(--color-emerald)' }}>
+                      PG → MySQL
+                    </span>
+                  </div>
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+                    Pulls all records from Supabase Cloud PostgreSQL, sanitizes JSON and booleans, and writes them into Hostinger/Local MySQL using upserts.
+                  </p>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleSyncToMysql}
+                    disabled={syncingToMysql || syncingToSupabase}
+                    className="w-full py-2.5 rounded-xl text-xs font-bold text-white shadow transition hover:opacity-90 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    <ArrowDownLeft className={`h-4 w-4 ${syncingToMysql ? 'animate-bounce' : ''}`} />
+                    <span>{syncingToMysql ? 'Syncing into MySQL...' : 'Execute Sync to MySQL'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 2: Sync to Supabase Cloud */}
+              <div 
+                className="p-5 rounded-2xl border space-y-3 flex flex-col justify-between shadow-sm transition-colors duration-200"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
+                      Sync Database to Supabase
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border" style={{ backgroundColor: 'rgba(59, 130, 246, 0.12)', borderColor: '#3b82f6', color: '#3b82f6' }}>
+                      MySQL → PG
+                    </span>
+                  </div>
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+                    Reads all records from your MySQL database and upserts them directly into your connected Supabase Cloud PostgreSQL database.
+                  </p>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleSyncToSupabase}
+                    disabled={syncingToMysql || syncingToSupabase}
+                    className="w-full py-2.5 rounded-xl border text-xs font-bold transition hover:opacity-80 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                    style={{
+                      backgroundColor: 'var(--color-card)',
+                      borderColor: 'var(--color-border)',
+                      color: 'var(--color-text)'
+                    }}
+                  >
+                    <ArrowUpRight className={`h-4 w-4 ${syncingToSupabase ? 'animate-bounce' : ''}`} />
+                    <span>{syncingToSupabase ? 'Syncing to Supabase...' : 'Execute Sync to Supabase'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 3: Optimize Catalogs */}
+              <div 
+                className="p-5 rounded-2xl border space-y-3 flex flex-col justify-between shadow-sm transition-colors duration-200"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
+                      Optimize & Vacuum Catalogs
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border" style={{ backgroundColor: 'rgba(234, 179, 8, 0.12)', borderColor: '#eab308', color: '#eab308' }}>
+                      Maintenance
+                    </span>
+                  </div>
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+                    Reaps dead tuples, analyzes query planner selectivity, and executes <code className="font-mono">OPTIMIZE TABLE</code> across active MySQL schemas.
+                  </p>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleOptimizeTables}
+                    disabled={optimizing}
+                    className="w-full py-2.5 rounded-xl border text-xs font-bold transition hover:opacity-80 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                    style={{
+                      backgroundColor: 'var(--color-card)',
+                      borderColor: 'var(--color-border)',
+                      color: 'var(--color-text)'
+                    }}
+                  >
+                    <Wrench className={`h-4 w-4 ${optimizing ? 'animate-spin' : ''}`} />
+                    <span>{optimizing ? 'Optimizing...' : 'Optimize & Vacuum'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* LAST SYNC TELEMETRY CARD */}
+            {lastSyncTelemetry && (
+              <div 
+                className="p-4 rounded-2xl border space-y-2 animate-in fade-in"
+                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-emerald)' }}
+              >
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="flex items-center gap-2 text-emerald-400">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Last Sync Completed: {lastSyncTelemetry.totalRowsTransferred} rows transferred across {lastSyncTelemetry.totalTables} tables
+                  </span>
+                  <span className="font-mono opacity-80" style={{ color: 'var(--color-text-secondary)' }}>
+                    Duration: {lastSyncTelemetry.durationMs}ms
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Paginated Operational Tables Subsystem */}
+            {renderPaginatedTableSection(
+              'Synchronized Schemas & Operational Tables',
+              'Real-time inspection of database table row volumes, disk footprints, and synchronization health.'
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: SUPABASE CLOUD CONFIG */}
         {activeTab === 'supabase' && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -963,7 +1076,7 @@ const handleCloneLocalToSupabase = async () => {
                   {t('tabSupabase', 'Supabase Cloud')} (.env Synchronized)
                 </h3>
                 <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
-                  Configure hosted PostgreSQL cloud instance, transaction pooler URI (Port 6543), and SSR client tokens.
+                  Configure hosted PostgreSQL cloud instance, transaction pooler URI (Port 6543), and client keys.
                 </p>
               </div>
 
@@ -1004,7 +1117,6 @@ const handleCloneLocalToSupabase = async () => {
                   data-lpignore="true"
                   data-form-type="other"
                   spellCheck={false}
-                  placeholder="https://xxxxxxxxxxxx.supabase.co"
                   value={supabaseUrl}
                   onChange={(e) => setSupabaseUrl(e.target.value)}
                   className="w-full border rounded-xl px-3 py-2 text-xs font-bold outline-none font-mono"
@@ -1014,7 +1126,7 @@ const handleCloneLocalToSupabase = async () => {
 
               <div>
                 <label className="block text-xs font-bold mb-1" style={{ color: 'var(--color-text)' }}>
-                  {t('supabaseAnonKeyLabel', 'Supabase Anon / Publishable Key')} (NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
+                  {t('supabaseAnonKeyLabel', 'Supabase Anon / Publishable Key')}
                 </label>
                 <input
                   type="text"
@@ -1022,7 +1134,6 @@ const handleCloneLocalToSupabase = async () => {
                   data-lpignore="true"
                   data-form-type="other"
                   spellCheck={false}
-                  placeholder="sb_publishable_... or eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                   value={supabaseAnonKey}
                   onChange={(e) => setSupabaseAnonKey(e.target.value)}
                   className="w-full border rounded-xl px-3 py-2 text-xs font-bold outline-none font-mono"
@@ -1032,7 +1143,7 @@ const handleCloneLocalToSupabase = async () => {
 
               <div>
                 <label className="block text-xs font-bold mb-1" style={{ color: 'var(--color-text)' }}>
-                  {t('supabaseServiceKeyLabel', 'Supabase Service Role Key (Secret)')} (SUPABASE_SERVICE_ROLE_KEY)
+                  {t('supabaseServiceKeyLabel', 'Supabase Service Role Key (Secret)')}
                 </label>
                 <div className="relative">
                   <input
@@ -1041,7 +1152,6 @@ const handleCloneLocalToSupabase = async () => {
                     data-lpignore="true"
                     data-form-type="other"
                     spellCheck={false}
-                    placeholder="Service role secret token..."
                     value={supabaseServiceKey}
                     onChange={(e) => setSupabaseServiceKey(e.target.value)}
                     className="w-full border rounded-xl px-3 py-2 pr-9 text-xs font-bold outline-none font-mono"
@@ -1052,7 +1162,6 @@ const handleCloneLocalToSupabase = async () => {
                     onClick={() => setShowSupabaseSecret(!showSupabaseSecret)}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-xs opacity-60 hover:opacity-100 cursor-pointer"
                     style={{ color: 'var(--color-text)' }}
-                    title={showSupabaseSecret ? t('hidePassword', 'Hide Password') : t('showPassword', 'Show Password')}
                   >
                     {showSupabaseSecret ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   </button>
@@ -1069,7 +1178,6 @@ const handleCloneLocalToSupabase = async () => {
                   data-lpignore="true"
                   data-form-type="other"
                   spellCheck={false}
-                  placeholder="postgresql://postgres.tnhrkjtujdfgvwhsuuxb:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
                   value={supabasePoolerUri}
                   onChange={(e) => setSupabasePoolerUri(e.target.value)}
                   className="w-full border rounded-xl px-3 py-2 text-xs font-bold outline-none font-mono"
@@ -1111,16 +1219,16 @@ const handleCloneLocalToSupabase = async () => {
           </div>
         )}
 
-        {/* TAB 2: LOCALHOST DATABASE */}
+        {/* TAB 3: MYSQL / LOCALHOST CONFIG */}
         {activeTab === 'localhost' && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>
-                  {t('tabLocalhost', 'Localhost Database')} (.env Synchronized)
+                  {t('tabLocalhost', 'MySQL / Localhost Database')} (.env Synchronized)
                 </h3>
                 <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
-                  Local daemon driver configuration for PostgreSQL (Port 5432) and MySQL (Port 3306).
+                  Direct database driver configuration for MySQL (Port 3306) and PostgreSQL (Port 5432).
                 </p>
               </div>
 
@@ -1143,50 +1251,16 @@ const handleCloneLocalToSupabase = async () => {
                   <Power className="h-3.5 w-3.5" />
                   <span>
                     {isLocalhostActive 
-                      ? `✓ Localhost Connected (${engine === 'mysql' ? 'MySQL' : 'PostgreSQL'})` 
-                      : (connecting ? 'Connecting...' : `Connect Localhost (${localhostType === 'mysql' ? 'MySQL' : 'PostgreSQL'})`)}
+                      ? `✓ MySQL Connected & Active` 
+                      : (connecting ? 'Connecting...' : `Connect MySQL (Port 3306)`)}
                   </span>
-                </button>
-              </div>
-            </div>
-
-            {/* Presets and Engine Switcher */}
-            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl border" style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>Quick Preset Selection:</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleSelectPostgresPreset}
-                  className="px-3 py-1.5 rounded-xl border text-xs font-bold transition hover:opacity-90 cursor-pointer"
-                  style={{
-                    backgroundColor: localhostType === 'postgresql' ? 'var(--color-primary)' : 'var(--color-card)',
-                    borderColor: localhostType === 'postgresql' ? 'var(--color-primary)' : 'var(--color-border)',
-                    color: localhostType === 'postgresql' ? '#ffffff' : 'var(--color-text)'
-                  }}
-                >
-                  PostgreSQL (5432)
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSelectMysqlPreset}
-                  className="px-3 py-1.5 rounded-xl border text-xs font-bold transition hover:opacity-90 cursor-pointer"
-                  style={{
-                    backgroundColor: localhostType === 'mysql' ? 'var(--color-primary)' : 'var(--color-card)',
-                    borderColor: localhostType === 'mysql' ? 'var(--color-primary)' : 'var(--color-border)',
-                    color: localhostType === 'mysql' ? '#ffffff' : 'var(--color-text)'
-                  }}
-                >
-                  MySQL (3306)
                 </button>
               </div>
             </div>
 
             <div className="space-y-1.5">
               <label className="block text-xs font-bold" style={{ color: 'var(--color-text)' }}>
-                {t('connectionUriLabel', 'Connection URI / Connection String')}
+                {t('connectionUriLabel', 'Connection URI / Connection String')} (MYSQL_URL)
               </label>
               <input
                 type="text"
@@ -1208,7 +1282,7 @@ const handleCloneLocalToSupabase = async () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-1">
               <div>
                 <label className="block text-xs font-bold mb-1" style={{ color: 'var(--color-text)' }}>
-                  {t('hostLabel', 'Host / Server Address')}
+                  Host / Server Address
                 </label>
                 <input
                   type="text"
@@ -1228,7 +1302,7 @@ const handleCloneLocalToSupabase = async () => {
 
               <div>
                 <label className="block text-xs font-bold mb-1" style={{ color: 'var(--color-text)' }}>
-                  {t('portLabel', 'Port')}
+                  Port
                 </label>
                 <input
                   type="text"
@@ -1248,7 +1322,7 @@ const handleCloneLocalToSupabase = async () => {
 
               <div>
                 <label className="block text-xs font-bold mb-1" style={{ color: 'var(--color-text)' }}>
-                  {t('databaseNameLabel', 'Database Name')}
+                  Database Name
                 </label>
                 <input
                   type="text"
@@ -1268,7 +1342,7 @@ const handleCloneLocalToSupabase = async () => {
 
               <div>
                 <label className="block text-xs font-bold mb-1" style={{ color: 'var(--color-text)' }}>
-                  {t('usernameLabel', 'Username')}
+                  Username
                 </label>
                 <input
                   type="text"
@@ -1288,7 +1362,7 @@ const handleCloneLocalToSupabase = async () => {
 
               <div>
                 <label className="block text-xs font-bold mb-1" style={{ color: 'var(--color-text)' }}>
-                  {t('passwordLabel', 'Password')}
+                  Password
                 </label>
                 <div className="relative">
                   <input
@@ -1310,7 +1384,6 @@ const handleCloneLocalToSupabase = async () => {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-xs opacity-60 hover:opacity-100 cursor-pointer"
                     style={{ color: 'var(--color-text)' }}
-                    title={showPassword ? t('hidePassword', 'Hide Password') : t('showPassword', 'Show Password')}
                   >
                     {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   </button>
@@ -1321,7 +1394,7 @@ const handleCloneLocalToSupabase = async () => {
             <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
               <button
                 type="button"
-                onClick={() => handleTestConnection(localhostUri, localhostType === 'mysql' ? 'localhost_mysql' : 'localhost_postgres')}
+                onClick={() => handleTestConnection(localhostUri, 'localhost_mysql')}
                 disabled={testing}
                 className="px-4 py-2 rounded-xl border text-xs font-bold transition hover:opacity-80 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                 style={{
@@ -1331,12 +1404,12 @@ const handleCloneLocalToSupabase = async () => {
                 }}
               >
                 <Zap className={`h-3.5 w-3.5 ${testing ? 'animate-pulse' : ''}`} style={{ color: 'var(--color-primary)' }} />
-                <span>{testing ? t('statusTesting', 'Testing Socket...') : `Test ${localhostType === 'mysql' ? 'MySQL' : 'PostgreSQL'} Socket`}</span>
+                <span>{testing ? t('statusTesting', 'Testing Socket...') : 'Test MySQL Socket'}</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => handleSaveConnection(localhostType === 'mysql' ? 'localhost_mysql' : 'localhost_postgres', localhostUri)}
+                onClick={() => handleSaveConnection('localhost_mysql', localhostUri)}
                 disabled={saving}
                 className="px-5 py-2 rounded-xl text-xs font-bold transition hover:opacity-90 cursor-pointer disabled:opacity-50 border"
                 style={{ 
@@ -1348,121 +1421,6 @@ const handleCloneLocalToSupabase = async () => {
                 {saving ? t('statusSaving', 'Saving to .env...') : 'Save to .env.local'}
               </button>
             </div>
-          </div>
-        )}
-
-        {/* TAB 3: DATA MIGRATION & SYNC */}
-        {activeTab === 'migration' && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
-                <ArrowRightLeft className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
-                {t('tabMigration', 'Data Migration & Sync')}
-              </h3>
-              <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
-                Replicate operational schemas, verify table consistency, and vacuum database catalogs.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Live Supabase Cloud to Hostinger MySQL Replication Card */}
-            <div 
-              className="p-5 rounded-2xl border space-y-3 flex flex-col justify-between shadow-sm transition-colors duration-200"
-              style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-primary)' }}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
-                      Copy Supabase Cloud Data into Hostinger MySQL
-                    </h4>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border" style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'var(--color-emerald)', color: 'var(--color-emerald)' }}>
-                      19 Tables Ready
-                    </span>
-                  </div>
-                  <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-                    Transfers all existing rows (users, wallets, tokens, recipes, payment history, meal plans, audit logs) from Supabase Cloud directly into your connected Hostinger MySQL database.
-                  </p>
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={handleMigrateSupabaseToMysql}
-                  disabled={migratingToMysql}
-                  className="w-full py-2.5 rounded-xl text-xs font-bold text-white shadow transition hover:opacity-90 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
-                >
-                  <RefreshCw className={`h-4 w-4 ${migratingToMysql ? 'animate-spin' : ''}`} />
-                  <span>{migratingToMysql ? 'Migrating records from Supabase to Hostinger MySQL...' : 'Execute Supabase Cloud → Hostinger MySQL Migration'}</span>
-                </button>
-              </div>
-            </div>
-
-              <div 
-                className="p-5 rounded-2xl border space-y-3 flex flex-col justify-between"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
-              >
-                <div>
-                  <h4 className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
-                    Replicate All 17 Operational Schemas & Records
-                  </h4>
-                  <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-                    Synchronizes complete database tables (<code className="font-mono">admin_settings</code>, <code className="font-mono">users</code>, <code className="font-mono">user_profiles</code>, <code className="font-mono">subscription_plans</code>, <code className="font-mono">token_packages</code>, <code className="font-mono">user_tokens</code>, <code className="font-mono">payment_transactions</code>, <code className="font-mono">user_wallets</code>, <code className="font-mono">saved_recipes</code>, <code className="font-mono">recipes</code>, <code className="font-mono">meal_plans</code>, <code className="font-mono">grocery_items</code>, etc.) into Supabase Cloud.
-                  </p>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={handleCloneLocalToSupabase}
-                    disabled={cloning}
-                    className="w-full py-2.5 rounded-xl text-xs font-bold text-white shadow transition hover:opacity-90 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
-                  >
-                    <Layers className={`h-4 w-4 ${cloning ? 'animate-spin' : ''}`} />
-                    <span>{cloning ? 'Replicating 17 Schemas...' : 'Execute Full Data Migration (17 Tables)'}</span>
-                  </button>
-                </div>
-              </div>
-
-              <div 
-                className="p-5 rounded-2xl border space-y-3 flex flex-col justify-between"
-                style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)' }}
-              >
-                <div>
-                  <h4 className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
-                    {t('optimizeTablesBtn', 'Optimize & Vacuum Catalogs')}
-                  </h4>
-                  <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-                    Analyzes planner meals, grocery items, user profiles, reaps dead tuples, and updates selectivity statistics across PostgreSQL and MySQL catalogs.
-                  </p>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={handleOptimizeTables}
-                    className="w-full py-2.5 rounded-xl border text-xs font-bold transition hover:opacity-80 cursor-pointer flex items-center justify-center gap-2"
-                    style={{
-                      backgroundColor: 'var(--color-card)',
-                      borderColor: 'var(--color-border)',
-                      color: 'var(--color-text)'
-                    }}
-                  >
-                    <Wrench className="h-4 w-4" />
-                    <span>{t('optimizeTablesBtn', 'Optimize & Vacuum Catalogs')}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Paginated Operational Tables Subsystem */}
-            {renderPaginatedTableSection(
-              'Synchronized Schemas & Operational Tables',
-              'Inspect synchronization health, estimated row volumes, disk footprints, and category clusters across all 17 database schemas.'
-            )}
           </div>
         )}
 
@@ -1504,7 +1462,6 @@ const handleCloneLocalToSupabase = async () => {
               ))}
             </div>
 
-            {/* Paginated Operational Tables in Telemetry View */}
             {renderPaginatedTableSection(
               'Core Operational Tables Tracked',
               'System catalog metrics, disk utilization, and table storage profiles across active schemas.'
