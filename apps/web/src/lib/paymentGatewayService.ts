@@ -4,6 +4,8 @@ import { getActiveDatabase } from '@/lib/dbConfig';
 // One active database at a time: only touch the engine the app is really using.
 const usePostgres = () => getActiveDatabase() === 'postgres';
 import path from 'path';
+import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
+import { stripSecretsDeep } from '@/lib/secretVault';
 
 export interface ManualDetails {
   enabled?: boolean;
@@ -268,13 +270,13 @@ export function writeDiskGatewaySettings(settings: PaymentGatewaySettings): void
   }
   const targetPath = path.join(targetDir, 'payment_gateways.json');
   try {
-    fs.writeFileSync(targetPath, JSON.stringify(settings, null, 2), 'utf-8');
+    fs.writeFileSync(targetPath, JSON.stringify(stripSecretsDeep(settings), null, 2), 'utf-8');
   } catch (_) {}
 
   const standaloneDir = path.join(process.cwd(), '.next/standalone/apps/web/data');
   if (fs.existsSync(standaloneDir)) {
     try {
-      fs.writeFileSync(path.join(standaloneDir, 'payment_gateways.json'), JSON.stringify(settings, null, 2), 'utf-8');
+      fs.writeFileSync(path.join(standaloneDir, 'payment_gateways.json'), JSON.stringify(stripSecretsDeep(settings), null, 2), 'utf-8');
     } catch (_) {}
   }
 }
@@ -282,41 +284,12 @@ export function writeDiskGatewaySettings(settings: PaymentGatewaySettings): void
 export async function getAuthoritativeGatewaySettings(): Promise<PaymentGatewaySettings> {
   let settings = readDiskGatewaySettings();
 
-  // 1. PostgreSQL (Supabase)
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (usePostgres() && supabaseUrl && supabaseKey) {
-    try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      const { data, error } = await supabase
-        .from('admin_settings')
-        .select('*')
-        .eq('setting_key', 'payment_gateways')
-        .maybeSingle();
-
-      if (!error && data?.setting_value) {
-        const parsed = typeof data.setting_value === 'string' ? JSON.parse(data.setting_value) : data.setting_value;
-        settings = normalizeGatewaySettings(parsed, settings);
-        writeDiskGatewaySettings(settings);
-        return settings;
-      }
-    } catch (_) {}
-  }
-
-  // 2. MySQL
+  // The database copy (decrypted by the settings store) is the source of truth for secrets.
   try {
-    const mysqlModule = await import('@/lib/mysql').catch(() => null);
-    if (!usePostgres() && mysqlModule && typeof mysqlModule.query === 'function') {
-      const rows: any = await mysqlModule.query(
-        "SELECT setting_value FROM admin_settings WHERE setting_key = 'payment_gateways' LIMIT 1"
-      );
-      if (Array.isArray(rows) && rows.length > 0 && rows[0].setting_value) {
-        const parsed = typeof rows[0].setting_value === 'string' ? JSON.parse(rows[0].setting_value) : rows[0].setting_value;
-        settings = normalizeGatewaySettings(parsed, settings);
-        writeDiskGatewaySettings(settings);
-      }
+    const stored = await getJsonSetting<any>('payment_gateways');
+    if (stored && typeof stored === 'object') {
+      settings = normalizeGatewaySettings(stored, settings);
+      writeDiskGatewaySettings(settings);
     }
   } catch (_) {}
 
@@ -328,36 +301,11 @@ export async function saveAuthoritativeGatewaySettings(input: any): Promise<Paym
   const normalized = normalizeGatewaySettings(input, current);
   writeDiskGatewaySettings(normalized);
 
-  // 1. PostgreSQL (Supabase)
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (usePostgres() && supabaseUrl && supabaseKey) {
-    try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      await supabase
-        .from('admin_settings')
-        .upsert({
-          setting_key: 'payment_gateways',
-          setting_value: JSON.stringify(normalized),
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'setting_key' });
-    } catch (_) {}
-  }
-
-  // 2. MySQL
   try {
-    const mysqlModule = await import('@/lib/mysql').catch(() => null);
-    if (!usePostgres() && mysqlModule && typeof mysqlModule.query === 'function') {
-      await mysqlModule.query(
-        `INSERT INTO admin_settings (setting_key, setting_value, updated_at) 
-         VALUES ('payment_gateways', ?, NOW()) 
-         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()`,
-        [JSON.stringify(normalized)]
-      );
-    }
-  } catch (_) {}
+    await setJsonSetting('payment_gateways', normalized, 'payments');
+  } catch (err) {
+    console.warn('[paymentGatewayService] database save failed:', (err as any)?.message || err);
+  }
 
   return normalized;
 }
