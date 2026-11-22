@@ -1134,7 +1134,7 @@ export default function AdminPaymentGatewayPage() {
           </div>
 
           {/* 2. Stripe Test Mode Key Mismatch Warning Banner */}
-          {normalizeBool(config.stripe.testMode) && config.stripe.secretKey && !config.stripe.secretKey.startsWith('sk_test_') && !config.stripe.secretKey.startsWith('rk_test_') && (
+          {normalizeBool(config.stripe.testMode) && config.stripe.secretKey && !String(config.stripe.secretKey).includes('•') && !config.stripe.secretKey.startsWith('sk_test_') && !config.stripe.secretKey.startsWith('rk_test_') && (
             <div 
               className="p-3.5 rounded-2xl border flex items-start gap-2.5 text-xs font-semibold shadow-xs"
               style={{ backgroundColor: 'rgba(245, 158, 11, 0.08)', borderColor: '#f59e0b', color: '#fbbf24' }}

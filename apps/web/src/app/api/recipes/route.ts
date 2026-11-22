@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAllIndividualRecipes, saveIndividualRecipe } from '@/lib/recipeFiles';
+import { scopeToSession } from '@/lib/requestUser';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,11 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const scoped = scopeToSession(req, {});
+    if (scoped.error) return scoped.error;
+    const raw = await req.json();
+    // Accept both a bare recipe and the { recipe, userId } wrapper the chef sends.
+    const body = raw && typeof raw.recipe === 'object' && raw.recipe ? raw.recipe : raw;
     const saved = await saveIndividualRecipe(body);
     return NextResponse.json({
       success: true,

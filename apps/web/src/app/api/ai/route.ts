@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getServerAdminSettings } from '@/lib/serverSettings';
+import { scopeToSession } from '@/lib/requestUser';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,106 @@ function sanitizeGeminiModel(rawModel: string): string {
   return m;
 }
 
+function extractJson(text: string): any | null {
+  if (!text) return null;
+  const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+  try { return JSON.parse(cleaned); } catch (_) {}
+  const a = cleaned.indexOf('{');
+  const b = cleaned.lastIndexOf('}');
+  if (a >= 0 && b > a) { try { return JSON.parse(cleaned.slice(a, b + 1)); } catch (_) {} }
+  return null;
+}
+
+function toStringList(v: any): string[] {
+  return Array.isArray(v) ? v.map((x) => String(x)).filter(Boolean) : [];
+}
+
+// Shape the model's answer into exactly what the /chef page renders (Card / Compact / Detailed views).
+function normalizePlan(raw: any, maxDays: number, servings: number): any | null {
+  if (!raw || !Array.isArray(raw.meals)) return null;
+  const stamp = Date.now();
+  const meals = raw.meals
+    .filter((m: any) => m && m.title)
+    .map((m: any, i: number) => {
+      const dayIndex = Math.max(1, Number(m.dayIndex) || 1);
+      return {
+        id: `meal_${stamp}_${i}`,
+        dayIndex,
+        dayLabel: String(m.dayLabel || `Day ${dayIndex}`),
+        dateStr: String(m.dateStr || ''),
+        mealType: String(m.mealType || 'Dinner'),
+        title: String(m.title),
+        description: String(m.description || ''),
+        prepMinutes: Number(m.prepMinutes) || 15,
+        cookMinutes: Number(m.cookMinutes) || 20,
+        servings: Number(m.servings) || servings,
+        calories: Number(m.calories) || undefined,
+        isBatchCook: Boolean(m.isBatchCook),
+        isLeftover: Boolean(m.isLeftover),
+        leftoverFrom: m.leftoverFrom ? String(m.leftoverFrom) : undefined,
+        ingredients: toStringList(m.ingredients),
+        instructions: toStringList(m.instructions),
+        cuisine: m.cuisine ? String(m.cuisine) : undefined,
+        difficulty: m.difficulty ? String(m.difficulty) : undefined,
+        tags: toStringList(m.tags),
+        chefTip: m.chefTip ? String(m.chefTip) : undefined,
+        sourceUrl: m.sourceUrl ? String(m.sourceUrl) : '',
+      };
+    })
+    .filter((m: any) => m.dayIndex <= maxDays);
+  if (meals.length === 0) return null;
+  const lastDay = Math.max(...meals.map((m: any) => m.dayIndex));
+  return {
+    title: String(raw.title || 'Your Meal Plan'),
+    totalDays: Math.min(maxDays, Number(raw.totalDays) || lastDay),
+    theme: String(raw.theme || 'Balanced'),
+    budgetPerServing: String(raw.budgetPerServing || ''),
+    meals,
+  };
+}
+
+function normalizeRecipe(raw: any, servings: number): any | null {
+  if (!raw || !raw.title) return null;
+  return {
+    title: String(raw.title),
+    description: String(raw.description || ''),
+    prepMinutes: Number(raw.prepMinutes) || 15,
+    cookMinutes: Number(raw.cookMinutes) || 20,
+    servings: Number(raw.servings) || servings,
+    calories: Number(raw.calories) || undefined,
+    mealType: raw.mealType ? String(raw.mealType) : undefined,
+    cuisine: raw.cuisine ? String(raw.cuisine) : undefined,
+    difficulty: raw.difficulty ? String(raw.difficulty) : undefined,
+    tags: toStringList(raw.tags),
+    ingredients: toStringList(raw.ingredients),
+    instructions: toStringList(raw.instructions),
+    chefTip: raw.chefTip ? String(raw.chefTip) : undefined,
+    sourceUrl: raw.sourceUrl ? String(raw.sourceUrl) : undefined,
+  };
+}
+
+const PLAN_SCHEMA_PROMPT = `Respond with ONE JSON object only (no markdown, no commentary) in exactly this shape:
+{
+  "reply": "2-3 friendly sentences introducing the plan",
+  "plan": {
+    "title": "string", "totalDays": number, "theme": "string", "budgetPerServing": "e.g. $5.00/serving",
+    "meals": [
+      { "dayIndex": 1, "dayLabel": "Day 1", "dateStr": "", "mealType": "Breakfast|Lunch|Dinner|Snack",
+        "title": "string", "description": "one sentence", "prepMinutes": number, "cookMinutes": number,
+        "servings": number, "calories": number, "isBatchCook": false,
+        "cuisine": "string", "difficulty": "Easy|Medium|Hard", "tags": ["diet or style tags"],
+        "ingredients": ["quantity + ingredient"], "instructions": ["clear numbered-style cooking steps, 4-8 steps"], "chefTip": "string" }
+    ]
+  },
+  "recommendedRecipe": {
+    "title": "string", "description": "string", "prepMinutes": number, "cookMinutes": number, "servings": number,
+    "calories": number, "mealType": "string", "cuisine": "string", "difficulty": "Easy|Medium|Hard", "tags": ["string"],
+    "ingredients": ["string"], "instructions": ["step"], "chefTip": "string"
+  }
+Every meal must be a complete, cookable recipe: real quantities in ingredients and real step-by-step instructions (never placeholders).
+}
+Respect every diet, allergy, avoided ingredient and taste preference given. Never include prohibited ingredients.`;
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -21,10 +122,24 @@ export async function POST(req: NextRequest) {
       prompt, 
       answers, 
       preferences, 
-      pantryItems, 
-      userEmail: reqUserEmail,
-      userId: reqUserId 
-    } = body;
+      pantryItems: pantryItemsBody,
+      pantry,
+      userEmail: bodyUserEmail,
+      userId: bodyUserId,
+      isQuestionnaireComplete,
+      topicTitle,
+      questionnaireSummary,
+      questionnaireAnswers,
+      messages: history
+    } = body as any;
+
+    // Identity comes from the signed-in session (regular users cannot act as someone else).
+    const scoped = scopeToSession(req, { email: bodyUserEmail, userId: bodyUserId });
+    if (scoped.error) return scoped.error;
+    const reqUserEmail = scoped.email || bodyUserEmail;
+    const reqUserId = scoped.userId || bodyUserId;
+    const pantryItems = pantryItemsBody || pantry;
+    const structured = Boolean(isQuestionnaireComplete);
 
     // AI Saved Recipe Grounding Scope
     let savedRecipesContext = '';
@@ -142,11 +257,19 @@ export async function POST(req: NextRequest) {
     let replyText = '';
     let finalModelUsed = initialModel;
 
+    const historyText = !structured && Array.isArray(history)
+      ? history.slice(-6).map((m: any) => `${m?.role === 'assistant' ? 'Chef' : 'User'}: ${String(m?.content || '').slice(0, 1500)}`).join('\n')
+      : '';
+    const userPayload = structured
+      ? `Create the final result for the "${topicTitle || 'Standard Wizard'}" questionnaire.\nQuestionnaire Q&A: ${JSON.stringify(questionnaireSummary || [])}\nPreferences: ${JSON.stringify(preferences || {})}\nMaximum plan days: ${maxPlanDays}\nPreferred presentation mode: ${resultDisplayMode}\n\n${PLAN_SCHEMA_PROMPT}`
+      : `${historyText ? `Conversation so far:\n${historyText}\n\n` : ''}User Request: ${prompt || 'Create a balanced culinary recommendation.'}\nIntake Questionnaire Answers: ${JSON.stringify(answers || questionnaireAnswers || {})}\nPreferences: ${JSON.stringify(preferences || {})}`;
+    const effectiveMaxTokens = structured ? Math.max(maxTokens, 8192) : maxTokens;
+
     if (provider === 'gemini') {
       let targetModel = sanitizeGeminiModel(initialModel);
       finalModelUsed = targetModel;
 
-      const promptPayload = `User Request: ${prompt || 'Create a balanced culinary recommendation.'}\nIntake Questionnaire Answers: ${JSON.stringify(answers || {})}\nPreferences: ${JSON.stringify(preferences || {})}`;
+      const promptPayload = userPayload;
 
       const generateGeminiContent = async (modelToCall: string, withTools: boolean) => {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToCall}:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -162,11 +285,12 @@ export async function POST(req: NextRequest) {
           },
           generationConfig: {
             temperature,
-            maxOutputTokens: maxTokens
+            maxOutputTokens: effectiveMaxTokens,
+            ...(structured ? { responseMimeType: 'application/json' } : {})
           }
         };
 
-        if (withTools && enableWebSearch) {
+        if (withTools && enableWebSearch && !structured) {
           payload.tools = [{ googleSearch: {} }];
         }
 
@@ -185,7 +309,7 @@ export async function POST(req: NextRequest) {
       };
 
       // Primary Attempt
-      let { res, data } = await generateGeminiContent(targetModel, enableWebSearch);
+      let { res, data } = await generateGeminiContent(targetModel, enableWebSearch && !structured);
 
       // Graceful Retry 1: If search tools caused a 400 error, retry without tools
       if (!res.ok && enableWebSearch && (data?.error?.message?.includes('tool') || res.status === 400)) {
@@ -201,6 +325,21 @@ export async function POST(req: NextRequest) {
         const retryFallback = await generateGeminiContent(fallbackModel, false);
         res = retryFallback.res;
         data = retryFallback.data;
+      }
+
+      // Graceful Retry 3: quota / rate limit (429). Quota is counted per model and per tool, so try without web search, then a stable fallback model.
+      if (!res.ok && (res.status === 429 || data?.error?.status === 'RESOURCE_EXHAUSTED')) {
+        if (enableWebSearch) {
+          const noTools = await generateGeminiContent(targetModel, false);
+          res = noTools.res;
+          data = noTools.data;
+        }
+        if (!res.ok && (res.status === 429 || data?.error?.status === 'RESOURCE_EXHAUSTED') && targetModel !== 'gemini-2.5-flash') {
+          finalModelUsed = 'gemini-2.5-flash';
+          const quotaFallback = await generateGeminiContent('gemini-2.5-flash', false);
+          res = quotaFallback.res;
+          data = quotaFallback.data;
+        }
       }
 
       if (!res.ok) {
@@ -222,10 +361,11 @@ export async function POST(req: NextRequest) {
           model: finalModelUsed,
           messages: [
             { role: 'system', content: fullSystemInstructions },
-            { role: 'user', content: `Request: ${prompt || 'Suggest meal'}. Answers: ${JSON.stringify(answers || {})}` }
+            { role: 'user', content: userPayload }
           ],
           temperature,
-          max_tokens: maxTokens
+          max_tokens: effectiveMaxTokens,
+          ...(structured ? { response_format: { type: 'json_object' } } : {})
         }),
         cache: 'no-store'
       });
@@ -236,6 +376,19 @@ export async function POST(req: NextRequest) {
       }
 
       replyText = openAiData?.choices?.[0]?.message?.content || '';
+    }
+
+    // Structured result: turn the model's JSON into the plan / recipe the /chef page renders.
+    let planOut: any = null;
+    let recipeOut: any = null;
+    if (structured) {
+      const parsed = extractJson(replyText);
+      const sv = Number(preferences?.servings) || 2;
+      planOut = normalizePlan(parsed?.plan, Number(maxPlanDays) || 7, sv);
+      recipeOut = normalizeRecipe(parsed?.recommendedRecipe, sv);
+      if (parsed && typeof parsed.reply === 'string' && parsed.reply.trim()) replyText = parsed.reply.trim();
+      else if (planOut) replyText = `Here is your ${planOut.title}.`;
+      else replyText = 'I could not format the plan this time. Please try again.';
     }
 
     // 5. Server-Side Token Deduction (Resilient, 1-argument options contract)
@@ -277,8 +430,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       reply: replyText,
-      recipe: null,
-      plan: null,
+      recipe: recipeOut,
+      recommendedRecipe: recipeOut,
+      plan: planOut,
+      resultDisplayMode,
+      remainingBalance: remainingTokens,
+      consumedSystemTokens: consumedTokens,
       appliedSettings: {
         provider,
         model: finalModelUsed,
