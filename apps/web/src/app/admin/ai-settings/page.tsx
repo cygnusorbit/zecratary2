@@ -182,6 +182,7 @@ export default function ChefAISettingsPage() {
   const [enableWebSearch, setEnableWebSearch] = useState(true);
   const [enablePantryContext, setEnablePantryContext] = useState(true);
   const [strictDietEnforcement, setStrictDietEnforcement] = useState(true);
+  const [askBeforeSuggesting, setAskBeforeSuggesting] = useState(true);
   const [maxPlanDays, setMaxPlanDays] = useState(7);
   const [resultDisplayMode, setResultDisplayMode] = useState<'card' | 'compact' | 'detailed' | string>('card');
   
@@ -205,6 +206,7 @@ export default function ChefAISettingsPage() {
   // Recommended Recipes Url (Primary Source for /chef)
   const [recommendedRecipeUrls, setRecommendedRecipeUrls] = useState<string[]>([]);
   const [newRecipeUrlInput, setNewRecipeUrlInput] = useState('');
+  const [recommendedSourceMode, setRecommendedSourceMode] = useState<'only' | 'first' | 'off'>('first');
   const [urlStatus, setUrlStatus] = useState<Record<string, { state: 'checking' | 'ok' | 'error'; text: string }>>({});
 
   // Multi-Topic Questionnaire State with Dedicated Answers
@@ -517,6 +519,8 @@ export default function ChefAISettingsPage() {
         if (c.enableWebSearch !== undefined) setEnableWebSearch(c.enableWebSearch);
         if (c.enablePantryContext !== undefined) setEnablePantryContext(c.enablePantryContext);
         if (c.strictDietEnforcement !== undefined) setStrictDietEnforcement(c.strictDietEnforcement);
+        if (c.askBeforeSuggesting !== undefined) setAskBeforeSuggesting(Boolean(c.askBeforeSuggesting));
+        if (c.recommendedSourceMode === 'only' || c.recommendedSourceMode === 'first' || c.recommendedSourceMode === 'off') setRecommendedSourceMode(c.recommendedSourceMode);
         if (c.maxPlanDays !== undefined) setMaxPlanDays(c.maxPlanDays);
         if (c.resultDisplayMode !== undefined) setResultDisplayMode(c.resultDisplayMode as any);
         
@@ -953,6 +957,8 @@ export default function ChefAISettingsPage() {
           enableWebSearch,
           enablePantryContext,
           strictDietEnforcement,
+          askBeforeSuggesting,
+          recommendedSourceMode,
           maxPlanDays,
           resultDisplayMode,
           enableVoiceInteraction,
@@ -1077,6 +1083,8 @@ export default function ChefAISettingsPage() {
       enableWebSearch,
       enablePantryContext,
       strictDietEnforcement,
+      askBeforeSuggesting,
+      recommendedSourceMode,
       maxPlanDays,
       resultDisplayMode,
       enableVoiceInteraction,
@@ -2763,6 +2771,45 @@ export default function ChefAISettingsPage() {
                     </span>
                   </div>
                 </div>
+
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={askBeforeSuggesting}
+                  aria-label={t('askBeforeSuggesting', 'Ask Before Suggesting')}
+                  onClick={() => setAskBeforeSuggesting(!askBeforeSuggesting)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setAskBeforeSuggesting(!askBeforeSuggesting);
+                    }
+                  }}
+                  className="p-4 rounded-2xl border cursor-pointer transition flex flex-col justify-between space-y-3 shadow-xs hover:opacity-90 outline-none"
+                  style={{
+                    backgroundColor: 'var(--color-inner-dark)',
+                    borderColor: askBeforeSuggesting ? 'var(--color-primary)' : 'var(--color-border)',
+                    color: 'var(--color-text)'
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <BookOpen className="h-5 w-5" style={{ color: askBeforeSuggesting ? 'var(--color-primary)' : 'var(--color-text-secondary)' }} />
+                    <div
+                      className="w-9 h-5 rounded-full p-0.5 transition"
+                      style={{ backgroundColor: askBeforeSuggesting ? 'var(--color-primary)' : 'var(--color-border)' }}
+                    >
+                      <div
+                        className={`w-4 h-4 rounded-full transition transform ${askBeforeSuggesting ? 'translate-x-4' : 'translate-x-0'}`}
+                        style={{ backgroundColor: 'var(--color-toggle-thumb, #ffffff)' }}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <span className="font-bold text-xs block" style={{ color: 'var(--color-text)' }}>{t('askBeforeSuggesting', 'Ask Before Suggesting')}</span>
+                    <span className="text-[10px] leading-tight block mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
+                      {t('askBeforeSuggestingDesc', 'In a new /chef chat the AI first asks a few questions and suggests nothing until the user answers.')}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -3144,6 +3191,40 @@ export default function ChefAISettingsPage() {
                       </button>
                     )}
                   </div>
+                </div>
+
+                {/* How the recommended websites are used */}
+                <div className="space-y-1.5" role="radiogroup" aria-label={t('sourcePriorityLabel', 'Source priority')}>
+                  <span className="block font-bold uppercase tracking-wider text-[10px]" style={{ color: 'var(--color-text-secondary)' }}>
+                    {t('sourcePriorityLabel', 'Source priority')}
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {([
+                      { id: 'first', title: t('sourceModeFirst', 'Websites first (recommended)'), desc: t('sourceModeFirstDesc', 'Use real recipes from these websites first. The AI writes an original recipe only when none fits.') },
+                      { id: 'only', title: t('sourceModeOnly', 'Websites only'), desc: t('sourceModeOnlyDesc', 'Only recipes from these websites. If nothing fits, the chef says so.') },
+                      { id: 'off', title: t('sourceModeOff', 'AI free'), desc: t('sourceModeOffDesc', 'The AI writes its own recipes. The websites are only a style reference.') },
+                    ] as const).map((o) => (
+                      <button
+                        key={o.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={recommendedSourceMode === o.id}
+                        onClick={() => setRecommendedSourceMode(o.id)}
+                        className="text-left p-3 rounded-xl border transition-colors duration-200 cursor-pointer"
+                        style={{
+                          backgroundColor: 'var(--color-inner-dark)',
+                          borderColor: recommendedSourceMode === o.id ? 'var(--color-primary)' : 'var(--color-border)',
+                          color: 'var(--color-text)'
+                        }}
+                      >
+                        <span className="block text-xs font-bold" style={{ color: recommendedSourceMode === o.id ? 'var(--color-primary)' : 'var(--color-text)' }}>{o.title}</span>
+                        <span className="block text-[10px] leading-tight mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>{o.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-[10px] block" style={{ color: 'var(--color-text-secondary)' }}>
+                    {t('sourcePrioritySaveHint', 'Click Save Configuration to apply.')}
+                  </span>
                 </div>
 
                 {/* Multi-URL Input Box with Batch Support */}

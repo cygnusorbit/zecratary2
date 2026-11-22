@@ -241,7 +241,7 @@ export async function inspectSource(url: string, force = false): Promise<SourceI
   return value;
 }
 
-async function readRecipePage(url: string): Promise<SourceRecipe | null> {
+export async function readRecipePage(url: string): Promise<SourceRecipe | null> {
   const hit = pageCache.get(url);
   if (hit && Date.now() - hit.at < PAGE_TTL) return hit.value;
   let value: SourceRecipe | null = null;
@@ -260,41 +260,95 @@ function tokens(text: string): string[] {
   return Array.from(new Set(String(text || '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOP.has(w))));
 }
 
-// Reads the configured sources and returns real, complete recipes that fit the request best.
-export async function gatherSourceRecipes(
-  urls: string[],
-  requestText: string,
-  opts: { maxSources?: number; maxRecipes?: number; budgetMs?: number } = {}
-): Promise<SourceRecipe[]> {
+const searchCache = new Map<string, { at: number; links: SourceLink[] }>();
+
+// Most recipe blogs (WordPress) answer /?s=words with a list of matching recipes.
+async function searchSite(sourceUrl: string, query: string): Promise<SourceLink[]> {
+  let origin = '';
+  try { origin = new URL(sourceUrl).origin; } catch (_) { return []; }
+  const key = `${origin}|${query}`;
+  const hit = searchCache.get(key);
+  if (hit && Date.now() - hit.at < OK_TTL) return hit.links;
+  let links: SourceLink[] = [];
+  try {
+    const { html, finalUrl } = await fetchHtml(`${origin}/?s=${encodeURIComponent(query)}`, 7000);
+    links = extractLinks(html, finalUrl);
+  } catch (_) {}
+  searchCache.set(key, { at: Date.now(), links });
+  trimCache(searchCache);
+  return links;
+}
+
+const MEAT_WORDS = /\b(chicken|beef|pork|lamb|mutton|duck|turkey|bacon|ham|sausages?|steak|fish|salmon|tuna|cod|shrimps?|prawns?|crab|squid|seafood|anchov(y|ies)|oyster sauce|fish sauce|gelatin|lard)\b/i;
+
+export interface GatherOptions {
+  maxSources?: number;
+  maxRecipes?: number;
+  budgetMs?: number;
+  meatFree?: boolean;       // vegetarian / vegan: no meat or fish in the title or ingredients
+  exclude?: string[];       // allergies and avoided ingredients: never in the title or ingredients
+}
+
+function usable(r: SourceRecipe, opts: GatherOptions): boolean {
+  if (r.ingredients.length < 3 || r.instructions.length < 2) return false;
+  const text = `${r.title} ${r.ingredients.join(' ')}`.toLowerCase();
+  if (opts.meatFree && MEAT_WORDS.test(text)) return false;
+  for (const w of opts.exclude || []) {
+    const word = String(w || '').trim().toLowerCase();
+    if (word.length >= 3 && text.includes(word.replace(/s$/, ''))) return false;
+  }
+  return true;
+}
+
+// Finds real, complete recipes on the configured sources that fit the request, diet, allergies and avoided ingredients.
+export async function gatherSourceRecipes(urls: string[], requestText: string, opts: GatherOptions = {}): Promise<SourceRecipe[]> {
   const maxSources = opts.maxSources ?? 6;
-  const maxRecipes = opts.maxRecipes ?? 6;
-  const budgetMs = opts.budgetMs ?? 9000;
+  const maxRecipes = opts.maxRecipes ?? 12;
+  const budgetMs = opts.budgetMs ?? 12000;
   const clean = Array.from(new Set(urls.map((u) => String(u || '').trim()).filter(Boolean))).slice(0, maxSources);
   if (!clean.length) return [];
 
   const work = (async () => {
-    const inspected = await Promise.all(clean.map((u) => inspectSource(u)));
-    const want = tokens(requestText);
+    const want = tokens(requestText).filter((w) => !GENERIC.has(w)).slice(0, 6);
+    const queryA = want.slice(0, 3).join(' ');
+    const [inspected, searched] = await Promise.all([
+      Promise.all(clean.map((u) => inspectSource(u))),
+      Promise.all(clean.map((u) => (queryA ? searchSite(u, queryA) : Promise.resolve([] as SourceLink[])))),
+    ]);
+
     const direct: SourceRecipe[] = [];
-    const candidates: { link: SourceLink; score: number; order: number }[] = [];
+    const pool = new Map<string, { link: SourceLink; score: number; order: number }>();
     let order = 0;
-    for (const s of inspected) {
+    const addLink = (l: SourceLink, bonus: number) => {
+      if (pool.has(l.url)) return;
+      const hay = `${l.title} ${l.url}`.toLowerCase();
+      if (opts.meatFree && MEAT_WORDS.test(hay)) return;
+      const score = want.reduce((n, w) => n + (hay.includes(w) ? 1 : 0), 0) + bonus;
+      pool.set(l.url, { link: l, score, order: order++ });
+    };
+    inspected.forEach((s, i) => {
       if (s.kind === 'recipe' && s.recipe) direct.push(s.recipe);
-      if (s.kind === 'index' && s.links) {
-        for (const l of s.links) {
-          const hay = `${l.title} ${l.url}`.toLowerCase();
-          const score = want.reduce((n, w) => n + (hay.includes(w) ? 1 : 0), 0);
-          candidates.push({ link: l, score, order: order++ });
-        }
-      }
+      searched[i].forEach((l) => addLink(l, 0.5));
+      (s.links || []).forEach((l) => addLink(l, 0));
+    });
+
+    const ranked = Array.from(pool.values()).sort((a, b) => b.score - a.score || a.order - b.order);
+    // Spread across sources so one site does not take every slot.
+    const perHost = new Map<string, number>();
+    const picks: SourceLink[] = [];
+    for (const c of ranked) {
+      let host = ''; try { host = new URL(c.link.url).hostname; } catch (_) {}
+      const n = perHost.get(host) || 0;
+      if (n >= Math.ceil((maxRecipes * 2) / clean.length)) continue;
+      perHost.set(host, n + 1);
+      picks.push(c.link);
+      if (picks.length >= maxRecipes * 2) break;
     }
-    candidates.sort((a, b) => b.score - a.score || a.order - b.order);
-    const picks = candidates.slice(0, Math.max(0, maxRecipes + 2 - direct.length)).map((c) => c.link);
+
     const pages = await Promise.all(picks.map((l) => readRecipePage(l.url)));
-    const all = [...direct, ...(pages.filter(Boolean) as SourceRecipe[])];
     const seen = new Set<string>();
-    return all
-      .filter((r) => r.ingredients.length >= 3 && r.instructions.length >= 2 && !seen.has(r.url) && (seen.add(r.url), true))
+    return [...direct, ...(pages.filter(Boolean) as SourceRecipe[])]
+      .filter((r) => usable(r, opts) && !seen.has(r.url) && (seen.add(r.url), true))
       .slice(0, maxRecipes);
   })();
 
@@ -305,9 +359,68 @@ export async function gatherSourceRecipes(
 export function sourceRecipesToPrompt(recipes: SourceRecipe[]): string {
   if (!recipes.length) return '';
   const lines = recipes.map((r, i) => {
-    const ing = r.ingredients.slice(0, 14).join('; ');
-    const steps = r.instructions.slice(0, 4).map((s) => s.slice(0, 160)).join(' | ');
-    return `[${i + 1}] ${r.title}\n  url: ${r.url}\n  ingredients: ${ing}\n  method (${r.instructions.length} steps): ${steps}`;
+    const ing = r.ingredients.slice(0, 8).join('; ').slice(0, 220);
+    return `[${i + 1}] ${r.title}\n  url: ${r.url}\n  main ingredients: ${ing}`;
   });
   return lines.join('\n').slice(0, 7000);
+}
+
+
+// ---- Photo for a dish from the configured sources ----
+const GENERIC = new Set(['mild', 'light', 'easy', 'simple', 'quick', 'healthy', 'classic', 'homemade', 'vegetarian', 'vegan', 'style', 'special', 'creamy', 'fresh', 'best', 'perfect', 'crispy', 'gentle', 'nourishing', 'comforting', 'savory', 'savoury', 'roasted', 'steamed', 'baked', 'braised', 'fried', 'with', 'and', 'the', 'for', 'recipe']);
+
+function dishTokens(text: string): string[] {
+  return Array.from(new Set(String(text || '').toLowerCase().replace(/&amp;/g, ' ').split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !GENERIC.has(w))))
+    .map((w) => (w.length > 4 && w.endsWith('s') ? w.slice(0, -1) : w));
+}
+
+const PROTEINS = ['chicken', 'beef', 'pork', 'lamb', 'mutton', 'duck', 'turkey', 'bacon', 'ham', 'sausage', 'steak', 'fish', 'salmon', 'tuna', 'cod', 'shrimp', 'prawn', 'crab', 'squid', 'seafood', 'egg'];
+function proteinsIn(text: string): string[] {
+  const t = String(text || '').toLowerCase();
+  return PROTEINS.filter((p) => new RegExp('\\b' + p + 's?\\b').test(t));
+}
+
+// 0..1: how much of the shorter title is covered by the other. A source title naming a meat or fish the dish does not have never matches.
+export function titleMatch(a: string, b: string): number {
+  const dishProteins = proteinsIn(a);
+  if (proteinsIn(b).some((p) => !dishProteins.includes(p))) return 0;
+  const ta = dishTokens(a);
+  const tb = dishTokens(b);
+  if (!ta.length || !tb.length) return 0;
+  const common = ta.filter((w) => tb.includes(w)).length;
+  const shorter = Math.min(ta.length, tb.length);
+  if (common < Math.min(2, shorter)) return 0;
+  return common / shorter;
+}
+
+export interface SourceImage { image: string; pageUrl: string; title: string }
+
+// Finds a photo for each dish title from the recipes on the configured sites. Only a close title match counts (never a guess).
+export async function findSourceImages(urls: string[], titles: string[], known: SourceRecipe[] = [], budgetMs = 7000): Promise<Map<string, SourceImage>> {
+  const out = new Map<string, SourceImage>();
+  const clean = Array.from(new Set(urls.map((u) => String(u || '').trim()).filter(Boolean))).slice(0, 6);
+  if (!clean.length || !titles.length) return out;
+
+  const work = (async () => {
+    const inspected = await Promise.all(clean.map((u) => inspectSource(u)));
+    const pool: { title: string; url: string; recipe?: SourceRecipe }[] = [];
+    for (const r of known) pool.push({ title: r.title, url: r.url, recipe: r });
+    for (const s of inspected) {
+      if (s.kind === 'recipe' && s.recipe) pool.push({ title: s.recipe.title, url: s.recipe.url, recipe: s.recipe });
+      if (s.kind === 'index' && s.links) for (const l of s.links) pool.push({ title: l.title, url: l.url });
+    }
+    await Promise.all(titles.map(async (title) => {
+      let best: { score: number; item: (typeof pool)[number] } | null = null;
+      for (const item of pool) {
+        const score = titleMatch(title, item.title);
+        if (score >= 0.6 && (!best || score > best.score || (score === best.score && item.recipe && !best.item.recipe))) best = { score, item };
+      }
+      if (!best) return;
+      const recipe = best.item.recipe || (await readRecipePage(best.item.url)) || undefined;
+      if (recipe?.image) out.set(title, { image: recipe.image, pageUrl: recipe.url, title: recipe.title });
+    }));
+  })();
+
+  await Promise.race([work, new Promise<void>((resolve) => setTimeout(resolve, budgetMs))]).catch(() => {});
+  return out;
 }

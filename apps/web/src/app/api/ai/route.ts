@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { gatherSourceRecipes, sourceRecipesToPrompt, type SourceRecipe } from '@/lib/recipeSources';
+import { gatherSourceRecipes, sourceRecipesToPrompt, findSourceImages, type SourceRecipe } from '@/lib/recipeSources';
 import { query } from '@/lib/db';
 import { getServerAdminSettings } from '@/lib/serverSettings';
 import { scopeToSession } from '@/lib/requestUser';
@@ -31,13 +31,30 @@ function toStringList(v: any): string[] {
 }
 
 // Shape the model's answer into exactly what the /chef page renders (Card / Compact / Detailed views).
+// A meal the AI based on a source recipe is replaced by that real recipe (text, times, photo, link). Anything else stays AI-generated.
 function sourceFields(url: any, sources?: Map<string, SourceRecipe>) {
   const u = String(url || '').trim();
   const src = u && sources ? sources.get(u) : undefined;
   if (!src) return { sourceUrl: '', aiGenerated: true as const };
   let host = '';
   try { host = new URL(src.url).hostname.replace(/^www\./, ''); } catch (_) {}
-  return { sourceUrl: src.url, sourceName: host, image: src.image, aiGenerated: false as const };
+  const o: any = {
+    title: src.title,
+    ingredients: src.ingredients,
+    instructions: src.instructions,
+    sourceUrl: src.url,
+    sourceName: host,
+    aiGenerated: false as const,
+  };
+  if (src.description) o.description = src.description;
+  if (src.prepMinutes) o.prepMinutes = src.prepMinutes;
+  if (src.cookMinutes) o.cookMinutes = src.cookMinutes;
+  if (src.servings) o.servings = src.servings;
+  if (src.calories) o.calories = src.calories;
+  if (src.cuisine) o.cuisine = src.cuisine;
+  if (src.image) o.image = src.image;
+  o.imageQuery = src.title;
+  return o;
 }
 
 function normalizePlan(raw: any, maxDays: number, servings: number, sources?: Map<string, SourceRecipe>): any | null {
@@ -189,6 +206,45 @@ export async function POST(req: NextRequest) {
     } catch (_) {}
 
     const chefSettings = serverSettings?.chefAiSettings || serverSettings?.aiSettings || {};
+
+    // Ask first: the chef does not suggest anything in a new chat until the user has answered its questions.
+    // Switch off with chefAiSettings.askBeforeSuggesting = false. Questionnaire wizard results are never held back (they already contain answers).
+    const askFirst = chefSettings.askBeforeSuggesting !== false;
+    const hasChefReply = Array.isArray(history) && history.some((m: any) => m?.role === 'assistant' && !/^\s*⚠️/.test(String(m?.content || '')));
+    const wantsSuggestion = (body as any)?.source === 'chef' && !isQuestionnaireComplete
+      && /(meal\s*plan|\bmenu\b|meal\s*prep|recommend|suggest|\bideas?\b|what (should|can) i (cook|eat|make)|\brecipes?\b|\bdish(es)?\b)/i.test(chatText)
+      && !/^\s*how (do|to|can)\b/i.test(chatText);
+    if (askFirst && wantsSuggestion && !hasChefReply) {
+      const pr: any = preferences || {};
+      const list = (v: any) => (Array.isArray(v) ? v : v ? [v] : []).map(String).filter(Boolean).join(', ');
+      const known = [
+        list(pr.diet) && `diet: ${list(pr.diet)}`,
+        list(pr.allergy) && `allergies: ${list(pr.allergy)}`,
+        list(pr.avoid) && `avoiding: ${list(pr.avoid)}`,
+        list(pr.tastes) && `taste: ${list(pr.tastes)}`,
+        pr.servings && `servings: ${pr.servings}`,
+        pr.country && `country: ${pr.country}`,
+      ].filter(Boolean).join(' · ');
+      const capDays = Number(chefSettings.maxPlanDays) || 7;
+      const reply = [
+        `Happy to help! Before I suggest anything, tell me what you need${known ? ` (I already have your profile: ${known})` : ''}:`,
+        '',
+        '1. What would you like to eat today? A dish, a craving, or ingredients you want to use.',
+        `2. Or would you like a recipe plan? If so, for how many days (1 to ${capDays}), and which meals (breakfast, lunch, dinner, snacks)?`,
+        '',
+        'Optional: how much time you have to cook, a budget, or anything else to leave out.',
+        '',
+        'Reply with your answer (short is fine) and I will build it for you.',
+      ].join('\n');
+      return NextResponse.json({
+        success: true,
+        reply,
+        awaitingAnswers: true,
+        consumedSystemTokens: 0,
+        remainingBalance: null,
+        sourcesUsed: [],
+      });
+    }
     
     // Extract individual controls configured in /admin/ai-settings
     const provider = (chefSettings.provider || serverSettings?.aiProvider || 'gemini').toLowerCase();
@@ -218,6 +274,8 @@ export async function POST(req: NextRequest) {
     const customVocab: string[] = Array.isArray(chefSettings.customVocabularyList) ? chefSettings.customVocabularyList : [];
     const filterWords: string[] = Array.isArray(chefSettings.filterWordsList) ? chefSettings.filterWordsList : [];
     const recommendedUrls: string[] = Array.isArray(chefSettings.recommendedRecipeUrls) ? chefSettings.recommendedRecipeUrls.filter(Boolean) : [];
+    // How the recommended websites are used: 'only' = just their recipes, 'first' = their recipes first and the AI fills gaps (default), 'off' = style reference only.
+    const sourceMode: 'only' | 'first' | 'off' = ['only', 'first', 'off'].includes(chefSettings.recommendedSourceMode) ? chefSettings.recommendedSourceMode : 'first';
 
     // 2. Strict Filter Words Pre-flight Validation
     if (strictDiet && filterWords.length > 0) {
@@ -258,16 +316,24 @@ export async function POST(req: NextRequest) {
 
     // Primary recipe sources: really read the configured sites and hand the model complete recipes from them.
     let sourceRecipes: SourceRecipe[] = [];
-    if (recommendedUrls.length > 0 && (structured || (body as any)?.source === 'chef')) {
-      const requestText = `${chatText} ${topicTitle || ''} ${JSON.stringify(questionnaireSummary || []).slice(0, 800)} ${JSON.stringify((preferences as any)?.diet || [])}`;
-      sourceRecipes = await gatherSourceRecipes(recommendedUrls, requestText);
+    if (recommendedUrls.length > 0 && sourceMode !== 'off' && (structured || (body as any)?.source === 'chef')) {
+      const earlierAsks = Array.isArray(history) ? history.filter((m: any) => m?.role === 'user').slice(-3).map((m: any) => String(m?.content || '').slice(0, 300)).join(' ') : '';
+      const requestText = `${chatText} ${earlierAsks} ${topicTitle || ''} ${JSON.stringify(questionnaireSummary || []).slice(0, 800)} ${JSON.stringify((preferences as any)?.diet || [])}`;
+      const pr: any = preferences || {};
+      const asList = (v: any) => (Array.isArray(v) ? v : v ? [v] : []).map(String).filter(Boolean);
+      sourceRecipes = await gatherSourceRecipes(recommendedUrls, requestText, {
+        meatFree: asList(pr.diet).some((d) => /vegetarian|vegan/i.test(d)),
+        exclude: [...asList(pr.allergy), ...asList(pr.avoid)].filter((w) => !/^(none|other)$/i.test(w)),
+      });
     }
     const sourceMap = new Map<string, SourceRecipe>(sourceRecipes.map((r) => [r.url, r]));
 
-    if (recommendedUrls.length > 0) {
+    if (recommendedUrls.length > 0 && sourceMode === 'off') {
+      fullSystemInstructions += `RECOMMENDED WEBSITES (style and flavour reference only; do not copy or invent links):\n${recommendedUrls.map(u => `- ${u}`).join('\n')}\n\n`;
+    } else if (recommendedUrls.length > 0) {
       fullSystemInstructions += `PRIMARY RECIPE SOURCES (the administrator's preferred websites):\n${recommendedUrls.map(u => `- ${u}`).join('\n')}\n`;
       if (sourceRecipes.length > 0) {
-        fullSystemInstructions += `\nSOURCE RECIPES read from those websites just now (real pages):\n${sourceRecipesToPrompt(sourceRecipes)}\n\nRULES FOR SOURCE RECIPES: When a source recipe fits the request AND every diet, allergy and avoided ingredient, base the meal on it (adjust servings) and copy its exact url into "sourceUrl". Skip any source recipe that conflicts with the diet, allergies or avoided ingredients. For a meal not based on a source recipe, leave "sourceUrl" empty. Never invent or alter a url.\n\n`;
+        fullSystemInstructions += `\nSOURCE RECIPES found on those websites just now. Each was already checked against the user's diet, allergies and avoided ingredients:\n${sourceRecipesToPrompt(sourceRecipes)}\n\nRULES FOR SOURCE RECIPES: Build the answer from these real recipes first. For every meal choose the best fitting source recipe and copy its exact url into "sourceUrl"; the server then uses that recipe's real text and photo, so you only decide which recipe goes in which slot (use different recipes for different meals unless you plan leftovers). ${sourceMode === 'only' ? 'Use ONLY these source recipes. Do not write any original meal; if fewer fit, return fewer meals.' : 'Write an original meal only when no source recipe fits that slot, and leave "sourceUrl" empty for it.'} Never invent or alter a url.\n\n`;
       } else {
         fullSystemInstructions += `No source recipe could be read right now. Write original recipes in the style of these sources and leave "sourceUrl" empty. Never invent a url.\n\n`;
       }
@@ -419,7 +485,24 @@ export async function POST(req: NextRequest) {
       const sv = Number(preferences?.servings) || 2;
       planOut = normalizePlan(parsed?.plan, Number(maxPlanDays) || 7, sv, sourceMap);
       recipeOut = normalizeRecipe(parsed?.recommendedRecipe, sv, sourceMap);
-      if (parsed && typeof parsed.reply === 'string' && parsed.reply.trim()) replyText = parsed.reply.trim();
+      // Photos: every dish gets the photo of the closest matching recipe on the configured sources. No close match = no photo (the page shows a neutral tile).
+      if (recommendedUrls.length > 0 && sourceMode !== 'off') {
+        const wanted: string[] = [];
+        if (planOut) for (const m of planOut.meals) if (!m.image) wanted.push(m.title);
+        if (recipeOut && !recipeOut.image) wanted.push(recipeOut.title);
+        if (wanted.length > 0) {
+          const found = await findSourceImages(recommendedUrls, Array.from(new Set(wanted)), sourceRecipes);
+          if (planOut) for (const m of planOut.meals) { const f = !m.image ? found.get(m.title) : undefined; if (f) { m.image = f.image; m.imageFrom = f.pageUrl; } }
+          if (recipeOut && !recipeOut.image) { const f = found.get(recipeOut.title); if (f) { recipeOut.image = f.image; recipeOut.imageFrom = f.pageUrl; } }
+        }
+      }
+      if (sourceMode === 'only' && recommendedUrls.length > 0) {
+        if (planOut) { planOut.meals = planOut.meals.filter((m: any) => !m.aiGenerated); if (planOut.meals.length === 0) planOut = null; }
+        if (recipeOut && recipeOut.aiGenerated) recipeOut = null;
+      }
+      if (sourceMode === 'only' && recommendedUrls.length > 0 && !planOut && !recipeOut) {
+        replyText = 'I could not find a matching recipe on your recommended websites for this request. Try different wording, or ask the administrator to allow other sources.';
+      } else if (parsed && typeof parsed.reply === 'string' && parsed.reply.trim()) replyText = parsed.reply.trim();
       else if (planOut) replyText = `Here is your ${planOut.title}.`;
       else if (isQuestionnaireComplete || /^\s*[{\[]/.test(replyText)) replyText = 'I could not format the plan this time. Please try again.';
     }

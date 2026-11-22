@@ -78,6 +78,9 @@ export async function POST(req: NextRequest) {
       if (cleaned === null) return secureJson({ success: false, error: 'Recommended recipe URLs must be a list.' }, { status: 400 });
       incomingChef.recommendedRecipeUrls = cleaned;
     }
+    if (incomingChef && incomingChef.recommendedSourceMode !== undefined && !['only', 'first', 'off'].includes(String(incomingChef.recommendedSourceMode))) {
+      return secureJson({ success: false, error: 'Unknown source priority.' }, { status: 400 });
+    }
     const topLevelUrls = body.recommendedRecipeUrls !== undefined ? cleanSourceUrls(body.recommendedRecipeUrls) : undefined;
     if (incomingChef) restoreMaskedSecrets(incomingChef, current?.chefAiSettings || {});
 
