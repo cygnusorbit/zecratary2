@@ -1,4 +1,5 @@
 import { query, getDatabaseDialect } from '@/lib/db';
+import { encryptSecretsDeep, decryptSecretsDeep } from '@/lib/secretVault';
 
 // One canonical key/value store for admin settings, identical on MySQL/MariaDB and PostgreSQL:
 //   admin_settings(id, setting_key, setting_value, category, created_at, updated_at)
@@ -137,12 +138,12 @@ export async function getJsonSetting<T = any>(key: string): Promise<T | null> {
   const raw = await getSetting(key);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as T;
+    return decryptSecretsDeep(JSON.parse(raw)) as T;
   } catch (_) {
     return null;
   }
 }
 
 export async function setJsonSetting(key: string, value: unknown, category = 'general'): Promise<void> {
-  await setSetting(key, JSON.stringify(value), category);
+  await setSetting(key, JSON.stringify(encryptSecretsDeep(value)), category);
 }

@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 const STORE_KEY = 'ai_api_keys';
 const ALLOWED = ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY'];
 
-interface StoredKey { name?: string; provider?: string; value: string; status?: string; updatedAt?: string }
+interface StoredKey { name?: string; provider?: string; apiKey?: string; value?: string; status?: string; updatedAt?: string }
 type KeyBook = Record<string, StoredKey>;
 
 async function loadBook(): Promise<KeyBook> {
@@ -31,15 +31,15 @@ export async function GET() {
     for (const name of ALLOWED) {
       const fromEnv = (process.env[name] || '').trim();
       const stored = book[name];
-      const value = (stored && stored.value) || fromEnv;
+      const value = (stored && (stored.apiKey || stored.value)) || fromEnv;
       if (value) envMap[name] = maskSecret(value);
-      if (stored && stored.value) {
+      if (stored && (stored.apiKey || stored.value)) {
         keys.push({
           id: name,
           name: stored.name || name,
           provider: stored.provider || (name.includes('OPENAI') ? 'openai' : name.includes('ANTHROPIC') ? 'anthropic' : 'gemini'),
           envKey: name,
-          keyValue: maskSecret(stored.value),
+          keyValue: maskSecret(stored.apiKey || stored.value || ''),
           status: stored.status || 'active',
         });
       }
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     book[envKey] = {
       name: body.name || book[envKey]?.name || envKey,
       provider,
-      value,
+      apiKey: value,
       status: body.status || 'active',
       updatedAt: new Date().toISOString(),
     };

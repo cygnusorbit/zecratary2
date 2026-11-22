@@ -4,6 +4,7 @@ import { secureJson, restoreMaskedSecrets } from '@/lib/secretRedaction';
 import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
 import fs from 'fs';
 import path from 'path';
+import { stripSecretsDeep } from '@/lib/secretVault';
 
 
 // Module-scoped type-safe database row extractors (unexported to prevent Next.js TS2344)
@@ -90,7 +91,7 @@ function writeDiskSettings(socialLogin: any) {
         existing.settings.socialLogin = socialLogin;
       }
 
-      fs.writeFileSync(fp, JSON.stringify(existing, null, 2), 'utf-8');
+      fs.writeFileSync(fp, JSON.stringify(stripSecretsDeep(existing), null, 2), 'utf-8');
     } catch (_) {}
   }
 }

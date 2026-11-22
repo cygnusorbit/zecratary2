@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
 import path from 'path';
+import { stripSecretsDeep } from '@/lib/secretVault';
 
 export interface SocialLoginConfig {
   googleEnabled: boolean;
@@ -60,7 +61,7 @@ export function writeSettingsToFile(data: any): void {
     try {
       const dir = path.dirname(fp);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(fp, JSON.stringify(data, null, 2), 'utf-8');
+      fs.writeFileSync(fp, JSON.stringify(stripSecretsDeep(data), null, 2), 'utf-8');
     } catch (_) {}
   }
 }

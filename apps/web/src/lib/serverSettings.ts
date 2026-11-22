@@ -51,7 +51,7 @@ export async function getStoredChefApiKey(provider: string): Promise<string> {
     const { getJsonSetting } = await import('@/lib/adminSettingsStore');
     const book: any = await getJsonSetting('ai_api_keys');
     const name = want === 'openai' ? 'OPENAI_API_KEY' : want === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'GEMINI_API_KEY';
-    const v = book && book[name] && typeof book[name].value === 'string' ? book[name].value.trim() : '';
+    const v = book && book[name] && typeof (book[name].apiKey || book[name].value) === 'string' ? String(book[name].apiKey || book[name].value).trim() : '';
     if (v && !isMasked(v)) return v;
   } catch (_) {}
   return '';

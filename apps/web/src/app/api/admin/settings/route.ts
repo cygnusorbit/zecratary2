@@ -3,6 +3,7 @@ import { secureJson, restoreMaskedSecrets } from '@/lib/secretRedaction';
 import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
 import fs from 'fs';
 import path from 'path';
+import { stripSecretsDeep } from '@/lib/secretVault';
 
 function getCandidatePaths(): string[] {
   return [
@@ -37,7 +38,7 @@ function writeLocalSettings(data: any): void {
   }
   const targetFile = path.join(targetDir, 'admin_settings.json');
   try {
-    fs.writeFileSync(targetFile, JSON.stringify(data, null, 2), 'utf-8');
+    fs.writeFileSync(targetFile, JSON.stringify(stripSecretsDeep(data), null, 2), 'utf-8');
   } catch (e) {}
 }
 
