@@ -2,6 +2,7 @@
 'use client';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { createPortal } from 'react-dom';
 import { 
   ChefHat, Globe, ExternalLink, Send, SlidersHorizontal, Edit3, Clock, Users,
   Calendar, CalendarPlus, X, Loader2, User as UserIcon, Check, Sparkles, Bookmark,
@@ -12,6 +13,8 @@ import {
 import { getCurrentUser, initAuthStorage, User } from '@/lib/auth';
 import { useTranslation } from '@/components/LanguageProvider';
 import TokenPurchaseModal from '@/components/TokenPurchaseModal';
+import ChefFlowCard, { ChefFlowState } from '@/components/ChefFlowCard';
+import { FlowRecipe, matchExisting, comparePantry, parseDays, startDateFor, buildPlannedMeals, buildTemplate, buildShoppingItems, appendLocalList } from '@/lib/chefFlow';
 
 interface MealItem {
   id: string;
@@ -79,6 +82,7 @@ interface ChatMessage {
   plan?: MealPlanData;
   recipe?: any;
   recommendedRecipe?: RecommendedRecipeData;
+  flow?: ChefFlowState;
 }
 
 interface ChatCategory {
@@ -1095,24 +1099,277 @@ export default function ChefChatPage() {
 
   const handleAddToCart = async (ingredientsList: string[]) => {
     if (!ingredientsList || ingredientsList.length === 0) return;
+    const userId = (() => { const a = currentUserRef.current || getCurrentUser(); return (a as any)?.id || getUserKey(a) || 'usr_admin_1'; })();
+    const items = buildShoppingItems(userId, ingredientsList.map(line => ({ line })));
+    appendLocalList(['zecratary_shopping_list', 'zecratary_shopping'], items, (e: any) => String(e.name || '').toLowerCase());
     try {
-      const active = currentUserRef.current || getCurrentUser();
-      const userKey = getUserKey(active);
-      await fetch('/api/grocery', {
+      await fetch('/api/shopping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, items }) });
+    } catch (_) {}
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('zecratary_shopping_updated', { detail: { source: 'chef' } }));
+      window.dispatchEvent(new Event('storage'));
+    }
+    showToast(t('chefAddedToShopping', `Added ${items.length} ingredients to your shopping list!`));
+  };
+
+  // ------------------------------------------------------------------
+  // Guided flow: existing recipes/books -> pantry -> planner -> blueprint / shopping list
+  // ------------------------------------------------------------------
+  const [flowBusy, setFlowBusy] = useState(false);
+
+  const pushAssistant = (content: string, extra: Partial<ChatMessage> = {}) => {
+    const id = 'ast_' + Date.now() + Math.random().toString(36).slice(2, 5);
+    updateMessages(prev => [...prev, { id, role: 'assistant', content, ...extra }]);
+    return id;
+  };
+
+  const markFlowDone = (msgId: string, label: string) => {
+    updateMessages(prev => prev.map(m => (m.id === msgId && m.flow ? { ...m, flow: { ...m.flow, done: label } } : m)));
+  };
+
+  const readLocalList = (keys: string[]): any[] => {
+    for (const k of keys) {
+      try { const raw = localStorage.getItem(k); if (raw) { const p = JSON.parse(raw); if (Array.isArray(p)) return p; } } catch (_) {}
+    }
+    return [];
+  };
+
+  const flowUserId = () => {
+    const active = currentUserRef.current || getCurrentUser();
+    return (active as any)?.id || getUserKey(active) || 'usr_admin_1';
+  };
+
+  const planToFlowRecipes = (plan: MealPlanData): FlowRecipe[] =>
+    (plan.meals || []).filter(m => !m.isLeftover).map(m => ({
+      title: m.title,
+      image: getAccurateFoodImage(m.image) || undefined,
+      ingredients: Array.isArray(m.ingredients) ? m.ingredients : [],
+      instructions: Array.isArray(m.instructions) ? m.instructions : [],
+      mealType: m.mealType,
+      dayIndex: m.dayIndex,
+      servings: m.servings,
+      prepMinutes: m.prepMinutes,
+      cookMinutes: m.cookMinutes,
+      description: m.description,
+      sourceUrl: m.sourceUrl,
+      fromSaved: false
+    }));
+
+  const flowPantryRef = useRef<string[]>([]);
+
+  const readPantryNames = async (): Promise<string[]> => {
+    let names: string[] = [];
+    try {
+      const userKey = getUserKey(currentUserRef.current || getCurrentUser());
+      const r = await fetch(`/api/pantry?userId=${encodeURIComponent(userKey)}`, { cache: 'no-store' });
+      const d = await safeJsonParse(r);
+      const items = Array.isArray(d?.items) ? d.items : [];
+      names = items.map((i: any) => i.name || i.item || '').filter(Boolean);
+    } catch (_) {}
+    if (names.length === 0) names = readLocalList(['zecratary_pantry_items', 'zecratary_pantry']).map((i: any) => i.name || i.item || '').filter(Boolean);
+    if (names.length === 0 && pantryIngredientsList.length > 0) names = pantryIngredientsList;
+    return Array.from(new Set(names));
+  };
+
+  // Step 3 of the chat: look at the pantry, then search saved recipes, then websites and the web, and only last write recipes with AI.
+  const startGuidedFlow = async (request: string, lead?: string) => {
+    const pantryNames = await readPantryNames();
+    flowPantryRef.current = pantryNames;
+    const pantryLine = pantryNames.length > 0
+      ? `${t('chefFlowPantryFirst', 'First I checked your pantry. You have')} ${pantryNames.slice(0, 8).join(', ')}${pantryNames.length > 8 ? '…' : ''}. ${t('chefFlowPantryUse', 'I will use these where I can.')}`
+      : t('chefFlowPantryNone', 'Your pantry is empty, so I will not limit the recipes to what you have.');
+
+    let recipes = userSavedRecipes;
+    if (!recipes || recipes.length === 0) recipes = readLocalList(['zecratary_recipes', 'zecratary_saved_recipes', 'saved_recipes']);
+    const books = readLocalList(['zecratary_recipe_books', 'zecratary_books']);
+    const found = matchExisting(request, recipes, books, { meatFree: isMeatFreeDiet, exclude: [...selectedAllergies, ...ingredientsToAvoid], limit: Math.max(3, Math.min(6, parseDays(request) * 2)), pantry: pantryNames });
+    const head = `${lead ? lead + '\n\n' : ''}${pantryLine}`;
+    if (found.length > 0) {
+      pushAssistant(`${head}\n\n${t('chefFlowFoundExisting', 'I found these in your recipes and books.')}`, { flow: { step: 'existing', request, recipes: found } });
+      return;
+    }
+    pushAssistant(`${head}\n\n${t('chefFlowNoneExisting', 'Nothing like that in your recipes or books yet, so I will search your recommended websites and the web.')}`);
+    await generateForFlow(request);
+  };
+
+  const generateForFlow = async (request: string, avoidTitles: string[] = []) => {
+    setFlowBusy(true);
+    try {
+      const activeAuth = currentUserRef.current || currentUser || getCurrentUser();
+      const userKey = getUserKey(activeAuth);
+      const prompt = avoidTitles.length > 0 ? `${request}. Give me different recipes, not these: ${avoidTitles.join(', ')}` : request;
+      const res = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: userKey,
-          items: ingredientsList.map(item => ({ name: item, checked: false }))
+          prompt,
+          forceGenerate: true,
+          messages: [],
+          userId: activeAuth?.id || userKey,
+          userEmail: activeAuth?.email,
+          model: activeAiModel,
+          source: 'chef',
+          recommendedRecipeUrls,
+          preferences: { servings, country, diet: selectedDiets, allergy: selectedAllergies, avoid: ingredientsToAvoid, tastes: tastesList },
+          pantry: flowPantryRef.current.length > 0 ? flowPantryRef.current : (enablePantryContext ? pantryIngredientsList : [])
         })
       });
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('zecratary_grocery_updated'));
-        window.dispatchEvent(new Event('storage'));
+      const data = await safeJsonParse(res);
+      if (!res.ok || !data || !data.success) {
+        if (data?.insufficientTokens) setIsTokenPurchaseOpen(true);
+        throw new Error(data?.error || 'Chef Foodie could not create recipes.');
       }
-      showToast(`Added ${ingredientsList.length} ingredients to your Grocery List!`);
-    } catch (_) {
-      showToast("Ingredients added to Grocery List!");
+      if (typeof data.remainingBalance === 'number') setTokenBalance(data.remainingBalance);
+      const consumed = data.consumedSystemTokens ?? 0;
+      if (consumed > 0) showToast(`-${consumed} ${tokenSymbol} (${tokenName})`);
+      const chatMode = data?.appliedSettings?.resultDisplayMode || data?.resultDisplayMode;
+      if (data.plan && (chatMode === 'card' || chatMode === 'compact' || chatMode === 'detailed')) setResultDisplayMode(chatMode);
+
+      const single = data.recommendedRecipe || data.recipe;
+      const recs: FlowRecipe[] = data.plan ? planToFlowRecipes(data.plan) : single ? [{ ...single, ingredients: single.ingredients || [], fromSaved: false }] : [];
+      pushAssistant(data.reply || t('chefFlowHereAreRecipes', 'Here is what I put together.'), {
+        plan: data.plan || undefined,
+        recommendedRecipe: data.plan ? undefined : single
+      });
+      if (recs.length === 0) return;
+      pushAssistant(t('chefFlowConfirmAsk', 'Before we go on, are you happy with these?'), { flow: { step: 'confirm', request, recipes: recs } });
+    } catch (err: any) {
+      pushAssistant(`⚠️ ${err.message || 'Error communicating with AI engine.'}`);
+    } finally {
+      setFlowBusy(false);
+    }
+  };
+
+  // After the user likes the recipes: compare their ingredients with the pantry, so the shopping list only has what is missing.
+  const runPantryStep = async (request: string, recs: FlowRecipe[]) => {
+    const pantryNames = flowPantryRef.current.length > 0 ? flowPantryRef.current : await readPantryNames();
+    const { have, missing } = comparePantry(recs, pantryNames);
+    const lead = pantryNames.length === 0
+      ? t('chefFlowPantryEmpty', 'Your pantry is empty, so you would need to buy everything.')
+      : missing.length === 0
+        ? t('chefFlowPantryAll', 'Good news, your pantry already covers everything.')
+        : t('chefFlowPantryCheck', 'Here is what you already have for these and what is missing.');
+    pushAssistant(lead, { flow: { step: 'pantry', request, recipes: recs, have, missing } });
+  };
+
+  // Saves chef-written meals into /recipes so the planner and blueprints can point at real recipe ids.
+  const saveFlowRecipes = async (recs: FlowRecipe[]): Promise<FlowRecipe[]> => {
+    const userKey = getUserKey(currentUserRef.current || getCurrentUser());
+    const out: FlowRecipe[] = [];
+    for (const r of recs) {
+      if (r.id) { out.push(r); continue; }
+      const img = r.image || dishImageSync(r.title, isMeatFreeDiet) || '';
+      const rec = {
+        id: 'rec_' + Date.now() + Math.random().toString(36).slice(2, 5),
+        title: r.title,
+        description: r.description || '',
+        prepMinutes: r.prepMinutes || 15,
+        cookMinutes: r.cookMinutes || 20,
+        servings: r.servings || servings,
+        calories: r.calories || 0,
+        mealType: r.mealType || 'Dinner',
+        recipeType: r.mealType || 'Dinner',
+        ingredients: r.ingredients,
+        instructions: r.instructions || [],
+        directions: r.instructions || [],
+        image: img, imageUrl: img, image_url: img,
+        sourceUrl: r.sourceUrl || '',
+        sourceName: r.sourceUrl ? 'Primary source' : 'Chef Foodie (AI generated)',
+        tags: [r.mealType || 'Dinner', ...selectedDiets],
+        userId: userKey
+      };
+      try {
+        await fetch('/api/recipes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recipe: rec, userId: userKey }) });
+      } catch (_) {}
+      appendLocalList(['zecratary_recipes', 'zecratary_saved_recipes', 'saved_recipes', `zecratary_saved_recipes_${userKey}`], [rec], (e: any) => String(e.id));
+      setUserSavedRecipes(prev => [rec, ...prev]);
+      out.push({ ...r, id: rec.id, image: img || r.image });
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('zecratary_recipes_updated'));
+      window.dispatchEvent(new Event('zecratary_saved_recipes_updated'));
+    }
+    return out;
+  };
+
+  const postJson = async (url: string, body: any) => {
+    try { await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); } catch (_) {}
+  };
+
+  const handleFlowAction = async (msg: ChatMessage, action: string, payload: any = {}) => {
+    const flow = msg.flow;
+    if (!flow || flow.done || flowBusy) return;
+    const label: string = payload.label || action;
+    const userId = flowUserId();
+    try {
+      if (action === 'confirm_yes') {
+        markFlowDone(msg.id, label);
+        await runPantryStep(flow.request, flow.recipes);
+      } else if (action === 'confirm_no') {
+        markFlowDone(msg.id, label);
+        await generateForFlow(flow.request, flow.recipes.map(r => r.title));
+      } else if (action === 'to_planner') {
+        markFlowDone(msg.id, label);
+        pushAssistant(t('chefFlowPlannerAsk', 'Let us put it in your planner. When should we start?'), { flow: { ...flow, step: 'planner', done: undefined } });
+      } else if (action === 'skip_plan') {
+        markFlowDone(msg.id, label);
+        pushAssistant(t('chefFlowFinalAsk', 'Do you want me to turn this into a meal blueprint, or add the missing ingredients to your shopping list?'), { flow: { ...flow, step: 'final', done: undefined } });
+      } else if (action === 'plan') {
+        setFlowBusy(true);
+        markFlowDone(msg.id, label);
+        const startISO = payload.when === 'date' ? payload.date : startDateFor(payload.when);
+        const saved = await saveFlowRecipes(flow.recipes);
+        const meals = buildPlannedMeals(userId, saved, startISO);
+        appendLocalList(['zecratary_planned_meals'], meals, (e: any) => `${e.date}|${e.mealType}|${e.recipeName}`);
+        await postJson('/api/planner', { userId, meals });
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('zecratary_plans_updated'));
+          window.dispatchEvent(new Event('zecratary_planner_updated'));
+          window.dispatchEvent(new Event('storage'));
+        }
+        setFlowBusy(false);
+        pushAssistant(
+          `${t('chefFlowPlanned', 'Done, I added')} ${meals.length} ${t('chefFlowPlannedMeals', 'meal(s) to your planner.')} ${t('chefFlowFinalAsk', 'Do you want me to turn this into a meal blueprint, or add the missing ingredients to your shopping list?')}`,
+          { flow: { ...flow, recipes: saved, step: 'final', done: undefined }, systemRecommendations: [{ label: t('chefFlowOpenPlanner', 'Open planner'), route: '/planner' }] }
+        );
+      } else if (action === 'blueprint' || action === 'shopping' || action === 'both') {
+        setFlowBusy(true);
+        markFlowDone(msg.id, label);
+        const done: string[] = [];
+        const links: SystemRecommendation[] = [];
+        if (action === 'blueprint' || action === 'both') {
+          const saved = await saveFlowRecipes(flow.recipes);
+          const days = parseDays(flow.request);
+          const tpl = buildTemplate(userId, `${saved[0]?.title || 'Chef'}${saved.length > 1 ? ` + ${saved.length - 1}` : ''} (${days}d)`, saved);
+          appendLocalList(['zecratary_meal_templates'], [tpl], (e: any) => String(e.id));
+          await postJson('/api/templates', { userId, template: tpl, ...tpl });
+          done.push(t('chefFlowBlueprintDone', 'meal blueprint created'));
+          links.push({ label: t('chefFlowOpenTemplates', 'Open blueprints'), route: '/templates' });
+        }
+        if (action === 'shopping' || action === 'both') {
+          const items = buildShoppingItems(userId, flow.missing || []);
+          if (items.length > 0) {
+            appendLocalList(['zecratary_shopping_list', 'zecratary_shopping'], items, (e: any) => String(e.name || '').toLowerCase());
+            await postJson('/api/shopping', { userId, items });
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('zecratary_shopping_updated', { detail: { source: 'chef' } }));
+              window.dispatchEvent(new Event('storage'));
+            }
+            done.push(`${items.length} ${t('chefFlowShoppingDone', 'ingredient(s) added to your shopping list')}`);
+            links.push({ label: t('chefFlowOpenShopping', 'Open shopping list'), route: '/shopping' });
+          } else {
+            done.push(t('chefFlowNothingToBuy', 'nothing to buy, you have it all'));
+          }
+        }
+        setFlowBusy(false);
+        pushAssistant(`${t('chefFlowAllSet', 'All set:')} ${done.join(', ')}.`, { systemRecommendations: links });
+      } else if (action === 'finish') {
+        markFlowDone(msg.id, label);
+        pushAssistant(t('chefFlowFinish', 'No problem. Tell me whenever you want to plan something else.'));
+      }
+    } catch (err: any) {
+      setFlowBusy(false);
+      pushAssistant(`⚠️ ${err?.message || 'Something went wrong.'}`);
     }
   };
 
@@ -1585,6 +1842,11 @@ export default function ChefChatPage() {
         throw new Error(data?.error || 'Chef Foodie could not process your query.');
       }
 
+      if (data.consultReady) {
+        await startGuidedFlow(String(data.request || textToSend), data.reply);
+        return;
+      }
+
       if (typeof data.remainingBalance === 'number') {
         setTokenBalance(data.remainingBalance);
       } else if (cost > 0) {
@@ -1995,6 +2257,10 @@ export default function ChefChatPage() {
                         )}
                       </div>
                     </div>
+                  )}
+
+                  {m.flow && (
+                    <ChefFlowCard flow={m.flow} busy={flowBusy} onAction={(a, p) => handleFlowAction(m, a, p)} />
                   )}
 
                   {/* PLATFORM ACTION RECOMMENDATIONS */}
@@ -2800,14 +3066,14 @@ export default function ChefChatPage() {
       </div>
 
       {/* CHAT HISTORY & CATEGORIES SIDE DRAWER */}
-      {showHistoryDrawer && (
+      {showHistoryDrawer && typeof document !== 'undefined' && createPortal(
         <div 
           onClick={() => setShowHistoryDrawer(false)}
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex justify-end cursor-pointer animate-in fade-in"
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex justify-end cursor-pointer animate-in fade-in"
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md h-full flex flex-col justify-between border-l p-5 space-y-4 shadow-2xl relative cursor-default animate-in slide-in-from-right duration-200"
+            className="w-full max-w-md h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col justify-between border-l p-5 space-y-4 shadow-2xl relative cursor-default animate-in slide-in-from-right duration-200"
             style={{
               backgroundColor: 'var(--color-card)',
               borderColor: 'var(--color-border)',
@@ -2815,10 +3081,10 @@ export default function ChefChatPage() {
             }}
           >
             <div className="space-y-4 flex-1 flex flex-col overflow-hidden">
-              <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--color-border)' }}>
-                <div className="flex items-center gap-2">
-                  <History className="h-5 w-5" style={{ color: 'var(--color-primary)' }} />
-                  <div>
+              <div className="flex items-center justify-between gap-2 border-b pb-3" style={{ borderColor: 'var(--color-border)' }}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <History className="h-5 w-5 shrink-0" style={{ color: 'var(--color-primary)' }} />
+                  <div className="min-w-0">
                     <h2 className="text-base font-black tracking-tight" style={{ color: 'var(--color-text)' }}>
                       Chat History ({historyTotalCount})
                     </h2>
@@ -2828,7 +3094,7 @@ export default function ChefChatPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     type="button"
                     onClick={startNewChat}
@@ -3139,6 +3405,7 @@ export default function ChefChatPage() {
             </div>
           </div>
         </div>
+        , document.body
       )}
 
       {/* RECIPE DETAILS MODAL */}

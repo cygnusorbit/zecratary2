@@ -4,9 +4,48 @@ import { query } from '@/lib/db';
 import { getServerAdminSettings } from '@/lib/serverSettings';
 import { scopeToSession } from '@/lib/requestUser';
 
+// Asks Gemini (with Google Search) for real recipe page links. The links are only candidates: each one is fetched and must contain a readable recipe before it is used.
+async function webSearchRecipeUrls(apiKey: string, model: string, query: string, skip: string[]): Promise<string[]> {
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      signal: AbortSignal.timeout(10000),
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: `Find 6 real recipe pages on the web for: ${query.slice(0, 300)}. Reply with ONLY the full page URLs, one per line, no other text. Use direct recipe pages (not search or category pages) from different well-known recipe websites.` }] }],
+        tools: [{ googleSearch: {} }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 400, ...fastThinking(model) },
+      }),
+    });
+    const data: any = await res.json().catch(() => null);
+    const text: string = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p?.text || '').join('\n');
+    const chunks: string[] = (data?.candidates?.[0]?.groundingMetadata?.groundingChunks || []).map((c: any) => c?.web?.uri || '').filter(Boolean);
+    const skipHosts = new Set(skip.map((u) => { try { return new URL(u).hostname; } catch (_) { return ''; } }));
+    const found: string[] = ((text.match(/https?:\/\/[^\s)>\]"']+/g) || []) as string[]).concat(chunks.filter((u) => !/vertexaisearch\.cloud\.google\.com/.test(u)));
+    const out: string[] = [];
+    for (const u of found) {
+      const clean = u.replace(/[.,;]+$/, '');
+      let host = '';
+      try { host = new URL(clean).hostname; } catch (_) { continue; }
+      if (skipHosts.has(host) || out.includes(clean)) continue;
+      out.push(clean);
+      if (out.length >= 6) break;
+    }
+    return out;
+  } catch (_) {
+    return [];
+  }
+}
+
+
 export const dynamic = 'force-dynamic';
 
 // Sanitize legacy or deprecated Gemini model identifiers
+// Gemini 2.5 Flash "thinks" before answering by default, which adds many seconds. Chat, consults and recipe JSON do not need it.
+function fastThinking(model: string): Record<string, any> {
+  return /gemini-2\.5-flash/i.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : {};
+}
+
 function sanitizeGeminiModel(rawModel: string): string {
   const m = (rawModel || '').trim();
   const lower = m.toLowerCase();
@@ -169,10 +208,12 @@ export async function POST(req: NextRequest) {
     const reqUserId = scoped.userId || bodyUserId;
     const pantryItems = pantryItemsBody || pantry;
     // Plan / recipe requests typed in the chef chat are answered as a structured result too, so they follow the admin "Final Results Appearance" setting.
-    const chatText = String(prompt || '');
+    // forceGenerate: the page asks for NEW recipes after it already looked at the user's own recipes and books.
+    const forceGenerate = Boolean((body as any)?.forceGenerate);
+    let chatText = String(prompt || '');
     const chatPlanIntent = (body as any)?.source === 'chef'
       && /(meal\s*plan|\bmenu\b|meal\s*prep|\b\d+\s*-?\s*days?\b|\bweek(ly)?\b|\bplan\b|\brecipes?\b|how (do|to|can) (i )?(cook|make|prepare)|what (should|can) i (cook|eat|make))/i.test(chatText);
-    const structured = Boolean(isQuestionnaireComplete) || chatPlanIntent;
+    let structured = Boolean(isQuestionnaireComplete) || chatPlanIntent || forceGenerate;
 
     // AI Saved Recipe Grounding Scope
     let savedRecipesContext = '';
@@ -207,44 +248,27 @@ export async function POST(req: NextRequest) {
 
     const chefSettings = serverSettings?.chefAiSettings || serverSettings?.aiSettings || {};
 
-    // Ask first: the chef does not suggest anything in a new chat until the user has answered its questions.
-    // Switch off with chefAiSettings.askBeforeSuggesting = false. Questionnaire wizard results are never held back (they already contain answers).
-    const askFirst = chefSettings.askBeforeSuggesting !== false;
-    const hasChefReply = Array.isArray(history) && history.some((m: any) => m?.role === 'assistant' && !/^\s*⚠️/.test(String(m?.content || '')));
-    const wantsSuggestion = (body as any)?.source === 'chef' && !isQuestionnaireComplete
-      && /(meal\s*plan|\bmenu\b|meal\s*prep|recommend|suggest|\bideas?\b|what (should|can) i (cook|eat|make)|\brecipes?\b|\bdish(es)?\b)/i.test(chatText)
-      && !/^\s*how (do|to|can)\b/i.test(chatText);
-    if (askFirst && wantsSuggestion && !hasChefReply) {
-      const pr: any = preferences || {};
-      const list = (v: any) => (Array.isArray(v) ? v : v ? [v] : []).map(String).filter(Boolean).join(', ');
-      const known = [
-        list(pr.diet) && `diet: ${list(pr.diet)}`,
-        list(pr.allergy) && `allergies: ${list(pr.allergy)}`,
-        list(pr.avoid) && `avoiding: ${list(pr.avoid)}`,
-        list(pr.tastes) && `taste: ${list(pr.tastes)}`,
-        pr.servings && `servings: ${pr.servings}`,
-        pr.country && `country: ${pr.country}`,
-      ].filter(Boolean).join(' · ');
-      const capDays = Number(chefSettings.maxPlanDays) || 7;
-      const reply = [
-        `Happy to help! Before I suggest anything, tell me what you need${known ? ` (I already have your profile: ${known})` : ''}:`,
-        '',
-        '1. What would you like to eat today? A dish, a craving, or ingredients you want to use.',
-        `2. Or would you like a recipe plan? If so, for how many days (1 to ${capDays}), and which meals (breakfast, lunch, dinner, snacks)?`,
-        '',
-        'Optional: how much time you have to cook, a budget, or anything else to leave out.',
-        '',
-        'Reply with your answer (short is fine) and I will build it for you.',
-      ].join('\n');
-      return NextResponse.json({
-        success: true,
-        reply,
-        awaitingAnswers: true,
-        consumedSystemTokens: 0,
-        remainingBalance: null,
-        sourcesUsed: [],
-      });
+    // Small talk ("hello", "thanks", "bye") gets a short human reply: no recipes, no sources, no tokens.
+    if ((body as any)?.source === 'chef' && !isQuestionnaireComplete) {
+      const t = chatText.trim().toLowerCase().replace(/[!.,?~]+/g, ' ').replace(/\s+/g, ' ').trim();
+      const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+      let quick = '';
+      if (/^(hi|hello|hey|hiya|yo|hola|howdy|sup|good (morning|afternoon|evening)|greetings)( there| chef| foodie| chef foodie| everyone)?$/.test(t)) {
+        quick = pick(['Hi! 👋 What shall we cook today?', 'Hello! What are you in the mood to eat?', 'Hey there! Hungry? Tell me what you feel like eating.']);
+      } else if (/^(how are you|how are you doing|how r u|what s up|whats up)$/.test(t)) {
+        quick = pick(["Doing great, thanks for asking! What would you like to eat today?", "All good here! Got something in mind to cook?"]);
+      } else if (/^(thanks|thank you|thank you so much|thx|ty|cheers|great thanks|ok thanks)$/.test(t)) {
+        quick = pick(["You're welcome! Anything else you'd like to cook?", 'Happy to help! Just say if you need more ideas.']);
+      } else if (/^(ok|okay|cool|great|nice|got it|alright|sounds good|awesome)$/.test(t)) {
+        quick = 'Great! Tell me whenever you want to plan something.';
+      } else if (/^(bye|goodbye|see you|see ya|good night|goodnight)$/.test(t)) {
+        quick = 'Bye for now! Happy cooking 🍳';
+      }
+      if (quick) {
+        return NextResponse.json({ success: true, reply: quick + '\u2064', consumedSystemTokens: 0, remainingBalance: null, sourcesUsed: [] });
+      }
     }
+
     
     // Extract individual controls configured in /admin/ai-settings
     const provider = (chefSettings.provider || serverSettings?.aiProvider || 'gemini').toLowerCase();
@@ -299,6 +323,114 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
+    // Guided chat: for a new food request the chef leads the user with ONE friendly question at a time
+    // until it knows enough, then builds the complete plan. Question turns cost no tokens.
+    // Switch off with chefAiSettings.askBeforeSuggesting = false.
+    const CONSULT_MARK = '⁣';
+    const askFirst = chefSettings.askBeforeSuggesting !== false;
+    const historyArr: any[] = Array.isArray(history) ? history : [];
+    const assistantTurns = historyArr.filter((m: any) => m?.role === 'assistant' && !/^\s*⚠️/.test(String(m?.content || '')));
+    const lastAssistant = [...historyArr].reverse().find((m: any) => m?.role === 'assistant');
+    const inConsult = Boolean(lastAssistant && String(lastAssistant.content || '').endsWith(CONSULT_MARK));
+    const consultQuestions = assistantTurns.filter((m: any) => String(m?.content || '').endsWith(CONSULT_MARK)).length;
+    // Greetings and consult questions are light turns; only a real answer (plan, recipe, advice) counts as the chat having started.
+    const heavyAssistantTurns = assistantTurns.filter((m: any) => { const c = String(m?.content || ''); return !c.endsWith(CONSULT_MARK) && !c.endsWith('\u2064'); });
+    const wantsSuggestion = (body as any)?.source === 'chef' && !isQuestionnaireComplete
+      && /(meal\s*plan|\bmenu\b|meal\s*prep|recommend|suggest|\bideas?\b|what (should|can) i (cook|eat|make)|\brecipes?\b|\bdish(es)?\b|hungry|something to eat|what to eat|\bdinner\b|\blunch\b|\bbreakfast\b|craving|\bmeals?\b)/i.test(chatText)
+      && !/^\s*how (do|to|can)\b/i.test(chatText);
+
+    if (askFirst && !forceGenerate && (body as any)?.source === 'chef' && !isQuestionnaireComplete && (inConsult || (wantsSuggestion && heavyAssistantTurns.length === 0))) {
+      const pr: any = preferences || {};
+      const list = (v: any) => (Array.isArray(v) ? v : v ? [v] : []).map(String).filter(Boolean).join(', ');
+      const known = [
+        list(pr.diet) && `diet: ${list(pr.diet)}`,
+        list(pr.allergy) && `allergies: ${list(pr.allergy)}`,
+        list(pr.avoid) && `avoiding: ${list(pr.avoid)}`,
+        list(pr.tastes) && `taste: ${list(pr.tastes)}`,
+        pr.servings && `servings: ${pr.servings}`,
+        pr.country && `country: ${pr.country}`,
+      ].filter(Boolean).join('; ');
+      const capDays = Number(chefSettings.maxPlanDays) || 7;
+      const userMsgs = historyArr.filter((m: any) => m?.role === 'user').slice(-5).map((m: any) => String(m?.content || '').slice(0, 300));
+      const transcript = [...historyArr.slice(-6).map((m: any) => `${m?.role === 'assistant' ? 'Chef' : 'User'}: ${String(m?.content || '').replace(CONSULT_MARK, '').slice(0, 400)}`), `User: ${chatText.slice(0, 400)}`].join('\n');
+      const consultSystem = `You are Chef Foodie, chatting with a user to work out what they want to cook. Your goal is to collect just enough to build a COMPLETE recipe plan.
+Known profile (never repeat it back): ${known || 'none'}.
+What you need, in this order: (1) WHAT they want to eat or cook (a dish, cuisine, craving, mood, or they let you decide); (2) FOR HOW MANY DAYS to plan (1 means just today; maximum ${capDays}); (3) optionally which meals, cooking time or skill, ingredients to leave out, budget. Never skip (1) or (2) unless the user already stated them.
+Rules: ask exactly ONE short, warm question at a time (under 25 words), in plain text with no lists, no markdown and no asterisks. Skip anything already answered or implied. If the user says "you decide" or "anything", accept that and move on. Ask at most 3 questions in total (so far you asked ${consultQuestions}). You are ready only when both (1) what to eat and (2) how many days are known (accept "you decide" for (1)), or the user seems impatient.
+Reply ONLY with JSON: {"ready": boolean, "reply": string}. When not ready, "reply" is your next question. When ready, "reply" is one short sentence saying you are putting it together.`;
+
+      let ready = consultQuestions >= 3;
+      let consultReply = '';
+      try {
+        const sig = AbortSignal.timeout(10000);
+        let raw = '';
+        if (provider === 'gemini') {
+          const model = sanitizeGeminiModel(initialModel);
+          const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts: [{ text: transcript }] }],
+              systemInstruction: { parts: [{ text: consultSystem }] },
+              generationConfig: { temperature: 0.5, maxOutputTokens: 300, responseMimeType: 'application/json', ...fastThinking(model) },
+            }),
+            signal: sig,
+            cache: 'no-store',
+          });
+          const d: any = await r.json().catch(() => ({}));
+          raw = (d?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text).filter(Boolean).join('');
+        } else {
+          const r = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: initialModel || 'gpt-4o',
+              messages: [{ role: 'system', content: consultSystem }, { role: 'user', content: transcript }],
+              temperature: 0.5,
+              max_tokens: 300,
+              response_format: { type: 'json_object' },
+            }),
+            signal: sig,
+            cache: 'no-store',
+          });
+          const d: any = await r.json().catch(() => ({}));
+          raw = d?.choices?.[0]?.message?.content || '';
+        }
+        const parsedC = extractJson(raw);
+        if (parsedC && typeof parsedC.reply === 'string') {
+          consultReply = parsedC.reply.replace(/[*_#`]/g, '').trim();
+          if (parsedC.ready === true) ready = true;
+        }
+      } catch (_) {}
+
+      if (!ready) {
+        if (!consultReply) {
+          consultReply = consultQuestions === 0
+            ? 'Sure! What would you like to eat today, or shall I plan a few days for you?'
+            : 'Got it! Which meals should I include, and how many days?';
+        }
+        return NextResponse.json({
+          success: true,
+          reply: consultReply + CONSULT_MARK,
+          awaitingAnswers: true,
+          consumedSystemTokens: 0,
+          remainingBalance: null,
+          sourcesUsed: [],
+        });
+      }
+      // Enough information. The page now checks the user's own recipes, books and pantry first, and calls back with forceGenerate if new recipes are needed.
+      const requestText = [...userMsgs, chatText].join('. ').slice(0, 1200);
+      return NextResponse.json({
+        success: true,
+        reply: consultReply || 'Great, let me check what you already have.',
+        consultReady: true,
+        request: requestText,
+        consumedSystemTokens: 0,
+        remainingBalance: null,
+        sourcesUsed: [],
+      });
+    }
+
     // 3. Assemble Grounded System Instructions
     let fullSystemInstructions = `${systemPrompt}\n\n`;
 
@@ -316,7 +448,7 @@ export async function POST(req: NextRequest) {
 
     // Primary recipe sources: really read the configured sites and hand the model complete recipes from them.
     let sourceRecipes: SourceRecipe[] = [];
-    if (recommendedUrls.length > 0 && sourceMode !== 'off' && (structured || (body as any)?.source === 'chef')) {
+    if (recommendedUrls.length > 0 && sourceMode !== 'off' && structured) {
       const earlierAsks = Array.isArray(history) ? history.filter((m: any) => m?.role === 'user').slice(-3).map((m: any) => String(m?.content || '').slice(0, 300)).join(' ') : '';
       const requestText = `${chatText} ${earlierAsks} ${topicTitle || ''} ${JSON.stringify(questionnaireSummary || []).slice(0, 800)} ${JSON.stringify((preferences as any)?.diet || [])}`;
       const pr: any = preferences || {};
@@ -326,9 +458,31 @@ export async function POST(req: NextRequest) {
         exclude: [...asList(pr.allergy), ...asList(pr.avoid)].filter((w) => !/^(none|other)$/i.test(w)),
       });
     }
+    // Next tier: when the recommended websites did not give enough real recipes, search the web for real recipe pages (read and checked the same way). AI-written recipes stay the last option.
+    if (structured && sourceMode !== 'only' && sourceMode !== 'off' && enableWebSearch && provider === 'gemini') {
+      const dayMatch = chatText.match(/(\d+)\s*-?\s*days?\b/i) || (Array.isArray(history) ? history.map((m: any) => String(m?.content || '')).join(' ').match(/(\d+)\s*-?\s*days?\b/i) : null);
+      const wanted = Math.min(6, Math.max(2, (dayMatch ? Number(dayMatch[1]) : 1) * 2));
+      if (sourceRecipes.length < wanted) {
+        try {
+          const pr: any = preferences || {};
+          const asList = (v: any) => (Array.isArray(v) ? v : v ? [v] : []).map(String).filter(Boolean);
+          const webUrls = await webSearchRecipeUrls(apiKey, sanitizeGeminiModel(initialModel), `${chatText} ${asList(pr.diet).join(' ')}`.trim(), recommendedUrls);
+          if (webUrls.length > 0) {
+            const extra = await gatherSourceRecipes(webUrls, `${chatText} ${asList(pr.diet).join(' ')}`, {
+              meatFree: asList(pr.diet).some((d) => /vegetarian|vegan/i.test(d)),
+              exclude: [...asList(pr.allergy), ...asList(pr.avoid)].filter((w) => !/^(none|other)$/i.test(w)),
+            });
+            const have = new Set(sourceRecipes.map((r) => r.url));
+            for (const r of extra) if (!have.has(r.url)) sourceRecipes.push(r);
+          }
+        } catch (_) { /* web search is a bonus tier; fall through to AI */ }
+      }
+    }
     const sourceMap = new Map<string, SourceRecipe>(sourceRecipes.map((r) => [r.url, r]));
 
-    if (recommendedUrls.length > 0 && sourceMode === 'off') {
+    if (recommendedUrls.length > 0 && !structured) {
+      // Plain chat: no source list, so the chef does not push recipes into a normal conversation.
+    } else if (recommendedUrls.length > 0 && sourceMode === 'off') {
       fullSystemInstructions += `RECOMMENDED WEBSITES (style and flavour reference only; do not copy or invent links):\n${recommendedUrls.map(u => `- ${u}`).join('\n')}\n\n`;
     } else if (recommendedUrls.length > 0) {
       fullSystemInstructions += `PRIMARY RECIPE SOURCES (the administrator's preferred websites):\n${recommendedUrls.map(u => `- ${u}`).join('\n')}\n`;
@@ -345,6 +499,10 @@ export async function POST(req: NextRequest) {
 
     if (savedRecipesContext) {
       fullSystemInstructions += savedRecipesContext;
+    }
+
+    if (!structured) {
+      fullSystemInstructions += `CHAT STYLE (very important): Talk like a friendly person in a chat, not like a brochure. Keep replies short: 1 to 3 sentences for casual or simple messages. Never open with a long welcome, never repeat the user's profile or preferences back to them, and never list recipes or ideas unless the user asked for them. Ask at most one short question at a time. Use plain text only: no markdown, no asterisks, no headings, no bullet lists. Answer cooking questions directly and briefly.\n\n`;
     }
 
     fullSystemInstructions += `PLANNING CONSTRAINTS:\n- Maximum plan duration: ${maxPlanDays} days.\n- Preferred presentation mode: ${resultDisplayMode}.\n`;
@@ -385,6 +543,7 @@ export async function POST(req: NextRequest) {
           generationConfig: {
             temperature,
             maxOutputTokens: effectiveMaxTokens,
+            ...fastThinking(modelToCall),
             ...(structured ? { responseMimeType: 'application/json' } : {})
           }
         };
@@ -491,7 +650,7 @@ export async function POST(req: NextRequest) {
         if (planOut) for (const m of planOut.meals) if (!m.image) wanted.push(m.title);
         if (recipeOut && !recipeOut.image) wanted.push(recipeOut.title);
         if (wanted.length > 0) {
-          const found = await findSourceImages(recommendedUrls, Array.from(new Set(wanted)), sourceRecipes);
+          const found = await findSourceImages(recommendedUrls, Array.from(new Set(wanted)), sourceRecipes, 4000);
           if (planOut) for (const m of planOut.meals) { const f = !m.image ? found.get(m.title) : undefined; if (f) { m.image = f.image; m.imageFrom = f.pageUrl; } }
           if (recipeOut && !recipeOut.image) { const f = found.get(recipeOut.title); if (f) { recipeOut.image = f.image; recipeOut.imageFrom = f.pageUrl; } }
         }
