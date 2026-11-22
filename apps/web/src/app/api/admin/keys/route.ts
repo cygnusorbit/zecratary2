@@ -11,7 +11,7 @@ import { maskSecret, isMasked } from '@/lib/adminGuard';
 export const dynamic = 'force-dynamic';
 
 const STORE_KEY = 'ai_api_keys';
-const ALLOWED = ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY'];
+const ALLOWED = ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'PEXELS_API_KEY', 'UNSPLASH_ACCESS_KEY'];
 
 interface StoredKey { name?: string; provider?: string; apiKey?: string; value?: string; status?: string; updatedAt?: string }
 type KeyBook = Record<string, StoredKey>;
@@ -37,7 +37,7 @@ export async function GET() {
         keys.push({
           id: name,
           name: stored.name || name,
-          provider: stored.provider || (name.includes('OPENAI') ? 'openai' : name.includes('ANTHROPIC') ? 'anthropic' : 'gemini'),
+          provider: stored.provider || (name.includes('PEXELS') || name.includes('UNSPLASH') ? 'image' : name.includes('OPENAI') ? 'openai' : name.includes('ANTHROPIC') ? 'anthropic' : 'gemini'),
           envKey: name,
           keyValue: maskSecret(stored.apiKey || stored.value || ''),
           status: stored.status || 'active',

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { gatherSourceRecipes, sourceRecipesToPrompt, type SourceRecipe } from '@/lib/recipeSources';
 import { query } from '@/lib/db';
 import { getServerAdminSettings } from '@/lib/serverSettings';
 import { scopeToSession } from '@/lib/requestUser';
@@ -30,7 +31,16 @@ function toStringList(v: any): string[] {
 }
 
 // Shape the model's answer into exactly what the /chef page renders (Card / Compact / Detailed views).
-function normalizePlan(raw: any, maxDays: number, servings: number): any | null {
+function sourceFields(url: any, sources?: Map<string, SourceRecipe>) {
+  const u = String(url || '').trim();
+  const src = u && sources ? sources.get(u) : undefined;
+  if (!src) return { sourceUrl: '', aiGenerated: true as const };
+  let host = '';
+  try { host = new URL(src.url).hostname.replace(/^www\./, ''); } catch (_) {}
+  return { sourceUrl: src.url, sourceName: host, image: src.image, aiGenerated: false as const };
+}
+
+function normalizePlan(raw: any, maxDays: number, servings: number, sources?: Map<string, SourceRecipe>): any | null {
   if (!raw || !Array.isArray(raw.meals)) return null;
   const stamp = Date.now();
   const meals = raw.meals
@@ -58,7 +68,8 @@ function normalizePlan(raw: any, maxDays: number, servings: number): any | null 
         difficulty: m.difficulty ? String(m.difficulty) : undefined,
         tags: toStringList(m.tags),
         chefTip: m.chefTip ? String(m.chefTip) : undefined,
-        sourceUrl: m.sourceUrl ? String(m.sourceUrl) : '',
+        ...sourceFields(m.sourceUrl, sources),
+        imageQuery: m.imageQuery ? String(m.imageQuery).slice(0, 120) : String(m.title).slice(0, 120),
       };
     })
     .filter((m: any) => m.dayIndex <= maxDays);
@@ -73,7 +84,7 @@ function normalizePlan(raw: any, maxDays: number, servings: number): any | null 
   };
 }
 
-function normalizeRecipe(raw: any, servings: number): any | null {
+function normalizeRecipe(raw: any, servings: number, sources?: Map<string, SourceRecipe>): any | null {
   if (!raw || !raw.title) return null;
   return {
     title: String(raw.title),
@@ -89,7 +100,8 @@ function normalizeRecipe(raw: any, servings: number): any | null {
     ingredients: toStringList(raw.ingredients),
     instructions: toStringList(raw.instructions),
     chefTip: raw.chefTip ? String(raw.chefTip) : undefined,
-    sourceUrl: raw.sourceUrl ? String(raw.sourceUrl) : undefined,
+    ...sourceFields(raw.sourceUrl, sources),
+    imageQuery: raw.imageQuery ? String(raw.imageQuery).slice(0, 120) : String(raw.title).slice(0, 120),
   };
 }
 
@@ -103,13 +115,13 @@ const PLAN_SCHEMA_PROMPT = `Respond with ONE JSON object only (no markdown, no c
         "title": "string", "description": "one sentence", "prepMinutes": number, "cookMinutes": number,
         "servings": number, "calories": number, "isBatchCook": false,
         "cuisine": "string", "difficulty": "Easy|Medium|Hard", "tags": ["diet or style tags"],
-        "ingredients": ["quantity + ingredient"], "instructions": ["clear numbered-style cooking steps, 4-8 steps"], "chefTip": "string" }
+        "imageQuery": "2-5 word photo search phrase for the finished dish, e.g. coconut laksa noodle soup", "sourceUrl": "exact url of the SOURCE RECIPE this meal is based on, or empty string", "ingredients": ["quantity + ingredient"], "instructions": ["clear numbered-style cooking steps, 4-8 steps"], "chefTip": "string" }
     ]
   },
   "recommendedRecipe": {
     "title": "string", "description": "string", "prepMinutes": number, "cookMinutes": number, "servings": number,
     "calories": number, "mealType": "string", "cuisine": "string", "difficulty": "Easy|Medium|Hard", "tags": ["string"],
-    "ingredients": ["string"], "instructions": ["step"], "chefTip": "string"
+    "imageQuery": "2-5 word photo search phrase", "sourceUrl": "exact source recipe url or empty string", "ingredients": ["string"], "instructions": ["step"], "chefTip": "string"
   }
 Every meal must be a complete, cookable recipe: real quantities in ingredients and real step-by-step instructions (never placeholders).
 }
@@ -209,7 +221,8 @@ export async function POST(req: NextRequest) {
 
     // 2. Strict Filter Words Pre-flight Validation
     if (strictDiet && filterWords.length > 0) {
-      const userContent = JSON.stringify({ prompt, answers, preferences }).toLowerCase();
+      // Only what the user asked for is checked. Their own "avoid" list is what they want left out, so it is not a violation.
+      const userContent = JSON.stringify({ prompt, answers }).toLowerCase();
       for (const word of filterWords) {
         if (word && word.trim() && userContent.includes(word.trim().toLowerCase())) {
           return NextResponse.json({
@@ -243,8 +256,21 @@ export async function POST(req: NextRequest) {
       fullSystemInstructions += `STRICTLY PROHIBITED INGREDIENTS & TERMS (Never suggest or include):\n${filterWords.join(', ')}\n\n`;
     }
 
+    // Primary recipe sources: really read the configured sites and hand the model complete recipes from them.
+    let sourceRecipes: SourceRecipe[] = [];
+    if (recommendedUrls.length > 0 && (structured || (body as any)?.source === 'chef')) {
+      const requestText = `${chatText} ${topicTitle || ''} ${JSON.stringify(questionnaireSummary || []).slice(0, 800)} ${JSON.stringify((preferences as any)?.diet || [])}`;
+      sourceRecipes = await gatherSourceRecipes(recommendedUrls, requestText);
+    }
+    const sourceMap = new Map<string, SourceRecipe>(sourceRecipes.map((r) => [r.url, r]));
+
     if (recommendedUrls.length > 0) {
-      fullSystemInstructions += `RECOMMENDED PRIMARY RECIPE SOURCE URLS (Prioritize culinary style, flavor profiles, and link references from these websites):\n${recommendedUrls.map(u => `- ${u}`).join('\n')}\n\n`;
+      fullSystemInstructions += `PRIMARY RECIPE SOURCES (the administrator's preferred websites):\n${recommendedUrls.map(u => `- ${u}`).join('\n')}\n`;
+      if (sourceRecipes.length > 0) {
+        fullSystemInstructions += `\nSOURCE RECIPES read from those websites just now (real pages):\n${sourceRecipesToPrompt(sourceRecipes)}\n\nRULES FOR SOURCE RECIPES: When a source recipe fits the request AND every diet, allergy and avoided ingredient, base the meal on it (adjust servings) and copy its exact url into "sourceUrl". Skip any source recipe that conflicts with the diet, allergies or avoided ingredients. For a meal not based on a source recipe, leave "sourceUrl" empty. Never invent or alter a url.\n\n`;
+      } else {
+        fullSystemInstructions += `No source recipe could be read right now. Write original recipes in the style of these sources and leave "sourceUrl" empty. Never invent a url.\n\n`;
+      }
     }
 
     if (enablePantryContext && Array.isArray(pantryItems) && pantryItems.length > 0) {
@@ -391,8 +417,8 @@ export async function POST(req: NextRequest) {
     if (structured) {
       const parsed = extractJson(replyText);
       const sv = Number(preferences?.servings) || 2;
-      planOut = normalizePlan(parsed?.plan, Number(maxPlanDays) || 7, sv);
-      recipeOut = normalizeRecipe(parsed?.recommendedRecipe, sv);
+      planOut = normalizePlan(parsed?.plan, Number(maxPlanDays) || 7, sv, sourceMap);
+      recipeOut = normalizeRecipe(parsed?.recommendedRecipe, sv, sourceMap);
       if (parsed && typeof parsed.reply === 'string' && parsed.reply.trim()) replyText = parsed.reply.trim();
       else if (planOut) replyText = `Here is your ${planOut.title}.`;
       else if (isQuestionnaireComplete || /^\s*[{\[]/.test(replyText)) replyText = 'I could not format the plan this time. Please try again.';
@@ -400,7 +426,7 @@ export async function POST(req: NextRequest) {
 
     // 5. Server-Side Token Deduction (Resilient, 1-argument options contract)
     let remainingTokens: number | null = null;
-    let consumedTokens: number = 8;
+    let consumedTokens: number = 0;
 
     try {
       const activeUser = reqUserEmail || reqUserId;
@@ -410,19 +436,24 @@ export async function POST(req: NextRequest) {
           const settings = typeof tokenService.getTokenSettings === 'function' 
             ? await tokenService.getTokenSettings() 
             : null;
-          consumedTokens = settings?.chefCost || 8;
+          const chefCost = settings?.chefCost || 8;
+          consumedTokens = 0;
 
           // Single options object contract to satisfy TypeScript TS2554
           const deduction = await (tokenService.deductUserTokens as any)({
             userId: reqUserId || activeUser,
             userEmail: reqUserEmail || activeUser,
-            cost: consumedTokens,
-            amount: consumedTokens,
-            tokens: consumedTokens,
+            cost: chefCost,
+            amount: chefCost,
+            tokens: chefCost,
             feature: 'chef',
             description: 'Chef AI Assistant Query'
           });
 
+          // Only report a charge when the deduction really happened.
+          if (deduction && deduction.success && Number(deduction.deducted) > 0) {
+            consumedTokens = Number(deduction.deducted);
+          }
           if (deduction && typeof deduction.currentBalance === 'number') {
             remainingTokens = deduction.currentBalance;
           } else if (deduction && typeof deduction.balance === 'number') {
@@ -443,6 +474,7 @@ export async function POST(req: NextRequest) {
       resultDisplayMode,
       remainingBalance: remainingTokens,
       consumedSystemTokens: consumedTokens,
+      sourcesUsed: sourceRecipes.map((r) => ({ title: r.title, url: r.url })),
       appliedSettings: {
         provider,
         model: finalModelUsed,

@@ -35,6 +35,9 @@ interface MealItem {
   tags?: string[];
   chefTip?: string;
   sourceUrl?: string;
+  imageQuery?: string;
+  aiGenerated?: boolean;
+  sourceName?: string;
 }
 
 interface MealPlanData {
@@ -57,6 +60,7 @@ interface RecommendedRecipeData {
   instructions: string[];
   chefTip?: string;
   image?: string;
+  imageQuery?: string;
   sourceUrl?: string;
   sourceName?: string;
 }
@@ -124,24 +128,89 @@ const FOOD_IMAGE_MAP: Record<string, string> = {
   default: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=800&q=80'
 };
 
-function getAccurateFoodImage(raw?: string, title?: string, mealType?: string): string {
-  if (raw && typeof raw === 'string') {
-    const trimmed = raw.trim();
-    if (trimmed.startsWith('http') && !trimmed.includes('#primaryimage') && !trimmed.includes('photo-1546069901-ba9599a7e63c')) {
-      return trimmed;
-    }
-    if (trimmed.startsWith('/') && !trimmed.includes('default')) {
-      return trimmed;
-    }
-  }
+const MEAT_IMAGE_KEYS = new Set(['chicken', 'beef', 'steak', 'salmon', 'fish', 'pork', 'shrimp', 'seafood', 'burger', 'roast']);
+const DISH_IMG_CACHE = new Map<string, string>();
 
+function isRealImage(raw?: string): boolean {
+  if (!raw || typeof raw !== 'string') return false;
+  const t = raw.trim();
+  if (t.startsWith('http')) return !t.includes('#primaryimage') && !t.includes('photo-1546069901-ba9599a7e63c');
+  return t.startsWith('/') && !t.includes('default');
+}
+
+// Only returns an image that really belongs to the dish; otherwise '' (the page shows a neutral placeholder).
+function getAccurateFoodImage(raw?: string, _title?: string, _mealType?: string): string {
+  return isRealImage(raw) ? String(raw).trim() : '';
+}
+
+// Old-style keyword picture, used only for recipes that carry no photo search phrase. Never meat for vegetarian/vegan plans.
+function keywordFoodImage(title?: string, mealType?: string, meatFree?: boolean): string {
   const query = `${title || ''} ${mealType || ''}`.toLowerCase();
   for (const [key, imgUrl] of Object.entries(FOOD_IMAGE_MAP)) {
-    if (key !== 'default' && query.includes(key)) {
-      return imgUrl;
-    }
+    if (key === 'default') continue;
+    if (meatFree && MEAT_IMAGE_KEYS.has(key)) continue;
+    if (query.includes(key)) return imgUrl;
   }
-  return FOOD_IMAGE_MAP.default;
+  return '';
+}
+
+async function lookupDishImage(query: string, meatFree: boolean): Promise<string> {
+  const q = (query || '').trim();
+  if (q.length < 3) return '';
+  const key = `${q.toLowerCase()}|${meatFree ? 1 : 0}`;
+  if (DISH_IMG_CACHE.has(key)) return DISH_IMG_CACHE.get(key) || '';
+  try {
+    const res = await fetch(`/api/images/search?q=${encodeURIComponent(q)}${meatFree ? '&meatFree=1' : ''}`, { cache: 'no-store' });
+    const data = await res.json();
+    const url = data && data.success && typeof data.url === 'string' ? data.url : '';
+    DISH_IMG_CACHE.set(key, url);
+    return url;
+  } catch (_) {
+    return '';
+  }
+}
+
+function dishImageSync(query: string, meatFree: boolean): string {
+  return DISH_IMG_CACHE.get(`${(query || '').trim().toLowerCase()}|${meatFree ? 1 : 0}`) || '';
+}
+
+// Picture for a dish: its own photo, else a photo found for its search phrase, else a neutral placeholder (never a mismatched stock photo).
+function DishImg(props: any) {
+  const { raw, title, mealType, query, meatFree, ...rest } = props;
+  const mf = Boolean(meatFree);
+  const own = isRealImage(raw) ? String(raw).trim() : '';
+  const [found, setFound] = useState<string>(() => (own ? '' : dishImageSync(query || '', mf)));
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    setFailed(false);
+    if (own) { setFound(''); return; }
+    const q = query || title || '';
+    const hit = dishImageSync(q, mf);
+    if (hit) { setFound(hit); return; }
+    lookupDishImage(q, mf).then((u) => {
+      if (!alive) return;
+      setFound(u || (!query ? keywordFoodImage(title, mealType, mf) : ''));
+    });
+    return () => { alive = false; };
+  }, [own, query, title, mealType, mf]);
+  const src = own || found;
+  if (!src || failed) {
+    const { onClick, className, style, alt } = rest;
+    return (
+      <div
+        role="img"
+        aria-label={alt || title || 'Dish'}
+        onClick={onClick}
+        className={`${className || ''} flex flex-col items-center justify-center gap-1 text-center overflow-hidden`}
+        style={{ ...(style || {}), backgroundColor: 'var(--color-inner-dark)', color: 'var(--color-text-secondary)', minHeight: 56 }}
+      >
+        <span className="text-2xl leading-none">🍽️</span>
+        <span className="text-[10px] font-bold px-2 line-clamp-2">{title}</span>
+      </div>
+    );
+  }
+  return <img {...rest} src={src} alt={rest.alt || title} referrerPolicy="no-referrer" onError={() => setFailed(true)} />;
 }
 
 const DIETARY_OPTIONS = [
@@ -325,6 +394,7 @@ export default function ChefChatPage() {
   const [tokenName, setTokenName] = useState<string>('Foodie Token');
   const [isTokenEnabled, setIsTokenEnabled] = useState<boolean>(true);
   const [chefCost, setChefCost] = useState<number>(1);
+  const [balanceLoaded, setBalanceLoaded] = useState<boolean>(false);
   const [tokenPackages, setTokenPackages] = useState<any[]>([]);
   const [isTokenPurchaseOpen, setIsTokenPurchaseOpen] = useState(false);
 
@@ -333,6 +403,7 @@ export default function ChefChatPage() {
   const [servings, setServings] = useState<number>(2);
   const [country, setCountry] = useState<string>('Singapore');
   const [selectedDiets, setSelectedDiets] = useState<string[]>(['Vegetarian']);
+  const isMeatFreeDiet = selectedDiets.some((d) => /vegetarian|vegan/i.test(d));
   const [selectedAllergies, setSelectedAllergies] = useState<string[]>(['Peanuts']);
   const [ingredientsToAvoid, setIngredientsToAvoid] = useState<string[]>(['Oily']);
   const [newAvoidInput, setNewAvoidInput] = useState<string>('');
@@ -898,7 +969,13 @@ export default function ChefChatPage() {
       const scrapeData = scrapeRes ? await safeJsonParse(scrapeRes) : null;
       const serverRecipe = scrapeData?.recipe;
 
-      const resolvedImage = serverRecipe?.image || serverRecipe?.imageUrl || serverRecipe?.image_url || getAccurateFoodImage(item.image, item.title, item.mealType);
+      const itemQuery = (item as any).imageQuery || item.title;
+      const resolvedImage =
+        serverRecipe?.image || serverRecipe?.imageUrl || serverRecipe?.image_url ||
+        getAccurateFoodImage(item.image) ||
+        dishImageSync(itemQuery, isMeatFreeDiet) ||
+        (await lookupDishImage(itemQuery, isMeatFreeDiet)) ||
+        '';
 
       const finalRecipe = {
         id: serverRecipe?.id || ('rec_' + Date.now()),
@@ -916,8 +993,11 @@ export default function ChefChatPage() {
         image: resolvedImage,
         imageUrl: resolvedImage,
         image_url: resolvedImage,
-        sourceUrl: serverRecipe?.sourceUrl || targetUrl || '',
-        sourceName: serverRecipe?.sourceName || 'Chef Foodie',
+        // A recipe written by the chef is not from any website: do not attach a source link to it.
+        sourceUrl: alreadyComplete ? (item.sourceUrl || '') : (serverRecipe?.sourceUrl || targetUrl || ''),
+        sourceName: alreadyComplete
+          ? (item.sourceUrl ? ((item as any).sourceName || 'Primary source') : 'Chef Foodie (AI generated)')
+          : (serverRecipe?.sourceName || 'Chef Foodie'),
         cuisine: serverRecipe?.cuisine || (item as any).cuisine || country || 'Modern',
         difficulty: serverRecipe?.difficulty || (item as any).difficulty || 'Easy',
         tags: Array.isArray((item as any).tags) && (item as any).tags.length > 0 ? (item as any).tags : [item.mealType || 'Dinner', ...selectedDiets],
@@ -1155,6 +1235,7 @@ export default function ChefChatPage() {
       const data = await safeJsonParse(res);
       if (data && data.success) {
         setTokenBalance(Number(data.balance ?? 0));
+        setBalanceLoaded(true);
         if (data.tokenSymbol) setTokenSymbol(data.tokenSymbol);
         if (data.tokenName) setTokenName(data.tokenName);
         if (data.isEnabled !== undefined) setIsTokenEnabled(Boolean(data.isEnabled));
@@ -1376,6 +1457,10 @@ export default function ChefChatPage() {
       }
     }
 
+    if (!balanceLoaded) {
+      showToast(t('balanceLoading', 'Loading your balance... please try again in a moment.'));
+      return;
+    }
     const cost = isTokenEnabled ? chefCost : 0;
     if (isTokenEnabled && cost > 0 && tokenBalance < cost) {
       showToast(`Insufficient ${tokenName}. Required: ${cost} ${tokenSymbol}, Balance: ${tokenBalance} ${tokenSymbol}`);
@@ -1946,14 +2031,7 @@ export default function ChefChatPage() {
                       <div className="flex flex-col md:flex-row gap-5 items-start">
                         {/* High-Resolution Dish Photo */}
                         <div className="relative shrink-0 w-full md:w-64 h-52 sm:h-56 rounded-2xl overflow-hidden border shadow-sm group">
-                          <img
-                            src={getAccurateFoodImage(currentRecipe.image, currentRecipe.title, currentRecipe.mealType)}
-                            alt={currentRecipe.title || 'Recipe Photo'}
-                            referrerPolicy="no-referrer"
-                            onError={(e) => {
-                              e.currentTarget.onerror = null;
-                              e.currentTarget.src = getAccurateFoodImage('', currentRecipe.title, currentRecipe.mealType);
-                            }}
+                          <DishImg raw={currentRecipe.image} title={currentRecipe.title} mealType={currentRecipe.mealType} query={currentRecipe.imageQuery} meatFree={isMeatFreeDiet} alt={currentRecipe.title || 'Recipe Photo'}
                             className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
                           />
                           <span 
@@ -2202,14 +2280,7 @@ export default function ChefChatPage() {
                                 <div>
                                   {/* Meal Cover Image */}
                                   <div className="relative w-full h-44 overflow-hidden border-b" style={{ borderColor: 'var(--color-border)' }}>
-                                    <img 
-                                      src={accurateImg} 
-                                      alt={meal.title}
-                                      referrerPolicy="no-referrer"
-                                      onError={(e) => {
-                                        e.currentTarget.onerror = null;
-                                        e.currentTarget.src = getAccurateFoodImage('', meal.title, meal.mealType);
-                                      }}
+                                    <DishImg raw={meal.image} title={meal.title} mealType={meal.mealType} query={meal.imageQuery} meatFree={isMeatFreeDiet} alt={meal.title}
                                       className="w-full h-full object-cover transition duration-300 hover:scale-105 cursor-pointer" 
                                       onClick={() => {
                                         setSelectedRecipeForModal({
@@ -2224,6 +2295,7 @@ export default function ChefChatPage() {
                                           instructions: Array.isArray(meal.instructions) && meal.instructions.length > 0 ? meal.instructions : ['Prepare and rinse all ingredients cleanly.', 'Sauté aromatics over medium heat until fragrant.', 'Cook protein and vegetables thoroughly.', 'Garnish with fresh herbs and serve warm.'],
                                           chefTip: meal.chefTip || (meal.isBatchCook ? 'Double the quantity to save time for subsequent days.' : 'Serve immediately while hot for optimal flavor infusion.'),
                                           image: accurateImg,
+                                          imageQuery: meal.imageQuery || meal.title,
                                           sourceUrl: meal.sourceUrl || ''
                                         });
                                         setShowRecipeDetailsModal(true);
@@ -2266,7 +2338,8 @@ export default function ChefChatPage() {
                                           mealType: meal.mealType,
                                           ingredients: meal.ingredients || [],
                                           instructions: ['Prepare ingredients.', 'Cook thoroughly.', 'Serve fresh.'],
-                                          image: accurateImg
+                                          image: accurateImg,
+                                          imageQuery: meal.imageQuery || meal.title
                                         });
                                         setShowRecipeDetailsModal(true);
                                       }}
@@ -2309,7 +2382,8 @@ export default function ChefChatPage() {
                                         mealType: meal.mealType,
                                         ingredients: meal.ingredients || ['Fresh ingredients', 'Seasonings'],
                                         instructions: ['Follow standard culinary guidance.'],
-                                        image: accurateImg
+                                        image: accurateImg,
+                                        imageQuery: meal.imageQuery || meal.title
                                       });
                                       setShowRecipeDetailsModal(true);
                                     }}
@@ -2406,7 +2480,8 @@ export default function ChefChatPage() {
                                     mealType: meal.mealType,
                                     ingredients: meal.ingredients || [],
                                     instructions: ['Cook meal cleanly.'],
-                                    image: getAccurateFoodImage(meal.image, meal.title, meal.mealType)
+                                    image: getAccurateFoodImage(meal.image, meal.title, meal.mealType),
+                                    imageQuery: meal.imageQuery || meal.title
                                   });
                                   setShowRecipeDetailsModal(true);
                                 }}>
@@ -2468,10 +2543,7 @@ export default function ChefChatPage() {
                                 </div>
 
                                 <div className="flex gap-3">
-                                  <img 
-                                    src={accurateImg} 
-                                    alt={meal.title}
-                                    referrerPolicy="no-referrer"
+                                  <DishImg raw={meal.image} title={meal.title} mealType={meal.mealType} query={meal.imageQuery} meatFree={isMeatFreeDiet} alt={meal.title}
                                     className="w-20 h-20 rounded-xl object-cover border shrink-0" 
                                     style={{ borderColor: 'var(--color-border)' }}
                                   />
@@ -2518,7 +2590,8 @@ export default function ChefChatPage() {
                                         mealType: meal.mealType,
                                         ingredients: meal.ingredients || [],
                                         instructions: ['Cook meal cleanly.'],
-                                        image: accurateImg
+                                        image: accurateImg,
+                                        imageQuery: meal.imageQuery || meal.title
                                       });
                                       setShowRecipeDetailsModal(true);
                                     }}
@@ -3124,14 +3197,7 @@ export default function ChefChatPage() {
             </div>
 
             <div className="overflow-y-auto flex-1 space-y-4 pr-1 text-xs custom-scrollbar">
-              <img
-                src={getAccurateFoodImage(selectedRecipeForModal.image, selectedRecipeForModal.title, selectedRecipeForModal.mealType)}
-                alt={selectedRecipeForModal.title}
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = getAccurateFoodImage('', selectedRecipeForModal.title, selectedRecipeForModal.mealType);
-                }}
+              <DishImg raw={selectedRecipeForModal.image} title={selectedRecipeForModal.title} mealType={selectedRecipeForModal.mealType} query={selectedRecipeForModal.imageQuery} meatFree={isMeatFreeDiet} alt={selectedRecipeForModal.title}
                 className="w-full h-56 rounded-2xl object-cover border shadow-sm"
                 style={{ borderColor: 'var(--color-border)' }}
               />

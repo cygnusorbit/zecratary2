@@ -9,6 +9,27 @@ export const dynamic = 'force-dynamic';
 
 const PROVIDERS = ['gemini', 'openai', 'anthropic'];
 
+
+// Recipe source URLs: only plain http(s) addresses, no duplicates, at most 20.
+function cleanSourceUrls(v: any): string[] | null {
+  if (!Array.isArray(v)) return null;
+  const out: string[] = [];
+  for (const item of v) {
+    let t = String(item || '').trim();
+    if (!t || t.length > 500) continue;
+    if (!/^https?:\/\//i.test(t)) t = 'https://' + t;
+    try {
+      const u = new URL(t);
+      if ((u.protocol !== 'http:' && u.protocol !== 'https:') || u.username || u.password) continue;
+      u.hash = '';
+      const s = u.toString();
+      if (!out.includes(s)) out.push(s);
+    } catch (_) {}
+    if (out.length >= 20) break;
+  }
+  return out;
+}
+
 export async function OPTIONS() { return new NextResponse(null, { status: 204 }); }
 
 function view(settings: any) {
@@ -52,6 +73,12 @@ export async function POST(req: NextRequest) {
 
     const current = await getServerAdminSettings();
     const incomingChef = body.chefAiSettings ? { ...body.chefAiSettings } : undefined;
+    if (incomingChef && incomingChef.recommendedRecipeUrls !== undefined) {
+      const cleaned = cleanSourceUrls(incomingChef.recommendedRecipeUrls);
+      if (cleaned === null) return secureJson({ success: false, error: 'Recommended recipe URLs must be a list.' }, { status: 400 });
+      incomingChef.recommendedRecipeUrls = cleaned;
+    }
+    const topLevelUrls = body.recommendedRecipeUrls !== undefined ? cleanSourceUrls(body.recommendedRecipeUrls) : undefined;
     if (incomingChef) restoreMaskedSecrets(incomingChef, current?.chefAiSettings || {});
 
     const merged = { ...current };
@@ -67,6 +94,8 @@ export async function POST(req: NextRequest) {
       if (model !== undefined) merged.chefAiSettings.model = merged.aiModel;
     }
 
+    if (topLevelUrls) merged.recommendedRecipeUrls = topLevelUrls;
+    else if (incomingChef && Array.isArray(incomingChef.recommendedRecipeUrls)) merged.recommendedRecipeUrls = incomingChef.recommendedRecipeUrls;
     await setJsonSetting('site_config', merged, 'general');
     return secureJson({ success: true, settings: view(merged) });
   } catch (err: any) {

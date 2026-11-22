@@ -8,6 +8,7 @@ import {
   ShieldAlert, Check, RefreshCw, Bot, Zap, SlidersHorizontal, ListPlus, Trash2, Plus, Layers, FolderPlus, LayoutTemplate, Mic, Volume2, Settings, Eye, EyeOff, Calendar, Clock, Flame, Users, ToggleLeft, ToggleRight, BookOpen, BookA, Ban, X, CheckCircle, ChevronDown, BarChart3, TrendingUp, MessageSquare
 } from 'lucide-react';
 import { useTranslation } from '@/components/LanguageProvider';
+import ImageKeyCard from '@/components/ImageKeyCard';
 import { 
   purgeLegacyBrowserAdminStorage, 
   fetchServerAdminSettings, 
@@ -204,6 +205,7 @@ export default function ChefAISettingsPage() {
   // Recommended Recipes Url (Primary Source for /chef)
   const [recommendedRecipeUrls, setRecommendedRecipeUrls] = useState<string[]>([]);
   const [newRecipeUrlInput, setNewRecipeUrlInput] = useState('');
+  const [urlStatus, setUrlStatus] = useState<Record<string, { state: 'checking' | 'ok' | 'error'; text: string }>>({});
 
   // Multi-Topic Questionnaire State with Dedicated Answers
   const [sections, setSections] = useState<QuestionnaireSection[]>(DEFAULT_SECTIONS);
@@ -975,6 +977,43 @@ export default function ChefAISettingsPage() {
     } catch (_) {}
   };
 
+  // Reads each source on the server and reports whether /chef can really use it.
+  const checkRecipeUrls = async (urls: string[]) => {
+    const list = urls.filter(Boolean).slice(0, 10);
+    if (list.length === 0) return;
+    setUrlStatus(prev => {
+      const next = { ...prev };
+      list.forEach(u => { next[u] = { state: 'checking', text: t('urlChecking', 'Checking...') }; });
+      return next;
+    });
+    try {
+      const res = await fetch('/api/admin/recipe-sources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: list })
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) throw new Error(data?.error || 'Check failed');
+      setUrlStatus(prev => {
+        const next = { ...prev };
+        for (const r of data.results || []) {
+          next[r.url] = r.ok
+            ? { state: 'ok', text: r.kind === 'recipe'
+                ? t('urlOkRecipe', 'Readable: 1 recipe') + (r.title ? ` (${r.title})` : '')
+                : `${t('urlOkIndex', 'Readable: recipe links found')} (${r.recipeCount})` }
+            : { state: 'error', text: r.error || t('urlNotReadable', 'Could not read this site.') };
+        }
+        return next;
+      });
+    } catch (err: any) {
+      setUrlStatus(prev => {
+        const next = { ...prev };
+        list.forEach(u => { next[u] = { state: 'error', text: err?.message || t('urlNotReadable', 'Could not read this site.') }; });
+        return next;
+      });
+    }
+  };
+
   const handleAddRecommendedUrls = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const raw = newRecipeUrlInput.trim();
@@ -1003,6 +1042,7 @@ export default function ChefAISettingsPage() {
       setRecommendedRecipeUrls(updated);
       setNewRecipeUrlInput('');
       persistUrlsToDb(updated);
+      checkRecipeUrls(cleanedUrls);
     }
   };
 
@@ -3070,7 +3110,7 @@ export default function ChefAISettingsPage() {
                       <Globe className="h-4 w-4" style={{ color: 'var(--color-primary)' }} /> {t('recommendedRecipesUrlHeader', 'Recommended Recipes Url')}
                     </h3>
                     <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
-                      {t('recommendedRecipesUrlDesc', 'Configure primary source URLs for recipe recommendations. When users ask for recipes on /chef, AI will search and prioritize these URLs as the primary source.')}
+                      {t('recommendedRecipesUrlDesc', 'Configure primary source URLs for recipe recommendations. When users ask for recipes on /chef, the server reads these sites and the AI builds on the real recipes it finds there. Use recipe pages or recipe index pages (blog home, category or collection pages).')}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -3084,6 +3124,16 @@ export default function ChefAISettingsPage() {
                     >
                       {recommendedRecipeUrls.length} {t('urlsActiveBadge', 'Active URLs (Primary)')}
                     </span>
+                    {recommendedRecipeUrls.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => checkRecipeUrls(recommendedRecipeUrls)}
+                        className="text-[10px] font-bold transition cursor-pointer hover:opacity-80"
+                        style={{ color: 'var(--color-primary)' }}
+                      >
+                        {t('checkSources', 'Check sources')}
+                      </button>
+                    )}
                     {recommendedRecipeUrls.length > 1 && (
                       <button
                         type="button"
@@ -3192,6 +3242,15 @@ export default function ChefAISettingsPage() {
                               <p className="text-[11px] font-mono truncate" style={{ color: 'var(--color-text)' }} title={urlStr}>
                                 {urlStr}
                               </p>
+                              {urlStatus[urlStr] && (
+                                <p
+                                  className="text-[10px] font-semibold truncate mt-0.5"
+                                  style={{ color: urlStatus[urlStr].state === 'ok' ? 'var(--color-emerald)' : urlStatus[urlStr].state === 'error' ? '#ef4444' : 'var(--color-text-secondary)' }}
+                                  title={urlStatus[urlStr].text}
+                                >
+                                  {urlStatus[urlStr].state === 'ok' ? '✓ ' : urlStatus[urlStr].state === 'error' ? '✗ ' : ''}{urlStatus[urlStr].text}
+                                </p>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-1 shrink-0">
@@ -3252,6 +3311,8 @@ export default function ChefAISettingsPage() {
             </div>
           </div>
         )}
+
+        <ImageKeyCard />
 
       </div>
     </div>
