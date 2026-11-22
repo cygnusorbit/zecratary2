@@ -101,3 +101,12 @@ export function getDatabaseEngineInfo(): DatabaseEngineInfo {
 export function getActiveDatabase(): DatabaseEngine {
   return getDatabaseEngineInfo().engine;
 }
+
+// True only on a brand-new install: no engine chosen anywhere and no connection string in the environment.
+// Used by /setup and its API. A configured production site (env URLs present) is never "needs setup".
+export function isSetupNeeded(): boolean {
+  if (normalizeEngine(process.env.DATABASE_TYPE)) return false;
+  if (readStoredDatabaseConfig()) return false;
+  const urls = [process.env.MYSQL_URL, process.env.DATABASE_URL, process.env.POSTGRES_URL, process.env.POSTGRES_PRISMA_URL];
+  return !urls.some((u) => !!u && u.trim() !== '');
+}

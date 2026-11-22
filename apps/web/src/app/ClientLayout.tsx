@@ -1,11 +1,33 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { syncUserSavedRecipes } from '@/lib/recipeSync';
 import { LanguageProvider } from '@/components/LanguageProvider';
 import Sidebar from '@/components/Sidebar';
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname() || '';
+  const router = useRouter();
+
+  // First-run: a brand-new install with no database configured goes to /setup (checked once per tab session).
+  useEffect(() => {
+    if (pathname === '/setup' || pathname.startsWith('/api')) return;
+    try {
+      if (window.sessionStorage.getItem('zecratary_setup_ok') === '1') return;
+    } catch (_) {}
+    let cancelled = false;
+    fetch('/api/setup')
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        if (d && d.needsSetup) router.replace('/setup');
+        else { try { window.sessionStorage.setItem('zecratary_setup_ok', '1'); } catch (_) {} }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [pathname, router]);
+
   // Global Cross-Browser Recipe Sync Bridge
   useEffect(() => {
     try {
