@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
 import fs from 'fs';
 import path from 'path';
 import { 
@@ -165,42 +166,10 @@ export async function GET() {
 
     let settings = readDiskSettings();
 
-    // Supabase PostgreSQL check
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-    if (supabaseUrl && supabaseKey) {
-      try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        const { data } = await supabase
-          .from('admin_settings')
-          .select('setting_value, value')
-          .eq('setting_key', 'wallet_settings')
-          .maybeSingle();
-
-        if (data) {
-          const parsed = JSON.parse(data.setting_value || data.value || '{}');
-          if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
-            settings = { ...DEFAULT_WALLET_CONFIG, ...parsed };
-          }
-        }
-      } catch (_) {}
-    }
-
-    // MySQL check
     try {
-      const mysqlModule = await import('@/lib/mysql').catch(() => null);
-      if (mysqlModule && typeof mysqlModule.query === 'function') {
-        const rows: any = await mysqlModule.query(
-          "SELECT setting_value FROM admin_settings WHERE setting_key = 'wallet_settings' LIMIT 1"
-        );
-        if (Array.isArray(rows) && rows.length > 0 && rows[0].setting_value) {
-          const parsed = JSON.parse(rows[0].setting_value);
-          if (parsed && typeof parsed === 'object') {
-            settings = { ...DEFAULT_WALLET_CONFIG, ...settings, ...parsed };
-          }
-        }
+      const stored = await getJsonSetting<any>('wallet_settings');
+      if (stored && typeof stored === 'object' && Object.keys(stored).length > 0) {
+        settings = { ...DEFAULT_WALLET_CONFIG, ...(settings || {}), ...stored };
       }
     } catch (_) {}
 
@@ -339,32 +308,8 @@ export async function POST(req: NextRequest) {
     const newSettings = body.walletSettings || body.settings || DEFAULT_WALLET_CONFIG;
     writeDiskSettings(newSettings);
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-    if (supabaseUrl && supabaseKey) {
-      try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        await supabase.from('admin_settings').upsert({
-          setting_key: 'wallet_settings',
-          setting_value: JSON.stringify(newSettings),
-          value: JSON.stringify(newSettings),
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'setting_key' });
-      } catch (_) {}
-    }
-
     try {
-      const mysqlModule = await import('@/lib/mysql').catch(() => null);
-      if (mysqlModule && typeof mysqlModule.query === 'function') {
-        await mysqlModule.query(
-          `INSERT INTO admin_settings (setting_key, setting_value, updated_at) 
-           VALUES ('wallet_settings', ?, NOW()) 
-           ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()`,
-          [JSON.stringify(newSettings)]
-        );
-      }
+      await setJsonSetting('wallet_settings', newSettings, 'wallet');
     } catch (_) {}
 
     return NextResponse.json({

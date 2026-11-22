@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { NextResponse } from 'next/server';
+import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
 import fs from 'fs';
 import path from 'path';
 
@@ -95,46 +96,9 @@ function writeDiskSettings(socialLogin: any) {
 
 export async function GET() {
   let dbSettings: any = null;
-
-  // 1. Check PostgreSQL
-  if (process.env.DATABASE_URL || process.env.POSTGRES_URL) {
-    try {
-      const connStr = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-      const { Pool } = await import('pg');
-      const pool = new Pool({
-        connectionString: connStr.replace(/([?&])sslmode=[^&]+(&|$)/, '$1').replace(/[?&]$/, ''),
-        ssl: connStr.includes('localhost') ? false : { rejectUnauthorized: false }
-      });
-
-      const res = await pool.query(`
-        SELECT settings, social_login FROM admin_settings WHERE id IN (1, '1', 'primary_settings') LIMIT 1;
-      `);
-
-      if (res.rows && res.rows.length > 0) {
-        const row = res.rows[0];
-        dbSettings = row.social_login || row.settings?.socialLogin;
-      }
-      await pool.end();
-    } catch (_) {}
-  }
-
-  // 2. Check MySQL
-  if (!dbSettings && (process.env.MYSQL_DATABASE_URL || process.env.MYSQL_URL)) {
-    try {
-      const mysql = await import('mysql2/promise');
-      const conn = await mysql.createConnection(process.env.MYSQL_DATABASE_URL || process.env.MYSQL_URL);
-      const [rows]: any = await conn.execute(`
-        SELECT settings, social_login FROM admin_settings WHERE id IN (1, '1', 'primary_settings') LIMIT 1;
-      `);
-      if (rows && rows.length > 0) {
-        const row = rows[0];
-        const s = typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings;
-        const sl = typeof row.social_login === 'string' ? JSON.parse(row.social_login) : row.social_login;
-        dbSettings = sl || s?.socialLogin;
-      }
-      await conn.end();
-    } catch (_) {}
-  }
+  try {
+    dbSettings = await getJsonSetting('social_login');
+  } catch (_) {}
 
   const finalSettings = dbSettings || readDiskSettings();
   return NextResponse.json({
@@ -159,48 +123,12 @@ export async function POST(req: Request) {
       apple: { ...DEFAULT_SETTINGS.apple, ...(incoming.apple || {}) }
     };
 
-    // 1. Sync PostgreSQL
-    if (process.env.DATABASE_URL || process.env.POSTGRES_URL) {
-      try {
-        const connStr = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-        const { Pool } = await import('pg');
-        const pool = new Pool({
-          connectionString: connStr.replace(/([?&])sslmode=[^&]+(&|$)/, '$1').replace(/[?&]$/, ''),
-          ssl: connStr.includes('localhost') ? false : { rejectUnauthorized: false }
-        });
+    // 1. Active database (MySQL or PostgreSQL)
+    try {
+      await setJsonSetting('social_login', merged, 'auth');
+    } catch (_) {}
 
-        await pool.query(`
-          INSERT INTO admin_settings (id, social_login, updated_at)
-          VALUES ('1', $1::jsonb, NOW())
-          ON CONFLICT (id) DO UPDATE
-          SET social_login = $1::jsonb,
-              settings = jsonb_set(COALESCE(admin_settings.settings, '{}'::jsonb), '{socialLogin}', $1::jsonb),
-              updated_at = NOW();
-        `, [JSON.stringify(merged)]);
-
-        await pool.end();
-      } catch (_) {}
-    }
-
-    // 2. Sync MySQL
-    if (process.env.MYSQL_DATABASE_URL || process.env.MYSQL_URL) {
-      try {
-        const mysql = await import('mysql2/promise');
-        const conn = await mysql.createConnection(process.env.MYSQL_DATABASE_URL || process.env.MYSQL_URL);
-        const jsonStr = JSON.stringify(merged);
-        await conn.execute(`
-          INSERT INTO admin_settings (id, social_login, updated_at)
-          VALUES ('1', ?, NOW())
-          ON DUPLICATE KEY UPDATE
-            social_login = VALUES(social_login),
-            settings = JSON_SET(COALESCE(settings, '{}'), '$.socialLogin', CAST(? AS JSON)),
-            updated_at = NOW();
-        `, [jsonStr, jsonStr]);
-        await conn.end();
-      } catch (_) {}
-    }
-
-    // 3. Sync Disk Stores
+    // 2. Sync Disk Stores
     writeDiskSettings(merged);
 
     return NextResponse.json({

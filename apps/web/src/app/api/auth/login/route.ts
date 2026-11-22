@@ -80,39 +80,6 @@ async function recordDatabaseLogin(email: string, userId?: string): Promise<void
         `UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE LOWER(email) = LOWER(?) OR id = ?`,
         [cleanEmail, cleanUserId]
       );
-    } else {
-      const mysqlHost = process.env.MYSQL_HOST || process.env.DB_HOST;
-      const mysqlUser = process.env.MYSQL_USER || process.env.DB_USER;
-      const mysqlPassword = process.env.MYSQL_PASSWORD || process.env.DB_PASSWORD || '';
-      const mysqlDatabase = process.env.MYSQL_DATABASE || process.env.DB_NAME;
-      const mysqlPort = Number(process.env.MYSQL_PORT || 3306);
-      const rawMysqlUrl = process.env.MYSQL_URL || process.env.DATABASE_URL;
-
-      const connUrl: string = (rawMysqlUrl && rawMysqlUrl.startsWith('mysql://'))
-        ? rawMysqlUrl
-        : (mysqlHost && mysqlUser && mysqlDatabase)
-          ? `mysql://${encodeURIComponent(mysqlUser)}:${encodeURIComponent(mysqlPassword)}@${mysqlHost}:${mysqlPort}/${mysqlDatabase}`
-          : '';
-
-      if (connUrl) {
-        const loader = typeof (globalThis as any).__non_webpack_require__ === 'function'
-          ? (globalThis as any).__non_webpack_require__
-          : null;
-        if (loader) {
-          const mysqlModule = loader('mysql2/promise');
-          if (mysqlModule) {
-            const connection = await (mysqlModule as any).createConnection(connUrl);
-            try {
-              await connection.execute(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at DATETIME;`);
-            } catch (_) {}
-            await connection.execute(
-              `UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE LOWER(email) = LOWER(?) OR id = ?`,
-              [cleanEmail, cleanUserId]
-            );
-            await connection.end();
-          }
-        }
-      }
     }
   } catch (myErr) {
     console.debug('[MySQL login update skipped/error]:', myErr);

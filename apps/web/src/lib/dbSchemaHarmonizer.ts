@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import { parseMysqlConfig } from './mysql';
+import { getActiveDatabase } from './dbConfig';
 
 let harmonized = false;
 
@@ -108,7 +110,13 @@ async function harmonizePostgreSql(connectionString: string): Promise<boolean> {
 async function harmonizeMySql(connectionString: string): Promise<boolean> {
   try {
     const mysql = await import('mysql2/promise');
-    const connection = await mysql.createConnection(connectionString);
+    // Explicit parsing: passwords containing '#' break URL-string connections.
+    const parsed = parseMysqlConfig(connectionString);
+    const connection = await mysql.createConnection(
+      parsed
+        ? { host: parsed.host, port: parsed.port, user: parsed.user, password: parsed.password, database: parsed.database, connectTimeout: 8000 }
+        : (connectionString as any)
+    );
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -172,10 +180,10 @@ export async function harmonizeDatabaseSchema(): Promise<void> {
 
   const { postgresUrl, mysqlUrl } = getDatabaseConfig();
 
-  if (postgresUrl) {
+  // One active database at a time: only align the schema of the engine the app really uses.
+  if (getActiveDatabase() === 'mysql') {
+    if (mysqlUrl) await harmonizeMySql(mysqlUrl);
+  } else if (postgresUrl) {
     await harmonizePostgreSql(postgresUrl);
-  }
-  if (mysqlUrl) {
-    await harmonizeMySql(mysqlUrl);
   }
 }

@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
 import path from 'path';
 
 export interface SocialLoginConfig {
@@ -65,155 +66,83 @@ export function writeSettingsToFile(data: any): void {
 }
 
 // -------------------------------------------------------------
-// PostgreSQL & MySQL Storage Engine
+// Active-database storage (key `social_login`, shared with /api/admin/social-login)
+// The admin page saves a nested shape: { google: {...}, facebook: {...}, apple: {...} }.
+// This module exposes the flat SocialLoginConfig, so convert in both directions.
 // -------------------------------------------------------------
+function isNested(v: any): boolean {
+  return !!v && typeof v === 'object' && (v.google || v.facebook || v.apple);
+}
+
+function nestedToFlat(n: any): Partial<SocialLoginConfig> {
+  const g = n.google || {};
+  const f = n.facebook || {};
+  const a = n.apple || {};
+  const out: any = {};
+  if (typeof g.enabled === 'boolean') out.googleEnabled = g.enabled;
+  if (g.clientId) out.googleClientId = g.clientId;
+  if (g.clientSecret) out.googleClientSecret = g.clientSecret;
+  if (typeof f.enabled === 'boolean') out.facebookEnabled = f.enabled;
+  if (f.appId) out.facebookAppId = f.appId;
+  if (f.appSecret) out.facebookAppSecret = f.appSecret;
+  if (typeof a.enabled === 'boolean') out.appleEnabled = a.enabled;
+  if (a.teamId) out.appleTeamId = a.teamId;
+  if (a.keyId) out.appleKeyId = a.keyId;
+  if (a.privateKey) out.applePrivateKey = a.privateKey;
+  return out;
+}
+
+function flatToNested(c: Partial<SocialLoginConfig>, base: any): any {
+  const next: any = { google: { ...(base?.google || {}) }, facebook: { ...(base?.facebook || {}) }, apple: { ...(base?.apple || {}) } };
+  if (c.googleEnabled !== undefined) next.google.enabled = c.googleEnabled;
+  if (c.googleClientId !== undefined) next.google.clientId = c.googleClientId;
+  if (c.googleClientSecret !== undefined) next.google.clientSecret = c.googleClientSecret;
+  if (c.facebookEnabled !== undefined) next.facebook.enabled = c.facebookEnabled;
+  if (c.facebookAppId !== undefined) next.facebook.appId = c.facebookAppId;
+  if (c.facebookAppSecret !== undefined) next.facebook.appSecret = c.facebookAppSecret;
+  if (c.appleEnabled !== undefined) next.apple.enabled = c.appleEnabled;
+  if (c.appleTeamId !== undefined) next.apple.teamId = c.appleTeamId;
+  if (c.appleKeyId !== undefined) next.apple.keyId = c.appleKeyId;
+  if (c.applePrivateKey !== undefined) next.apple.privateKey = c.applePrivateKey;
+  return next;
+}
+
 export async function getPersistedSocialSettings(): Promise<SocialLoginConfig> {
   const defaults = getDefaultSocialSettings();
   const fileSettings = readSettingsFromFile();
+  const fromFile = fileSettings.socialLogin;
   let merged: SocialLoginConfig = {
     ...defaults,
-    ...(fileSettings.socialLogin || {})
+    ...(isNested(fromFile) ? nestedToFlat(fromFile) : (fromFile || {}))
   };
 
-  // 1. Attempt PostgreSQL Fetch
-  if (process.env.DATABASE_URL || process.env.POSTGRES_URL) {
-    try {
-      const { Pool } = await import('pg');
-      const pool = new Pool({
-        connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
-        ssl: process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL?.includes('localhost') ? { rejectUnauthorized: false } : undefined
-      });
-
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS admin_settings (
-          key VARCHAR(128) PRIMARY KEY,
-          value JSONB NOT NULL,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-      `);
-
-      const res = await pool.query("SELECT value FROM admin_settings WHERE key = 'socialLogin' LIMIT 1;");
-      await pool.end();
-
-      if (res.rows && res.rows.length > 0 && res.rows[0].value) {
-        merged = { ...merged, ...res.rows[0].value };
-        return merged;
-      }
-    } catch (pgErr) {
-      // Graceful fallback to MySQL or local store
+  try {
+    const stored = await getJsonSetting<any>('social_login');
+    if (stored && typeof stored === 'object') {
+      merged = { ...merged, ...(isNested(stored) ? nestedToFlat(stored) : stored) };
     }
-  }
-
-  // 2. Attempt MySQL Fetch
-  if (process.env.MYSQL_URL || process.env.MYSQL_HOST) {
-    try {
-      const mysql = await import('mysql2/promise');
-      const conn = await mysql.createConnection(
-        process.env.MYSQL_URL || {
-          host: process.env.MYSQL_HOST || 'localhost',
-          user: process.env.MYSQL_USER || 'root',
-          password: process.env.MYSQL_PASSWORD || '',
-          database: process.env.MYSQL_DATABASE || 'zecratary',
-          port: Number(process.env.MYSQL_PORT) || 3306
-        }
-      );
-
-      await conn.execute(`
-        CREATE TABLE IF NOT EXISTS admin_settings (
-          setting_key VARCHAR(128) PRIMARY KEY,
-          setting_value JSON NOT NULL,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        );
-      `);
-
-      const [rows]: [any[], any] = await conn.execute(
-        "SELECT setting_value FROM admin_settings WHERE setting_key = 'socialLogin' LIMIT 1;"
-      );
-      await conn.end();
-
-      if (rows && rows.length > 0 && rows[0].setting_value) {
-        const parsed = typeof rows[0].setting_value === 'string' 
-          ? JSON.parse(rows[0].setting_value) 
-          : rows[0].setting_value;
-        merged = { ...merged, ...parsed };
-        return merged;
-      }
-    } catch (myErr) {
-      // Graceful fallback
-    }
+  } catch (_) {
+    // Graceful fallback to file / environment values
   }
 
   return merged;
 }
 
 export async function savePersistedSocialSettings(config: SocialLoginConfig): Promise<void> {
-  // 1. File Replication
+  let base: any = null;
+  try {
+    base = await getJsonSetting<any>('social_login');
+  } catch (_) {}
+  const nested = flatToNested(config, isNested(base) ? base : null);
+
+  // File replication (nested, same shape the admin page writes)
   const current = readSettingsFromFile();
-  current.socialLogin = { ...(current.socialLogin || {}), ...config };
+  current.socialLogin = nested;
   writeSettingsToFile(current);
 
-  // 2. PostgreSQL Storage
-  if (process.env.DATABASE_URL || process.env.POSTGRES_URL) {
-    try {
-      const { Pool } = await import('pg');
-      const pool = new Pool({
-        connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
-        ssl: process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL?.includes('localhost') ? { rejectUnauthorized: false } : undefined
-      });
-
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS admin_settings (
-          key VARCHAR(128) PRIMARY KEY,
-          value JSONB NOT NULL,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-      `);
-
-      await pool.query(`
-        INSERT INTO admin_settings (key, value, updated_at)
-        VALUES ('socialLogin', $1, NOW())
-        ON CONFLICT (key) DO UPDATE 
-        SET value = EXCLUDED.value, updated_at = NOW();
-      `, [JSON.stringify(config)]);
-
-      await pool.end();
-    } catch (pgErr) {
-      console.warn('[DB] PostgreSQL social settings update warning:', pgErr);
-    }
-  }
-
-  // 3. MySQL Storage
-  if (process.env.MYSQL_URL || process.env.MYSQL_HOST) {
-    try {
-      const mysql = await import('mysql2/promise');
-      const conn = await mysql.createConnection(
-        process.env.MYSQL_URL || {
-          host: process.env.MYSQL_HOST || 'localhost',
-          user: process.env.MYSQL_USER || 'root',
-          password: process.env.MYSQL_PASSWORD || '',
-          database: process.env.MYSQL_DATABASE || 'zecratary',
-          port: Number(process.env.MYSQL_PORT) || 3306
-        }
-      );
-
-      await conn.execute(`
-        CREATE TABLE IF NOT EXISTS admin_settings (
-          setting_key VARCHAR(128) PRIMARY KEY,
-          setting_value JSON NOT NULL,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        );
-      `);
-
-      await conn.execute(`
-        INSERT INTO admin_settings (setting_key, setting_value, updated_at)
-        VALUES ('socialLogin', ?, NOW())
-        ON DUPLICATE KEY UPDATE 
-        setting_value = VALUES(setting_value), updated_at = NOW();
-      `, [JSON.stringify(config)]);
-
-      await conn.end();
-    } catch (myErr) {
-      console.warn('[DB] MySQL social settings update warning:', myErr);
-    }
+  try {
+    await setJsonSetting('social_login', nested, 'auth');
+  } catch (err) {
+    console.warn('[DB] Social settings update warning:', err);
   }
 }

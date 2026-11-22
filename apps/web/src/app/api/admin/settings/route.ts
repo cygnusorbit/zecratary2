@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
 import fs from 'fs';
 import path from 'path';
 
@@ -43,23 +44,15 @@ export async function GET(req: NextRequest) {
   try {
     let settings = readLocalSettings();
 
-    // Query PostgreSQL / Supabase if environment variables are registered
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (supabaseUrl && supabaseKey) {
-      try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        const { data, error } = await supabase.from('admin_settings').select('*').eq('id', 'site_config').single();
-        if (!error && data && data.data) {
-          const dbData = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-          settings = { ...(settings || {}), ...dbData };
-          writeLocalSettings(settings);
-        }
-      } catch (dbErr) {
-        // Quiet fallback to disk settings
+    // Active database (MySQL or PostgreSQL) is the source of truth; the JSON file is an offline mirror.
+    try {
+      const stored = await getJsonSetting<any>('site_config');
+      if (stored && typeof stored === 'object') {
+        settings = { ...(settings || {}), ...stored };
+        writeLocalSettings(settings);
       }
+    } catch (dbErr) {
+      // Quiet fallback to disk settings
     }
 
     if (!settings) {
@@ -107,22 +100,10 @@ export async function POST(req: NextRequest) {
     const merged = { ...current, ...payload };
     writeLocalSettings(merged);
 
-    // Persist to PostgreSQL / Supabase
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (supabaseUrl && supabaseKey) {
-      try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        await supabase.from('admin_settings').upsert({
-          id: 'site_config',
-          data: merged,
-          updated_at: new Date().toISOString()
-        });
-      } catch (dbErr) {
-        console.warn('[API Settings POST] Supabase write skipped, saved locally:', dbErr);
-      }
+    try {
+      await setJsonSetting('site_config', merged, 'general');
+    } catch (dbErr) {
+      console.warn('[API Settings POST] Database write skipped, saved locally:', dbErr);
     }
 
     return NextResponse.json({ success: true, settings: merged });
