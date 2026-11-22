@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { secureJson, restoreMaskedSecrets } from '@/lib/secretRedaction';
 import { getActiveDatabase } from '@/lib/dbConfig';
 
 // One active database at a time: only touch the engine the app is really using.
@@ -34,7 +35,7 @@ export async function GET() {
       getAllAuthoritativeTransactions()
     ]);
 
-    return NextResponse.json({
+    return secureJson({
       success: true,
       settings: settings,
       paymentSettings: {
@@ -59,13 +60,25 @@ export async function GET() {
       transactions: allTransactions
     }, { headers: CORS_HEADERS });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500, headers: CORS_HEADERS });
+    return secureJson({ success: false, error: err.message }, { status: 500, headers: CORS_HEADERS });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    {
+      const currentGw: any = await getAuthoritativeGatewaySettings();
+      const gwStripe = currentGw?.gateways?.stripe || {};
+      const gwPaypal = currentGw?.gateways?.paypal || {};
+      if (typeof body.secretKey === 'string' && body.secretKey.includes('•')) body.secretKey = gwStripe.secretKey || '';
+      if (typeof body.webhookSecret === 'string' && body.webhookSecret.includes('•')) body.webhookSecret = gwStripe.webhookSecret || '';
+      if (typeof body.clientSecret === 'string' && body.clientSecret.includes('•')) body.clientSecret = gwPaypal.clientSecret || '';
+      const asPaymentSettings = { stripe: gwStripe, paypal: gwPaypal, manualSettlement: currentGw?.gateways?.manualSettlement };
+      if (body.gateways) restoreMaskedSecrets(body.gateways, currentGw?.gateways);
+      if (body.paymentSettings) restoreMaskedSecrets(body.paymentSettings, asPaymentSettings);
+      if (body.settings) restoreMaskedSecrets(body.settings, currentGw);
+    }
     const action = body.action;
 
     // 1. Authoritative Approve Manual Wire Transfer: Credits Customer Wallet Balance
@@ -75,7 +88,7 @@ export async function POST(req: NextRequest) {
       const targetTx = allTx.find(t => t.id === txId);
 
       if (!targetTx) {
-        return NextResponse.json({ success: false, error: 'Transaction record not found.' }, { status: 404, headers: CORS_HEADERS });
+        return secureJson({ success: false, error: 'Transaction record not found.' }, { status: 404, headers: CORS_HEADERS });
       }
 
       const amountToCredit = Math.abs(Number(targetTx.amount || 0));
@@ -135,7 +148,7 @@ export async function POST(req: NextRequest) {
       };
       await recordAuthoritativeTransaction(updatedTx);
 
-      return NextResponse.json({
+      return secureJson({
         success: true,
         message: `Wire transfer approved! Customer wallet credited with $${amountToCredit.toFixed(2)}.`,
         wallet_balance: newBalance,
@@ -159,7 +172,7 @@ export async function POST(req: NextRequest) {
         await recordAuthoritativeTransaction(updatedTx);
       }
 
-      return NextResponse.json({ success: true, message: 'Wire transfer rejected.' }, { headers: CORS_HEADERS });
+      return secureJson({ success: true, message: 'Wire transfer rejected.' }, { headers: CORS_HEADERS });
     }
 
     // 3. Edit Manual Settlement Transaction Record
@@ -183,7 +196,7 @@ export async function POST(req: NextRequest) {
         await recordAuthoritativeTransaction(updatedTx);
       }
 
-      return NextResponse.json({ success: true, message: 'Transaction record updated successfully.' }, { headers: CORS_HEADERS });
+      return secureJson({ success: true, message: 'Transaction record updated successfully.' }, { headers: CORS_HEADERS });
     }
 
     // 4. Verify Stripe Keys
@@ -197,7 +210,7 @@ export async function POST(req: NextRequest) {
       if (!publishableKey) publishableKey = (current.gateways?.stripe?.publishableKey || process.env.STRIPE_PUBLISHABLE_KEY || '').trim();
 
       if (!secretKey && !publishableKey) {
-        return NextResponse.json({ success: false, stripeKeysVerified: false, error: 'Stripe Publishable Key and Secret Key are required.' }, { status: 400, headers: CORS_HEADERS });
+        return secureJson({ success: false, stripeKeysVerified: false, error: 'Stripe Publishable Key and Secret Key are required.' }, { status: 400, headers: CORS_HEADERS });
       }
 
       let isValid = secretKey.length >= 20 || publishableKey.length >= 20;
@@ -229,7 +242,7 @@ export async function POST(req: NextRequest) {
         }
       };
       const saved = await saveAuthoritativeGatewaySettings(updated);
-      return NextResponse.json({ success: isValid, stripeKeysVerified: isValid, message: isValid ? 'Stripe API keys verified & saved!' : 'Stripe keys invalid.', settings: saved }, { headers: CORS_HEADERS });
+      return secureJson({ success: isValid, stripeKeysVerified: isValid, message: isValid ? 'Stripe API keys verified & saved!' : 'Stripe keys invalid.', settings: saved }, { headers: CORS_HEADERS });
     }
 
     // 5. Verify PayPal Keys
@@ -237,7 +250,7 @@ export async function POST(req: NextRequest) {
       const clientId = (body.clientId || '').trim();
       const clientSecret = (body.clientSecret || '').trim();
       if (!clientId || !clientSecret) {
-        return NextResponse.json({ success: false, error: 'PayPal Client ID and Secret are required.' }, { status: 400, headers: CORS_HEADERS });
+        return secureJson({ success: false, error: 'PayPal Client ID and Secret are required.' }, { status: 400, headers: CORS_HEADERS });
       }
       const current = await getAuthoritativeGatewaySettings();
       const updated = {
@@ -256,7 +269,7 @@ export async function POST(req: NextRequest) {
         }
       };
       const saved = await saveAuthoritativeGatewaySettings(updated);
-      return NextResponse.json({ success: true, paypalKeysVerified: true, message: 'PayPal credentials verified & saved!', settings: saved }, { headers: CORS_HEADERS });
+      return secureJson({ success: true, paypalKeysVerified: true, message: 'PayPal credentials verified & saved!', settings: saved }, { headers: CORS_HEADERS });
     }
 
     // 6. Default: Save or Toggle Settings
@@ -276,7 +289,7 @@ export async function POST(req: NextRequest) {
       manualSettlement: saved.gateways.manualSettlement
     };
 
-    return NextResponse.json({
+    return secureJson({
       success: true,
       message: 'Payment gateway configuration saved successfully in PostgreSQL & MySQL.',
       settings: saved,
@@ -289,7 +302,7 @@ export async function POST(req: NextRequest) {
       transactions: allTx
     }, { headers: CORS_HEADERS });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500, headers: CORS_HEADERS });
+    return secureJson({ success: false, error: err.message }, { status: 500, headers: CORS_HEADERS });
   }
 }
 
@@ -297,11 +310,11 @@ export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const txId = searchParams.get('id');
-    if (!txId) return NextResponse.json({ success: false, error: 'Transaction ID is required.' }, { status: 400, headers: CORS_HEADERS });
+    if (!txId) return secureJson({ success: false, error: 'Transaction ID is required.' }, { status: 400, headers: CORS_HEADERS });
 
     await deleteAuthoritativeTransactions([txId]);
-    return NextResponse.json({ success: true, message: 'Transaction record deleted successfully.' }, { headers: CORS_HEADERS });
+    return secureJson({ success: true, message: 'Transaction record deleted successfully.' }, { headers: CORS_HEADERS });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500, headers: CORS_HEADERS });
+    return secureJson({ success: false, error: err.message }, { status: 500, headers: CORS_HEADERS });
   }
 }

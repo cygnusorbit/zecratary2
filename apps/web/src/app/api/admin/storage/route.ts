@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { secureJson, restoreMaskedSecrets } from '@/lib/secretRedaction';
 import { query } from '@/lib/db';
 import fs from 'fs';
 import path from 'path';
@@ -194,7 +195,7 @@ export async function GET() {
     finalConfig.localhost.uploadDir
   );
 
-  return NextResponse.json({
+  return secureJson({
     success: true,
     storageSettings: finalConfig,
     settings: finalConfig,
@@ -208,6 +209,19 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const rawSettings = body.storageSettings || body.settings || body;
+
+    {
+      let currentStored: any = readServerStorageFallback() || {};
+      try {
+        const sRes: any = await query(`SELECT storage_settings FROM admin_settings WHERE id = 'primary_settings' OR id = '1' LIMIT 1`);
+        const sRow: any = parseDbRow(sRes);
+        if (sRow?.storage_settings) {
+          const parsed = typeof sRow.storage_settings === 'string' ? JSON.parse(sRow.storage_settings) : sRow.storage_settings;
+          if (parsed && typeof parsed === 'object') currentStored = { ...currentStored, ...parsed };
+        }
+      } catch (_) {}
+      restoreMaskedSecrets(rawSettings, currentStored);
+    }
 
     const normalizedSettings = {
       ...rawSettings,
@@ -277,13 +291,13 @@ export async function POST(req: Request) {
       normalizedSettings.localhost.uploadDir
     );
 
-    return NextResponse.json({
+    return secureJson({
       success: true,
       message: 'Storage settings saved successfully to server and database!',
       storageSettings: normalizedSettings,
       diagnostics
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return secureJson({ success: false, error: err.message }, { status: 500 });
   }
 }

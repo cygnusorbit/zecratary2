@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isMasked } from '@/lib/adminGuard';
+import { getStoredChefApiKey } from '@/lib/serverSettings';
 import fs from 'fs';
 import path from 'path';
 
@@ -47,8 +49,11 @@ function cleanCredential(val?: string): string {
 }
 
 async function resolveKey(provider: string, explicitKey?: string): Promise<string> {
-  const clean = cleanCredential(explicitKey);
+  const clean = isMasked(explicitKey) ? '' : cleanCredential(explicitKey);
   if (clean && clean.length > 5 && !clean.includes('sample')) return clean;
+
+  const savedKey = await getStoredChefApiKey(provider);
+  if (savedKey && !savedKey.includes('sample')) return savedKey;
 
   const targetEnv = provider === 'gemini' ? 'GEMINI_API_KEY' : 'OPENAI_API_KEY';
   const pool = await getPostgresPool();

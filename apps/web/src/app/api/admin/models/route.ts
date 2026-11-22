@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isMasked } from '@/lib/adminGuard';
+import { getStoredChefApiKey } from '@/lib/serverSettings';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +10,8 @@ export async function GET(req: NextRequest) {
     const provider = searchParams.get('provider') || 'gemini';
     const apiKey = searchParams.get('apiKey') || '';
 
-    const cleanKey = apiKey.trim().replace(/^['"]|['"]$/g, '');
+    let cleanKey = isMasked(apiKey) ? '' : apiKey.trim().replace(/^['"]|['"]$/g, '');
+    if (!cleanKey) cleanKey = await getStoredChefApiKey(provider);
     if (!cleanKey) {
       return NextResponse.json({ success: false, error: 'API key is required' }, { status: 400 });
     }
@@ -80,7 +83,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const provider = body.provider || 'gemini';
-    const cleanKey = (body.apiKey || '').trim().replace(/^['"]|['"]$/g, '');
+    let cleanKey = isMasked(body.apiKey) ? '' : (body.apiKey || '').trim().replace(/^['"]|['"]$/g, '');
+    if (!cleanKey) cleanKey = await getStoredChefApiKey(provider);
 
     if (!cleanKey) {
       return NextResponse.json({ success: false, error: 'API key is required' }, { status: 400 });

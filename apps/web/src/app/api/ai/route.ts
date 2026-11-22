@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { fetchServerAdminSettings } from '@/lib/adminSync';
+import { getServerAdminSettings } from '@/lib/serverSettings';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     // 1. Fetch complete settings directly from PostgreSQL / MySQL admin_settings
     let serverSettings: any = {};
     try {
-      serverSettings = await fetchServerAdminSettings();
+      serverSettings = await getServerAdminSettings();
     } catch (_) {}
 
     const chefSettings = serverSettings?.chefAiSettings || serverSettings?.aiSettings || {};

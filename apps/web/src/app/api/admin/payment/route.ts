@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { secureJson, restoreMaskedSecrets } from '@/lib/secretRedaction';
 import { query } from '@/lib/db';
 import fs from 'fs';
 import path from 'path';
@@ -159,9 +160,7 @@ async function savePaymentSettingsDual(ps: any, currency = 'USD') {
   } catch (_) {}
 }
 
-export async function GET() {
-  await ensureGatewaySchema();
-  try {
+async function loadPaymentSettingsRaw(): Promise<any> {
     let settings: any = {
       currency: 'USD',
       activeGateway: 'stripe',
@@ -218,10 +217,18 @@ export async function GET() {
       settings.paypal.clientSecret = process.env.PAYPAL_CLIENT_SECRET || '';
     }
 
+    return settings;
+}
+
+export async function GET() {
+  await ensureGatewaySchema();
+  try {
+    const settings: any = await loadPaymentSettingsRaw();
+
     const tRes = await query(`SELECT * FROM payment_transactions ORDER BY created_at DESC LIMIT 100`).catch(() => []);
     const transactions = parseDbRows(tRes);
 
-    return NextResponse.json({
+    return secureJson({
       success: true,
       paymentSettings: settings,
       settings,
@@ -229,7 +236,7 @@ export async function GET() {
       transactions
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return secureJson({ success: false, error: err.message }, { status: 500 });
   }
 }
 
@@ -238,11 +245,14 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const action = body.action || 'save_settings';
+    if (body && body.paymentSettings && typeof body.paymentSettings === 'object') {
+      restoreMaskedSecrets(body.paymentSettings, await loadPaymentSettingsRaw());
+    }
 
     if (action === 'save_settings' || action === 'toggle_gateway') {
       const ps = body.paymentSettings;
       if (!ps || typeof ps !== 'object') {
-        return NextResponse.json({ success: false, error: 'Invalid payment settings object' }, { status: 400 });
+        return secureJson({ success: false, error: 'Invalid payment settings object' }, { status: 400 });
       }
 
       const stripeEnabled = normalizeBool(ps.stripe?.enabled, true);
@@ -266,7 +276,7 @@ export async function POST(req: Request) {
 
       await savePaymentSettingsDual(ps, ps.currency || 'USD');
 
-      return NextResponse.json({
+      return secureJson({
         success: true,
         message: 'Payment gateway settings saved successfully in PostgreSQL & MySQL!',
         activeGateway: activeGw,
@@ -280,7 +290,7 @@ export async function POST(req: Request) {
       const ps = body.paymentSettings || {};
       if (ps.stripe) ps.stripe.testMode = nextTestMode;
       await savePaymentSettingsDual(ps, ps.currency || 'USD');
-      return NextResponse.json({ success: true, message: `Stripe test mode updated to ${nextTestMode}`, paymentSettings: ps });
+      return secureJson({ success: true, message: `Stripe test mode updated to ${nextTestMode}`, paymentSettings: ps });
     }
 
     if (action === 'toggle_paypal_test_mode') {
@@ -292,12 +302,12 @@ export async function POST(req: Request) {
         ps.paypal.environment = nextEnv;
       }
       await savePaymentSettingsDual(ps, ps.currency || 'USD');
-      return NextResponse.json({ success: true, message: `PayPal test mode updated to ${nextTestMode}`, paymentSettings: ps });
+      return secureJson({ success: true, message: `PayPal test mode updated to ${nextTestMode}`, paymentSettings: ps });
     }
 
     if (action === 'approve_manual_settlement') {
       const id = body.id;
-      if (!id) return NextResponse.json({ success: false, error: 'Transaction ID required' }, { status: 400 });
+      if (!id) return secureJson({ success: false, error: 'Transaction ID required' }, { status: 400 });
 
       await query(
         `UPDATE payment_transactions 
@@ -313,13 +323,13 @@ export async function POST(req: Request) {
         );
       });
 
-      return NextResponse.json({ success: true, message: 'Manual settlement transaction approved and funds confirmed!' });
+      return secureJson({ success: true, message: 'Manual settlement transaction approved and funds confirmed!' });
     }
 
     if (action === 'reject_manual_settlement') {
       const id = body.id;
       const failureReason = body.failureReason || 'Wire reference rejected';
-      if (!id) return NextResponse.json({ success: false, error: 'Transaction ID required' }, { status: 400 });
+      if (!id) return secureJson({ success: false, error: 'Transaction ID required' }, { status: 400 });
 
       await query(
         `UPDATE payment_transactions 
@@ -335,12 +345,12 @@ export async function POST(req: Request) {
         );
       });
 
-      return NextResponse.json({ success: true, message: 'Manual settlement transaction rejected.' });
+      return secureJson({ success: true, message: 'Manual settlement transaction rejected.' });
     }
 
     if (action === 'edit_transaction') {
       const id = body.id;
-      if (!id) return NextResponse.json({ success: false, error: 'Transaction ID required' }, { status: 400 });
+      if (!id) return secureJson({ success: false, error: 'Transaction ID required' }, { status: 400 });
 
       await query(
         `UPDATE payment_transactions 
@@ -356,12 +366,12 @@ export async function POST(req: Request) {
         );
       });
 
-      return NextResponse.json({ success: true, message: 'Transaction record updated successfully!' });
+      return secureJson({ success: true, message: 'Transaction record updated successfully!' });
     }
 
-    return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
+    return secureJson({ success: false, error: 'Unknown action' }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return secureJson({ success: false, error: err.message }, { status: 500 });
   }
 }
 
@@ -372,14 +382,14 @@ export async function DELETE(req: Request) {
     const body = await req.json().catch(() => ({}));
     const id = queryId || body.id;
 
-    if (!id) return NextResponse.json({ success: false, error: 'Missing transaction ID' }, { status: 400 });
+    if (!id) return secureJson({ success: false, error: 'Missing transaction ID' }, { status: 400 });
 
     await query(`DELETE FROM payment_transactions WHERE id = $1`, [id]).catch(async () => {
       await query(`DELETE FROM payment_transactions WHERE id = ?`, [id]);
     });
 
-    return NextResponse.json({ success: true, message: `Transaction record ${id} deleted successfully.` });
+    return secureJson({ success: true, message: `Transaction record ${id} deleted successfully.` });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return secureJson({ success: false, error: err.message }, { status: 500 });
   }
 }

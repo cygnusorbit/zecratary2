@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { secureJson, restoreMaskedSecrets } from '@/lib/secretRedaction';
 import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
 import fs from 'fs';
 import path from 'path';
@@ -79,13 +80,13 @@ export async function GET(req: NextRequest) {
       writeLocalSettings(settings);
     }
 
-    return NextResponse.json({ success: true, settings }, {
+    return secureJson({ success: true, settings }, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
       }
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return secureJson({ success: false, error: err.message }, { status: 500 });
   }
 }
 
@@ -93,10 +94,15 @@ export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
     if (!payload || typeof payload !== 'object') {
-      return NextResponse.json({ success: false, error: 'Invalid payload' }, { status: 400 });
+      return secureJson({ success: false, error: 'Invalid payload' }, { status: 400 });
     }
 
     const current = readLocalSettings() || {};
+    try {
+      const stored = await getJsonSetting<any>('site_config');
+      if (stored && typeof stored === 'object') Object.assign(current, stored);
+    } catch (_) {}
+    restoreMaskedSecrets(payload, current);
     const merged = { ...current, ...payload };
     writeLocalSettings(merged);
 
@@ -106,8 +112,8 @@ export async function POST(req: NextRequest) {
       console.warn('[API Settings POST] Database write skipped, saved locally:', dbErr);
     }
 
-    return NextResponse.json({ success: true, settings: merged });
+    return secureJson({ success: true, settings: merged });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return secureJson({ success: false, error: err.message }, { status: 500 });
   }
 }

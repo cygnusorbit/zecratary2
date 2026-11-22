@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { NextResponse } from 'next/server';
+import { secureJson, restoreMaskedSecrets } from '@/lib/secretRedaction';
 import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
 import fs from 'fs';
 import path from 'path';
@@ -101,7 +102,7 @@ export async function GET() {
   } catch (_) {}
 
   const finalSettings = dbSettings || readDiskSettings();
-  return NextResponse.json({
+  return secureJson({
     socialLogin: {
       google: { ...DEFAULT_SETTINGS.google, ...(finalSettings.google || {}) },
       facebook: { ...DEFAULT_SETTINGS.facebook, ...(finalSettings.facebook || {}) },
@@ -116,6 +117,11 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const incoming = body.socialLogin || body.settings?.socialLogin || body;
+    {
+      let currentSocial: any = null;
+      try { currentSocial = await getJsonSetting('social_login'); } catch (_) {}
+      restoreMaskedSecrets(incoming, currentSocial || readDiskSettings());
+    }
 
     const merged = {
       google: { ...DEFAULT_SETTINGS.google, ...(incoming.google || {}) },
@@ -131,13 +137,13 @@ export async function POST(req: Request) {
     // 2. Sync Disk Stores
     writeDiskSettings(merged);
 
-    return NextResponse.json({
+    return secureJson({
       success: true,
       socialLogin: merged
     }, {
       headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' }
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Failed to persist settings' }, { status: 500 });
+    return secureJson({ error: err.message || 'Failed to persist settings' }, { status: 500 });
   }
 }

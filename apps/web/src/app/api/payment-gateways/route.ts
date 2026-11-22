@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { secureJson } from '@/lib/secretRedaction';
 import { getAuthoritativeGatewaySettings } from '@/lib/paymentGatewayService';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +18,7 @@ export async function OPTIONS() {
 export async function GET() {
   try {
     const settings = await getAuthoritativeGatewaySettings();
-    return NextResponse.json({
+    return secureJson({
       success: true,
       allowed_gateways: settings.allowed_gateways,
       verified_gateways: settings.verified_gateways,
@@ -30,7 +31,7 @@ export async function GET() {
       currency: settings.currency
     }, { headers: CORS_HEADERS });
   } catch (err: any) {
-    return NextResponse.json({
+    return secureJson({
       success: false,
       error: err.message,
       allowed_gateways: [],
