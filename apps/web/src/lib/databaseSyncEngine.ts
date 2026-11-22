@@ -1,4 +1,5 @@
 import { getMysqlPool } from './mysql';
+import { withTimeout } from './withTimeout';
 import { createClient } from '@supabase/supabase-js';
 
 export interface TableSyncTelemetry {
@@ -76,17 +77,21 @@ function getSupabaseClient() {
 export async function getLiveOperationalTables(): Promise<TableSyncTelemetry[]> {
   const mysqlPool = getMysqlPool();
   const supabase = getSupabaseClient();
-  const results: TableSyncTelemetry[] = [];
 
-  // Query MySQL Table Info
+  // Query MySQL table info (bounded: a slow server must not stall the page)
   const mysqlTableCounts: Record<string, number> = {};
   const mysqlTableSizes: Record<string, string> = {};
 
   if (mysqlPool) {
     try {
-      const [rows]: any = await mysqlPool.query(
-        "SELECT TABLE_NAME, TABLE_ROWS, (DATA_LENGTH + INDEX_LENGTH) AS total_bytes FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE()"
+      const out: any = await withTimeout(
+        mysqlPool.query(
+          "SELECT TABLE_NAME, TABLE_ROWS, (DATA_LENGTH + INDEX_LENGTH) AS total_bytes FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE()"
+        ),
+        5000,
+        null
       );
+      const rows = out ? out[0] : null;
       if (Array.isArray(rows)) {
         for (const r of rows) {
           const tName = String(r.TABLE_NAME || '').toLowerCase();
@@ -102,31 +107,35 @@ export async function getLiveOperationalTables(): Promise<TableSyncTelemetry[]> 
     } catch (_) {}
   }
 
-  for (const meta of OPERATIONAL_TABLES_META) {
-    let sourceCount = 0;
-    try {
-      const { count, error } = await supabase
-        .from(meta.name)
-        .select('*', { count: 'exact', head: true });
-      if (!error && typeof count === 'number') {
-        sourceCount = count;
+  // Count every Supabase table in parallel, each with its own timeout.
+  const sourceCounts: number[] = await Promise.all(
+    OPERATIONAL_TABLES_META.map(async (meta) => {
+      try {
+        const res: any = await withTimeout(
+          supabase.from(meta.name).select('*', { count: 'exact', head: true }),
+          4000,
+          null
+        );
+        return res && !res.error && typeof res.count === 'number' ? res.count : 0;
+      } catch (_) {
+        return 0;
       }
-    } catch (_) {}
+    })
+  );
 
+  return OPERATIONAL_TABLES_META.map((meta, i) => {
+    const sourceCount = sourceCounts[i] || 0;
     const targetCount = mysqlTableCounts[meta.name] ?? sourceCount;
     const size = mysqlTableSizes[meta.name] || meta.defaultSize;
-
-    results.push({
+    return {
       name: meta.name,
       category: meta.category,
       sourceRows: sourceCount,
       targetRows: targetCount,
       size,
       status: targetCount > 0 ? 'Synchronized' : 'Empty'
-    });
-  }
-
-  return results;
+    } as TableSyncTelemetry;
+  });
 }
 
 /**

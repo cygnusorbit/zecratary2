@@ -10,6 +10,8 @@ import {
 import { injectCompleteMysqlDatabase } from '@/lib/mysqlSchemaInjector';
 import { getMysqlPool } from '@/lib/mysql';
 import { requireDatabaseAdmin, maskSecret, maskConnectionUri, isMasked } from '@/lib/adminGuard';
+import { getDatabaseEngineInfo, normalizeEngine, writeStoredDatabaseConfig } from '@/lib/dbConfig';
+import { probeEngine, getEngineUri, withTimeout } from '@/lib/dbProbe';
 
 export const dynamic = 'force-dynamic';
 
@@ -193,7 +195,11 @@ export async function GET() {
   const supabasePoolerUri = envData.DATABASE_URL || envData.SUPABASE_POOLER_URI || '';
   const postgresUri = envData.POSTGRES_URL || 'postgresql://postgres:postgres@localhost:5432/zecratary?schema=public';
   const mysqlUri = envData.MYSQL_URL || 'mysql://root:@127.0.0.1:3306/zecratary';
-  const activeProfile = (envData.ACTIVE_DB_PROFILE as any) || 'supabase_cloud';
+  const engineInfo = getDatabaseEngineInfo();
+  // The engine the app really uses decides the profile; ACTIVE_DB_PROFILE only picks between PostgreSQL flavours.
+  const activeProfile: string = engineInfo.engine === 'mysql'
+    ? 'localhost_mysql'
+    : (envData.ACTIVE_DB_PROFILE === 'localhost_postgres' ? 'localhost_postgres' : 'supabase_cloud');
 
   let currentDbName = 'zecratary';
   let currentDbType = 'Supabase Cloud (PostgreSQL 15.x)';
@@ -225,17 +231,25 @@ export async function GET() {
   }
 
   // Retrieve 100% dynamic live operational tables
-  const liveTables = await getLiveOperationalTables();
+  const activeUri = getEngineUri(engineInfo.engine) || '';
+  const [liveTables, probe] = await Promise.all([
+    withTimeout(getLiveOperationalTables(), 9000, [] as any[]),
+    activeUri
+      ? withTimeout(probeEngine(engineInfo.engine, activeUri), 8000, { ok: false, latencyMs: 0, error: 'Connection timed out.' } as any)
+      : Promise.resolve({ ok: false, latencyMs: 0, error: 'No connection string is configured for the active engine.' } as any)
+  ]);
 
   return NextResponse.json({
-    status: 'connected',
+    status: probe.ok ? 'connected' : 'disconnected',
     activeProfile,
-    engine,
+    engine: engineInfo.engine === 'mysql' ? 'mysql' : 'postgresql',
+    engineInfo,
+    probe: { ok: probe.ok, error: probe.error || null, version: probe.version || null },
     databaseName: currentDbName,
     databaseType: currentDbType,
     host: currentHost,
     port: currentPort,
-    latency: activeProfile === 'supabase_cloud' ? 38 : 3,
+    latency: probe.latencyMs || 0,
     lastConnected: new Date().toISOString(),
     storagePolicy: {
       zeroDatabaseSecretLeak: true,
@@ -258,13 +272,14 @@ export async function GET() {
       postgresUri: Boolean(envData.POSTGRES_URL),
       mysqlUri: Boolean(envData.MYSQL_URL)
     },
+    // Only values we can measure; the rest are shown as N/A instead of invented numbers.
     telemetry: {
-      version: activeProfile === 'supabase_cloud' ? 'PostgreSQL 15.x / Supabase Cloud' : (engine === 'mysql' ? 'MySQL 8.0 Daemon' : 'PostgreSQL 15.4 Daemon'),
-      databaseSize: '19.5 MB',
-      cacheHitRatio: '99.8%',
-      uptime: '30 days',
-      activeConnections: 3,
-      ssl: activeProfile === 'supabase_cloud'
+      version: probe.version || 'Unavailable',
+      databaseSize: 'N/A',
+      cacheHitRatio: 'N/A',
+      uptime: 'N/A',
+      activeConnections: 0,
+      ssl: engineInfo.engine === 'postgres'
     },
     tables: liveTables
   });
@@ -276,6 +291,87 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { action, uri, config, targetProfile } = body;
+    const { engine: targetEngine, copyData } = body;
+
+    // 0a. TEST THE SERVER'S OWN CONNECTION FOR AN ENGINE (real login, not just a TCP socket)
+    if (action === 'test_engine') {
+      const eng = normalizeEngine(targetEngine);
+      if (!eng) return NextResponse.json({ success: false, error: 'Unknown engine.' }, { status: 400 });
+      const target = getEngineUri(eng);
+      if (!target) {
+        return NextResponse.json({
+          success: false,
+          error: eng === 'mysql' ? 'MYSQL_URL is not set on the server.' : 'DATABASE_URL (or POSTGRES_URL) is not set on the server.'
+        });
+      }
+      const res = await withTimeout(probeEngine(eng, target), 9000, { ok: false, latencyMs: 0, error: 'Connection timed out after 9 seconds.' } as any);
+      return NextResponse.json({
+        success: res.ok,
+        latency: res.latencyMs,
+        version: res.version,
+        database: res.database,
+        message: res.ok ? `Connected to ${eng === 'mysql' ? 'MySQL / MariaDB' : 'PostgreSQL'} (${res.latencyMs} ms${res.version ? ', ' + res.version : ''}).` : undefined,
+        error: res.ok ? undefined : res.error
+      });
+    }
+
+    // 0b. SWITCH THE ACTIVE ENGINE (one database active at a time; optional copy first)
+    if (action === 'switch_engine') {
+      const eng = normalizeEngine(targetEngine);
+      if (!eng) return NextResponse.json({ success: false, error: 'Unknown engine.' }, { status: 400 });
+
+      const current = getDatabaseEngineInfo();
+      if (current.locked) {
+        return NextResponse.json({
+          success: false,
+          error: 'The engine is locked by the DATABASE_TYPE environment variable. Change it in Hostinger (Environment variables), then redeploy.'
+        }, { status: 409 });
+      }
+      if (current.engine === eng) {
+        return NextResponse.json({ success: true, engine: eng, message: 'That engine is already active.' });
+      }
+
+      const target = getEngineUri(eng);
+      if (!target) {
+        return NextResponse.json({
+          success: false,
+          error: eng === 'mysql' ? 'MYSQL_URL is not set on the server.' : 'DATABASE_URL (or POSTGRES_URL) is not set on the server.'
+        });
+      }
+
+      const probeRes = await withTimeout(probeEngine(eng, target), 9000, { ok: false, latencyMs: 0, error: 'Connection timed out after 9 seconds.' } as any);
+      if (!probeRes.ok) {
+        return NextResponse.json({ success: false, error: `Target database is not reachable: ${probeRes.error}` });
+      }
+
+      let sync: any = null;
+      if (copyData) {
+        sync = eng === 'mysql' ? await syncDatabaseToMysql() : await syncDatabaseToSupabase();
+        if (!sync || !sync.success) {
+          return NextResponse.json({
+            success: false,
+            error: `Data copy failed, so the engine was not switched. ${(sync && sync.error) || ''}`.trim(),
+            sync
+          });
+        }
+      }
+
+      const saved = writeStoredDatabaseConfig(eng, eng === 'mysql' ? 'localhost_mysql' : 'supabase_cloud');
+      if (!saved.ok) {
+        return NextResponse.json({
+          success: false,
+          error: `Could not save the choice (${saved.error}). Set DATABASE_TYPE=${eng === 'mysql' ? 'mysql' : 'postgres'} in the server environment instead.`
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        engine: eng,
+        copied: !!copyData,
+        sync,
+        message: `Now using ${eng === 'mysql' ? 'MySQL / MariaDB' : 'PostgreSQL'}${copyData ? ' (data copied first)' : ''}.`
+      });
+    }
 
     // 1. SYNC TO MYSQL (Supabase / PG -> MySQL)
     if (action === 'sync_to_mysql' || action === 'migrate_supabase_to_mysql') {
@@ -333,6 +429,14 @@ export async function POST(req: Request) {
         }
       }
 
+      if (/^(mysql|postgres(ql)?):\/\//i.test(targetUri)) {
+        const eng = targetUri.toLowerCase().startsWith('mysql') ? 'mysql' : 'postgres';
+        const res = await withTimeout(probeEngine(eng, targetUri), 9000, { ok: false, latencyMs: 0, error: 'Connection timed out after 9 seconds.' } as any);
+        return NextResponse.json(res.ok
+          ? { success: true, latency: res.latencyMs, message: `Login succeeded${res.version ? ' (' + res.version + ')' : ''} in ${res.latencyMs} ms.` }
+          : { success: false, error: res.error });
+      }
+
       const fallbackEngine = targetProfile === 'localhost_mysql' ? 'mysql' : 'postgresql';
       const parsed = parseConnectionDetails(targetUri, fallbackEngine);
       const socketRes = await testTcpSocket(parsed.host, parsed.port);
@@ -382,7 +486,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         activeProfile: selectedProfile,
-        message: `Successfully connected to ${selectedProfile.replace('_', ' ').toUpperCase()}! All other databases disconnected.`
+        message: `Saved ${selectedProfile.replace('_', ' ')} connection settings. Use the Active Database Engine switcher to change which engine the app uses.`
       });
     }
 

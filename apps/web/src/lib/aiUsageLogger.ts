@@ -1,4 +1,5 @@
 import { query } from '@/lib/db';
+import { ensureAiUsageTable } from '@/lib/aiUsageSchema';
 
 export interface LogAiUsageParams {
   provider?: string;
@@ -27,25 +28,8 @@ export async function logAiUsageTelemetry(params: LogAiUsageParams) {
     parseFloat(((promptTokens * 0.075 + completionTokens * 0.3) / 1000000).toFixed(6));
 
   try {
-    // 1. Ensure table exists in PostgreSQL / MySQL
-    await query(`
-      CREATE TABLE IF NOT EXISTS ai_usage_telemetry (
-        id VARCHAR(64) PRIMARY KEY,
-        provider VARCHAR(32) NOT NULL,
-        model VARCHAR(64) NOT NULL,
-        prompt_tokens INTEGER NOT NULL DEFAULT 0,
-        completion_tokens INTEGER NOT NULL DEFAULT 0,
-        total_tokens INTEGER NOT NULL DEFAULT 0,
-        cost NUMERIC(10, 6) NOT NULL DEFAULT 0,
-        latency_ms INTEGER DEFAULT 0,
-        source VARCHAR(64) DEFAULT 'chef',
-        user_id VARCHAR(64),
-        user_email VARCHAR(128),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS idx_ai_usage_created ON ai_usage_telemetry(created_at DESC);
-      CREATE INDEX IF NOT EXISTS idx_ai_usage_provider ON ai_usage_telemetry(provider);
-    `);
+    // 1. Ensure the table exists (dialect-aware: MySQL/MariaDB or PostgreSQL)
+    await ensureAiUsageTable();
 
     const id = 'ai_usg_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
 

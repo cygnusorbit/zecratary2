@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, getDatabaseDialect } from '@/lib/db';
+import { ensureAiUsageTable } from '@/lib/aiUsageSchema';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,127 +13,87 @@ interface UsagePoint {
   cost: number;
 }
 
+interface Bucket {
+  requests: number;
+  prompt: number;
+  completion: number;
+  cost: number;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const timeframe = (searchParams.get('timeframe') || '7d') as '24h' | '7d' | '30d';
     const provider = searchParams.get('provider') || 'gemini';
 
-    // 1. Ensure table exists
-    await query(`
-      CREATE TABLE IF NOT EXISTS ai_usage_telemetry (
-        id VARCHAR(64) PRIMARY KEY,
-        provider VARCHAR(32) NOT NULL,
-        model VARCHAR(64) NOT NULL,
-        prompt_tokens INTEGER NOT NULL DEFAULT 0,
-        completion_tokens INTEGER NOT NULL DEFAULT 0,
-        total_tokens INTEGER NOT NULL DEFAULT 0,
-        cost NUMERIC(10, 6) NOT NULL DEFAULT 0,
-        latency_ms INTEGER DEFAULT 0,
-        source VARCHAR(64) DEFAULT 'chef',
-        user_id VARCHAR(64),
-        user_email VARCHAR(128),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      );
-    `);
+    await ensureAiUsageTable();
+
+    // Window is computed in SQL so it works on both MySQL/MariaDB and PostgreSQL.
+    const hours = timeframe === '24h' ? 24 : timeframe === '30d' ? 30 * 24 : 7 * 24;
+    const since = getDatabaseDialect() === 'mysql'
+      ? `created_at >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)`
+      : `created_at >= NOW() - INTERVAL '${hours} hours'`;
+
+    const rows: any[] = await query(
+      `SELECT created_at, prompt_tokens, completion_tokens, cost FROM ai_usage_telemetry WHERE ${since} ORDER BY created_at ASC LIMIT 100000`
+    );
+
+    const keyHour = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`;
+    const keyDay = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const keyOf = timeframe === '24h' ? keyHour : keyDay;
+
+    const buckets = new Map<string, Bucket>();
+    for (const r of rows) {
+      const d = new Date(r.created_at);
+      if (isNaN(d.getTime())) continue;
+      const k = keyOf(d);
+      const b = buckets.get(k) || { requests: 0, prompt: 0, completion: 0, cost: 0 };
+      b.requests += 1;
+      b.prompt += Number(r.prompt_tokens) || 0;
+      b.completion += Number(r.completion_tokens) || 0;
+      b.cost += Number(r.cost) || 0;
+      buckets.set(k, b);
+    }
 
     const now = new Date();
     const points: UsagePoint[] = [];
 
     if (timeframe === '24h') {
-      const startTime = new Date(now.getTime() - 24 * 3600 * 1000);
-      
-      const rows = await query(`
-        SELECT 
-          date_trunc('hour', created_at) AS time_bucket,
-          COUNT(*) AS request_count,
-          COALESCE(SUM(prompt_tokens), 0) AS sum_prompt,
-          COALESCE(SUM(completion_tokens), 0) AS sum_completion,
-          COALESCE(SUM(cost), 0) AS sum_cost
-        FROM ai_usage_telemetry
-        WHERE created_at >= $1
-        GROUP BY time_bucket
-        ORDER BY time_bucket ASC
-      `, [startTime.toISOString()]);
-
-      const map = new Map<string, any>();
-      rows.forEach((r: any) => {
-        const d = new Date(r.time_bucket);
-        map.set(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`, r);
-      });
-
       for (let i = 23; i >= 0; i--) {
         const d = new Date(now.getTime() - i * 3600 * 1000);
-        const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`;
-        const match = map.get(key);
-
-        const hourStr = `${d.getHours().toString().padStart(2, '0')}:00`;
-        const reqs = match ? parseInt(match.request_count, 10) : 0;
-        const promptTok = match ? parseInt(match.sum_prompt, 10) : 0;
-        const compTok = match ? parseInt(match.sum_completion, 10) : 0;
-        const costVal = match ? parseFloat(parseFloat(match.sum_cost).toFixed(4)) : 0;
-
+        const b = buckets.get(keyHour(d));
         points.push({
           date: d.toISOString(),
-          dayLabel: hourStr,
-          requests: reqs,
-          promptTokens: promptTok,
-          completionTokens: compTok,
-          cost: costVal
+          dayLabel: `${d.getHours().toString().padStart(2, '0')}:00`,
+          requests: b ? b.requests : 0,
+          promptTokens: b ? b.prompt : 0,
+          completionTokens: b ? b.completion : 0,
+          cost: b ? parseFloat(b.cost.toFixed(4)) : 0
         });
       }
     } else {
       const numDays = timeframe === '30d' ? 30 : 7;
-      const startTime = new Date(now.getTime() - numDays * 24 * 3600 * 1000);
-
-      const rows = await query(`
-        SELECT 
-          date_trunc('day', created_at) AS time_bucket,
-          COUNT(*) AS request_count,
-          COALESCE(SUM(prompt_tokens), 0) AS sum_prompt,
-          COALESCE(SUM(completion_tokens), 0) AS sum_completion,
-          COALESCE(SUM(cost), 0) AS sum_cost
-        FROM ai_usage_telemetry
-        WHERE created_at >= $1
-        GROUP BY time_bucket
-        ORDER BY time_bucket ASC
-      `, [startTime.toISOString()]);
-
-      const map = new Map<string, any>();
-      rows.forEach((r: any) => {
-        const d = new Date(r.time_bucket);
-        map.set(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`, r);
-      });
-
       for (let i = numDays - 1; i >= 0; i--) {
         const d = new Date(now.getTime() - i * 24 * 3600 * 1000);
-        const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-        const match = map.get(key);
-
-        const dayName = d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
-        const reqs = match ? parseInt(match.request_count, 10) : 0;
-        const promptTok = match ? parseInt(match.sum_prompt, 10) : 0;
-        const compTok = match ? parseInt(match.sum_completion, 10) : 0;
-        const costVal = match ? parseFloat(parseFloat(match.sum_cost).toFixed(4)) : 0;
-
+        const b = buckets.get(keyDay(d));
         points.push({
           date: d.toISOString(),
-          dayLabel: dayName,
-          requests: reqs,
-          promptTokens: promptTok,
-          completionTokens: compTok,
-          cost: costVal
+          dayLabel: d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' }),
+          requests: b ? b.requests : 0,
+          promptTokens: b ? b.prompt : 0,
+          completionTokens: b ? b.completion : 0,
+          cost: b ? parseFloat(b.cost.toFixed(4)) : 0
         });
       }
     }
 
-    // Also check token_transactions for fallback data if telemetry table is fresh
+    // Fallback from token_transactions if the telemetry table is still empty (kept from previous behaviour).
     const totalRequests = points.reduce((acc, p) => acc + p.requests, 0);
     if (totalRequests === 0) {
       try {
-        const txRows = await query(`
-          SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as tot 
-          FROM token_transactions 
+        const txRows: any[] = await query(`
+          SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as tot
+          FROM token_transactions
           WHERE type LIKE 'usage_%'
         `);
         if (txRows.length > 0 && parseInt(txRows[0].cnt, 10) > 0) {

@@ -95,7 +95,76 @@ export default function AdminDatabasePage() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [lastSyncTelemetry, setLastSyncTelemetry] = useState<any | null>(null);
 
+  // Active Database Engine switcher
+  const [engineInfo, setEngineInfo] = useState<{ engine: 'mysql' | 'postgres'; source: 'env' | 'config' | 'auto'; locked: boolean } | null>(null);
+  const [targetEngine, setTargetEngine] = useState<'mysql' | 'postgres'>('mysql');
+  const [copyFirst, setCopyFirst] = useState(true);
+  const [engineTest, setEngineTest] = useState<{ ok: boolean; text: string } | null>(null);
+  const [engineBusy, setEngineBusy] = useState<'' | 'test' | 'switch'>('');
+  const [confirmSwitch, setConfirmSwitch] = useState(false);
+  const [adminToken, setAdminToken] = useState('');
+  const engineInitRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      setAdminToken(window.sessionStorage.getItem('zecratary_admin_db_token') || '');
+    } catch (_) {}
+  }, []);
+
   const isSavingRef = useRef(false);
+
+  const saveAdminToken = (value: string) => {
+    setAdminToken(value);
+    try {
+      if (value) window.sessionStorage.setItem('zecratary_admin_db_token', value);
+      else window.sessionStorage.removeItem('zecratary_admin_db_token');
+    } catch (_) {}
+  };
+
+  const handleTestEngine = async () => {
+    setEngineBusy('test');
+    setEngineTest(null);
+    try {
+      const res = await fetch('/api/admin/database', {
+        method: 'POST',
+        headers: dbAdminHeaders(),
+        body: JSON.stringify({ action: 'test_engine', engine: targetEngine })
+      });
+      const data = await res.json().catch(() => ({}));
+      setEngineTest({
+        ok: !!data.success,
+        text: data.success ? (data.message || 'Connected.') : (data.error || `Request failed (${res.status}).`)
+      });
+    } catch (_) {
+      setEngineTest({ ok: false, text: t('dbEngineNetworkError', 'Network error while testing the connection.') });
+    } finally {
+      setEngineBusy('');
+    }
+  };
+
+  const handleSwitchEngine = async () => {
+    setEngineBusy('switch');
+    try {
+      const res = await fetch('/api/admin/database', {
+        method: 'POST',
+        headers: dbAdminHeaders(),
+        body: JSON.stringify({ action: 'switch_engine', engine: targetEngine, copyData: copyFirst })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.success) {
+        setToast({ type: 'success', message: data.message || 'Database engine switched.' });
+        setConfirmSwitch(false);
+        setEngineTest(null);
+        await loadDatabaseData(false);
+      } else {
+        setToast({ type: 'error', message: data.error || `Switch failed (${res.status}).` });
+      }
+    } catch (_) {
+      setToast({ type: 'error', message: t('dbEngineNetworkError', 'Network error while switching the database.') });
+    } finally {
+      setEngineBusy('');
+    }
+  };
 
   const updateGranularToUri = (h: string, p: string, db: string, u: string, pwd: string, type: 'postgresql' | 'mysql') => {
     if (type === 'postgresql') {
@@ -122,6 +191,13 @@ export default function AdminDatabasePage() {
         if (data.activeProfile) setActiveProfile(data.activeProfile);
         if (data.latency) setLatency(data.latency);
         if (data.engine) setEngine(data.engine);
+        if (data.engineInfo) {
+          setEngineInfo(data.engineInfo);
+          if (!engineInitRef.current) {
+            engineInitRef.current = true;
+            setTargetEngine(data.engineInfo.engine === 'mysql' ? 'postgres' : 'mysql');
+          }
+        }
         if (data.databaseName) setDatabaseName(data.databaseName);
         if (data.databaseType) setDatabaseType(data.databaseType);
         if (data.host && data.port) setHostEndpoint(`${data.host}:${data.port}`);
@@ -800,6 +876,185 @@ export default function AdminDatabasePage() {
               <span>Refresh Status</span>
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* ACTIVE DATABASE ENGINE SWITCHER */}
+      <div
+        role="region"
+        aria-label="Active Database Engine Switcher"
+        data-lpignore="true"
+        data-form-type="other"
+        className="rounded-3xl p-6 space-y-5 shadow-xl border transition-colors duration-200"
+        style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+              <Power className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
+              {t('dbEngineSwitcherTitle', 'Active Database Engine')}
+            </h3>
+            <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+              {t('dbEngineSwitcherDesc', 'Choose which database the whole app reads and writes. Only one is active at a time.')}
+            </p>
+          </div>
+          {engineInfo ? (
+            <span
+              className="text-[11px] font-bold px-3 py-1 rounded-full border"
+              style={{ borderColor: 'var(--color-emerald)', color: 'var(--color-emerald)' }}
+            >
+              {engineInfo.engine === 'mysql' ? 'MySQL / MariaDB' : 'PostgreSQL'} ·{' '}
+              {engineInfo.source === 'env'
+                ? t('dbSourceEnv', 'set by server environment')
+                : engineInfo.source === 'config'
+                  ? t('dbSourceConfig', 'saved choice')
+                  : t('dbSourceAuto', 'auto-detected')}
+            </span>
+          ) : (
+            <span className="h-6 w-44 rounded-full animate-pulse" style={{ backgroundColor: 'var(--color-inner-dark)' }} />
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {[
+            { id: 'mysql', label: 'MySQL / MariaDB', sub: t('dbOptMysqlSub', 'Hostinger or a local server'), Icon: Server },
+            { id: 'postgres', label: 'PostgreSQL', sub: t('dbOptPgSub', 'Supabase cloud or a local server'), Icon: Cloud }
+          ].map((opt) => {
+            const isActive = !!engineInfo && engineInfo.engine === opt.id;
+            const isTarget = targetEngine === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => {
+                  setTargetEngine(opt.id);
+                  setEngineTest(null);
+                  setConfirmSwitch(false);
+                }}
+                className="text-left p-4 rounded-2xl border transition-colors duration-200 cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--color-inner-dark)',
+                  borderColor: isTarget ? 'var(--color-primary)' : 'var(--color-border)',
+                  color: 'var(--color-text)'
+                }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 text-sm font-bold">
+                    <opt.Icon className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
+                    {opt.label}
+                  </span>
+                  {isActive && (
+                    <span className="text-[10px] font-black uppercase" style={{ color: 'var(--color-emerald)' }}>
+                      {t('dbActiveTag', 'Active')}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>{opt.sub}</p>
+              </button>
+            );
+          })}
+        </div>
+
+        <label className="flex items-start gap-2 text-xs cursor-pointer" style={{ color: 'var(--color-text-secondary)' }}>
+          <input
+            type="checkbox"
+            checked={copyFirst}
+            onChange={(e) => setCopyFirst(e.target.checked)}
+            className="mt-0.5"
+            autoComplete="off"
+            data-lpignore="true"
+            data-form-type="other"
+          />
+          <span>
+            {t('dbCopyFirst', 'Copy all data to the target database before switching (recommended). If the copy fails, nothing is switched.')}
+          </span>
+        </label>
+
+        {engineInfo && engineInfo.locked && (
+          <p className="text-xs font-bold" style={{ color: '#f59e0b' }}>
+            {t('dbEngineLocked', 'Locked by DATABASE_TYPE on the server. Change it in Hostinger (Environment variables) and redeploy to switch.')}
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={handleTestEngine}
+            disabled={engineBusy !== ''}
+            className="px-4 py-2 rounded-xl border text-xs font-bold transition hover:opacity-90 cursor-pointer flex items-center gap-2 shadow-sm disabled:opacity-50"
+            style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+          >
+            <Zap className={`h-3.5 w-3.5 ${engineBusy === 'test' ? 'animate-pulse' : ''}`} style={{ color: 'var(--color-primary)' }} />
+            <span>{engineBusy === 'test' ? t('dbTesting', 'Testing...') : t('dbTestConn', 'Test connection')}</span>
+          </button>
+
+          {!confirmSwitch ? (
+            <button
+              type="button"
+              onClick={() => setConfirmSwitch(true)}
+              disabled={engineBusy !== '' || !engineInfo || engineInfo.locked || engineInfo.engine === targetEngine}
+              className="px-4 py-2 rounded-xl text-xs font-bold transition hover:opacity-90 cursor-pointer flex items-center gap-2 shadow-sm disabled:opacity-40"
+              style={{ backgroundColor: 'var(--color-primary)', color: '#ffffff' }}
+            >
+              <ArrowRightLeft className="h-3.5 w-3.5" />
+              <span>{t('dbSwitchTo', 'Switch to')} {targetEngine === 'mysql' ? 'MySQL / MariaDB' : 'PostgreSQL'}</span>
+            </button>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
+                {t('dbConfirmSwitch', 'Switch the whole app to')} {targetEngine === 'mysql' ? 'MySQL / MariaDB' : 'PostgreSQL'}?
+              </span>
+              <button
+                type="button"
+                onClick={handleSwitchEngine}
+                disabled={engineBusy !== ''}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+                style={{ backgroundColor: 'var(--color-primary)', color: '#ffffff' }}
+              >
+                {engineBusy === 'switch' ? t('dbSwitching', 'Switching...') : t('dbConfirmYes', 'Yes, switch')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmSwitch(false)}
+                disabled={engineBusy !== ''}
+                className="px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer disabled:opacity-50"
+                style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)', backgroundColor: 'var(--color-inner-dark)' }}
+              >
+                {t('dbCancel', 'Cancel')}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {engineTest && (
+          <p className="text-xs font-bold" style={{ color: engineTest.ok ? 'var(--color-emerald)' : '#ef4444' }}>
+            {engineTest.text}
+          </p>
+        )}
+
+        <div
+          role="region"
+          aria-label="Admin Token"
+          className="pt-4 border-t"
+          style={{ borderColor: 'var(--color-border)' }}
+        >
+          <label className="block text-[11px] font-bold mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('dbAdminToken', 'Admin token (ADMIN_DB_TOKEN)')}
+          </label>
+          <input
+            type="password"
+            value={adminToken}
+            onChange={(e) => saveAdminToken(e.target.value)}
+            placeholder={t('dbAdminTokenPh', 'Paste the token set on the server')}
+            autoComplete="off"
+            data-lpignore="true"
+            data-form-type="other"
+            className="w-full px-3 py-2 rounded-xl border text-xs font-mono transition-colors duration-200 outline-none"
+            style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+          />
+          <p className="text-[10px] mt-1.5" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('dbAdminTokenHint', 'Kept only in this browser tab. Needed for testing, switching and syncing.')}
+          </p>
         </div>
       </div>
 
