@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getActiveDatabase } from '@/lib/dbConfig';
+import { query as dbQuery } from '@/lib/db';
 import fs from 'fs';
 import path from 'path';
 
@@ -101,7 +103,20 @@ export async function GET(req: NextRequest) {
     // Query Supabase for latest transactions
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-    if (supabaseUrl && supabaseKey) {
+    const mergeRemoteTxs = (tData: any) => {
+      if (Array.isArray(tData) && tData.length > 0) {
+        const tMap = new Map();
+        allTxs.forEach(t => tMap.set(t.id, t));
+        tData.forEach((t: any) => tMap.set(t.id, t));
+        allTxs = Array.from(tMap.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      }
+    };
+
+    if (getActiveDatabase() === 'mysql') {
+      try {
+        mergeRemoteTxs(await dbQuery('SELECT * FROM token_transactions ORDER BY created_at DESC LIMIT 250'));
+      } catch (_) {}
+    } else if (supabaseUrl && supabaseKey) {
       try {
         const { createClient } = await import('@supabase/supabase-js');
         const supabase = createClient(supabaseUrl, supabaseKey);

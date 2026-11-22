@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
 import path from 'path';
 
 export interface BonusRule {
@@ -88,45 +89,12 @@ export function writeDiskWalletConfig(cfg: WalletAdminConfig): void {
 export async function getAuthoritativeWalletConfig(): Promise<WalletAdminConfig> {
   let config = readDiskWalletConfig();
 
-  // 1. PostgreSQL (Supabase)
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (supabaseUrl && supabaseKey) {
-    try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      const { data, error } = await supabase
-        .from('admin_settings')
-        .select('*')
-        .eq('setting_key', 'wallet_settings')
-        .maybeSingle();
-
-      if (!error && data?.setting_value) {
-        const parsed = typeof data.setting_value === 'string' 
-          ? JSON.parse(data.setting_value) 
-          : data.setting_value;
-        config = { ...config, ...parsed };
-        writeDiskWalletConfig(config);
-      }
-    } catch (_) {}
-  }
-
-  // 2. MySQL
+  // Active database (MySQL or PostgreSQL) via the shared admin_settings store
   try {
-    const mysqlModule = await import('@/lib/mysql').catch(() => null);
-    if (mysqlModule && typeof mysqlModule.query === 'function') {
-      const rows: any = await mysqlModule.query(
-        "SELECT setting_value, value FROM admin_settings WHERE setting_key = 'wallet_settings' LIMIT 1"
-      );
-      if (Array.isArray(rows) && rows.length > 0) {
-        const raw = rows[0].setting_value || rows[0].value;
-        if (raw) {
-          const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-          config = { ...config, ...parsed };
-          writeDiskWalletConfig(config);
-        }
-      }
+    const stored = await getJsonSetting<any>('wallet_settings');
+    if (stored && typeof stored === 'object') {
+      config = { ...config, ...stored };
+      writeDiskWalletConfig(config);
     }
   } catch (_) {}
 
@@ -148,35 +116,8 @@ export async function saveAuthoritativeWalletConfig(newConfig: Partial<WalletAdm
 
   writeDiskWalletConfig(merged);
 
-  // 1. PostgreSQL (Supabase)
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (supabaseUrl && supabaseKey) {
-    try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      await supabase
-        .from('admin_settings')
-        .upsert({
-          setting_key: 'wallet_settings',
-          setting_value: JSON.stringify(merged),
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'setting_key' });
-    } catch (_) {}
-  }
-
-  // 2. MySQL
   try {
-    const mysqlModule = await import('@/lib/mysql').catch(() => null);
-    if (mysqlModule && typeof mysqlModule.query === 'function') {
-      await mysqlModule.query(
-        `INSERT INTO admin_settings (id, setting_key, setting_value, value, updated_at)
-         VALUES ('set_wallet_cfg', 'wallet_settings', ?, ?, NOW())
-         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), value = VALUES(value), updated_at = NOW()`,
-        [JSON.stringify(merged), JSON.stringify(merged)]
-      );
-    }
+    await setJsonSetting('wallet_settings', merged, 'wallet');
   } catch (_) {}
 
   return merged;

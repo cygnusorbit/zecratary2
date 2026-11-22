@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getActiveDatabase } from '@/lib/dbConfig';
+
+// One active database at a time: only touch the engine the app is really using.
+const usePostgres = () => getActiveDatabase() === 'postgres';
 import fs from 'fs';
 import path from 'path';
 import { 
@@ -204,7 +208,7 @@ export async function POST(req: NextRequest) {
       // Update PostgreSQL (Supabase)
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-      if (supabaseUrl && supabaseKey) {
+      if (usePostgres() && supabaseUrl && supabaseKey) {
         try {
           const { createClient } = await import('@supabase/supabase-js');
           const supabase = createClient(supabaseUrl, supabaseKey);
@@ -220,7 +224,7 @@ export async function POST(req: NextRequest) {
       // Update MySQL
       try {
         const mysqlModule = await import('@/lib/mysql').catch(() => null);
-        if (mysqlModule && typeof mysqlModule.query === 'function') {
+        if (!usePostgres() && mysqlModule && typeof mysqlModule.query === 'function') {
           await mysqlModule.query(
             "UPDATE users SET wallet_balance = ?, balance = ? WHERE email = ? OR id = ?",
             [newBal, newBal, email, userId]
