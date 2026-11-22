@@ -97,8 +97,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (cleanPass.length < 6) {
-      setError(t('passwordMinLength') || 'Password must be at least 6 characters.');
+    if (cleanPass.length < 8) {
+      setError(t('passwordMinLength') || 'Password must be at least 8 characters.');
       return;
     }
 
@@ -115,49 +115,21 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      initAuthStorage();
-      const rawUsers = localStorage.getItem('zecratary_users');
-      const users: User[] = rawUsers ? JSON.parse(rawUsers) : [...DEFAULT_USERS];
-
-      if (users.some(u => u.email.toLowerCase() === cleanEmail)) {
-        setError(t('emailAlreadyExists') || 'An account with this email already exists.');
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: cleanName, email: cleanEmail, password: cleanPass })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        setError(data.error || t('registrationFailed') || 'Registration failed. Please try again.');
         setLoading(false);
         return;
       }
 
-      const defaultPlan = getDefaultSubscriptionPlan();
-      const newUser: User = {
-        id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        name: cleanName,
-        email: cleanEmail,
-        password: cleanPass,
-        role: 'user',
-        subscriptionPlan: defaultPlan,
-        subscriptionTier: defaultPlan,
-        createdAt: new Date().toISOString()
-      };
-
-      // 1. Asynchronously persist to PostgreSQL backend
-      try {
-        await Promise.allSettled([
-          fetch('/api/admin/users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newUser)
-          }),
-          fetch('/api/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newUser)
-          })
-        ]);
-      } catch (_) {}
-
-      // 2. Local storage & cookie session synchronization
-      users.push(newUser);
-      localStorage.setItem('zecratary_users', JSON.stringify(users));
-      setCurrentUser(newUser);
-      syncSessionCookie(newUser);
+      // The server owns the account; the browser keeps only the safe profile (no password).
+      setCurrentUser(data.user);
+      syncSessionCookie(data.user);
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('zecratary_auth_changed'));

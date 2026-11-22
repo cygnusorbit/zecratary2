@@ -155,3 +155,11 @@ export function recordLoginFailure(key: string): void {
 export function clearLoginFailures(key: string): void {
   failMap().delete(key);
 }
+
+// ---------- password hashing (scrypt) ----------
+
+export function hashPassword(plain: string): string {
+  const salt = crypto.randomBytes(16);
+  const hash = crypto.scryptSync(plain, salt, 32);
+  return 'scrypt$' + salt.toString('hex') + '$' + hash.toString('hex');
+}

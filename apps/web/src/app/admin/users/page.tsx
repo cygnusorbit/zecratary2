@@ -518,8 +518,8 @@ export default function AdminUserManagementPage() {
       return;
     }
 
-    if (addPassword.length < 4) {
-      setAddError(tr('admin.users.passwordLength', 'Password must be at least 4 characters long.'));
+    if (addPassword.length < 8) {
+      setAddError(tr('admin.users.passwordLength', 'Password must be at least 8 characters long.'));
       return;
     }
 
@@ -1411,7 +1411,7 @@ export default function AdminUserManagementPage() {
                     data-form-type="other"
                     autoComplete="new-password"
                     spellCheck={false}
-                    placeholder={tr('admin.users.placeholderPassword', 'Minimum 4 characters')} 
+                    placeholder={tr('admin.users.placeholderPassword', 'Minimum 8 characters')} 
                     value={addPassword} 
                     onChange={e => setAddPassword(e.target.value)} 
                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddUserSubmit(); } }}
@@ -1619,7 +1619,7 @@ export default function AdminUserManagementPage() {
                     data-form-type="other"
                     autoComplete="new-password"
                     spellCheck={false}
-                    placeholder={tr('admin.users.placeholderNewPass', 'Enter new password...')} 
+                    placeholder={tr('admin.users.placeholderNewPass', 'Enter new password (min 8 characters)')} 
                     value={editPassword} 
                     onChange={e => setEditPassword(e.target.value)} 
                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleEditUserSubmit(); } }}

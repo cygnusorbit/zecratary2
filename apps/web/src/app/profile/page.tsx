@@ -127,6 +127,7 @@ function ProfileContent() {
   const [name, setName] = useState<string>('');
   const [email, setEmail] = useState<string>('');
   const [newPassword, setNewPassword] = useState<string>('');
+  const [currentPasswordInput, setCurrentPasswordInput] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
@@ -365,22 +366,26 @@ function ProfileContent() {
     setSubmitting(true);
 
     try {
-      const payload: any = {
-        id: currentUser.id,
-        email: currentUser.email,
-        name: name.trim()
-      };
-      if (newPassword) payload.password = newPassword;
-
-      const res = await fetch('/api/admin/users', {
+      const res = await fetch('/api/auth/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ name: name.trim() })
       });
-
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to save profile changes.');
+      }
+
+      if (newPassword) {
+        const pwRes = await fetch('/api/auth/password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currentPassword: currentPasswordInput, newPassword })
+        });
+        const pwData = await pwRes.json().catch(() => ({}));
+        if (!pwRes.ok || !pwData.success) {
+          throw new Error(pwData.error || 'Failed to change password.');
+        }
       }
 
       const updatedUser = {
@@ -396,6 +401,7 @@ function ProfileContent() {
       }
 
       setNewPassword('');
+      setCurrentPasswordInput('');
       setConfirmPassword('');
       showToast(t('profileSavedSuccessToast', 'Profile updated successfully!'), 'success');
     } catch (err: any) {
@@ -453,16 +459,6 @@ function ProfileContent() {
     setCurrentUser(updatedUser);
 
     try {
-      await fetch('/api/admin/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...updatedUser,
-          action: 'unlink_provider',
-          providerToUnlink: provider
-        })
-      });
-
       if (typeof window !== 'undefined') {
         localStorage.setItem('zecratary_user', JSON.stringify(updatedUser));
         window.dispatchEvent(new Event('zecratary_users_updated'));
@@ -479,7 +475,7 @@ function ProfileContent() {
     setShowDeleteModal(false);
 
     try {
-      await fetch(`/api/admin/users?id=${encodeURIComponent(currentUser.id)}`, { method: 'DELETE' });
+      await fetch('/api/auth/profile', { method: 'DELETE' });
       logoutUser();
       window.location.href = '/login';
     } catch (_) {
@@ -690,6 +686,22 @@ function ProfileContent() {
               </h4>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block font-bold mb-1 opacity-80">{t('currentPasswordLabel', 'Current Password')}</label>
+                  <input
+                    type="password"
+                    autoComplete="off"
+                    data-lpignore="true"
+                    data-form-type="other"
+                    spellCheck="false"
+                    placeholder={t('currentPasswordPlaceholder', 'Required to change your password')}
+                    value={currentPasswordInput}
+                    onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                    className="w-full border rounded-xl p-2.5 text-xs outline-none"
+                    style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  />
+                </div>
+
                 <div>
                   <label className="block font-bold mb-1 opacity-80">{t('newPasswordLabel', 'New Password')}</label>
                   <input

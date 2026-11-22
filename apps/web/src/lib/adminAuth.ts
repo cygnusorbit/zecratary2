@@ -26,10 +26,10 @@ export function requireAdminSession(req: Request): NextResponse | null {
 }
 
 // Routes that real visitors legitimately call (registration, profile, checkout record) or that carry their own guard.
-const WRITE_EXEMPT = ['/api/admin/users', '/api/admin/database'];
+const WRITE_EXEMPT = ['/api/admin/database'];
 // Admin-only data that has no public consumer.
 const READ_GUARDED = [
-  '/api/admin/keys', '/api/admin/ai', '/api/admin/test-key', '/api/admin/models',
+  '/api/admin/users', '/api/admin/keys', '/api/admin/ai', '/api/admin/test-key', '/api/admin/models',
   '/api/admin/notification-settings', '/api/admin/plugins', '/api/admin/scan', '/api/admin/crawl-index',
 ];
 

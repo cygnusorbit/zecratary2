@@ -1,24 +1,20 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { hashPassword } from '@/lib/session';
+import {
+  listUsers, findUserByEmail, findUserById, createUser, updateUserFields,
+  setPasswordHash, deleteUserById, toPublicUser
+} from '@/lib/userStore';
+import { readJsonUsers, writeJsonUsers } from '@/lib/userJson';
 
-
-// Module-scoped type-safe database row extractors (unexported to prevent Next.js TS2344)
-function parseDbRows<T = any>(res: any): T[] {
-  if (!res) return [];
-  if (Array.isArray(res)) return res;
-  if (typeof res === 'object' && Array.isArray((res as any).rows)) return (res as any).rows;
-  return [];
-}
-
-function parseDbRow<T = any>(res: any): T | null {
-  const rows = parseDbRows<T>(res);
-  return rows.length > 0 ? rows[0] : null;
-}
-
-
+// Admin-only (enforced in proxy via lib/adminAuth). Passwords are never stored in plain text or returned.
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+const NO_STORE = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+};
 
 const DEFAULT_ADMIN = {
   id: 'usr_admin_1',
@@ -26,190 +22,100 @@ const DEFAULT_ADMIN = {
   email: 'admin@zecratary.com',
   role: 'admin',
   subscriptionPlan: 'nutrition-pro-annual',
-  createdAt: '2026-01-01T00:00:00.000Z'
+  createdAt: '2026-01-01T00:00:00.000Z',
 };
 
-const JSON_STORES = [
-  path.join(process.cwd(), 'apps', 'web', 'data', 'users.json'),
-  path.join(process.cwd(), 'data', 'users.json')
-];
+export async function OPTIONS() { return new NextResponse(null, { status: 204 }); }
 
-function readJsonUsers(): any[] {
-  for (const p of JSON_STORES) {
-    if (fs.existsSync(p)) {
-      try {
-        const raw = fs.readFileSync(p, 'utf-8');
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
-        if (parsed && Array.isArray(parsed.users)) return parsed.users;
-      } catch (_) {}
-    }
+async function currentList(): Promise<any[]> {
+  let list: any[] = [];
+  try {
+    const rows = await listUsers();
+    list = rows.map(toPublicUser);
+  } catch (_) {
+    list = readJsonUsers().map(({ password, password_hash, ...u }: any) => u);
   }
-  return [DEFAULT_ADMIN];
-}
-
-function writeJsonUsers(users: any[]) {
-  for (const p of JSON_STORES) {
-    try {
-      fs.mkdirSync(path.dirname(p), { recursive: true });
-      fs.writeFileSync(p, JSON.stringify(users, null, 2), 'utf-8');
-    } catch (_) {}
+  if (!list.some((u) => u.id === 'usr_admin_1' || String(u.email || '').toLowerCase() === 'admin@zecratary.com')) {
+    list.unshift(DEFAULT_ADMIN);
   }
+  return list;
 }
 
 export async function GET() {
-  let usersList: any[] = readJsonUsers();
-
-  // Try PostgreSQL or MySQL if available
-  try {
-    const { getDbPool } = await import('@/lib/db').catch(() => ({ getDbPool: null as any as any }));
-    if (typeof getDbPool === 'function') {
-      const pool = await getDbPool();
-      if (pool) {
-        const res = await pool.query('SELECT * FROM users ORDER BY created_at ASC');
-        const rows = res.rows || res[0] || [];
-        if (Array.isArray(rows) && rows.length > 0) {
-          usersList = rows.map((r: any) => ({
-            id: r.id,
-            name: r.name,
-            email: r.email,
-            role: r.role,
-            subscriptionPlan: r.subscription_plan || r.subscriptionPlan || 'taster',
-            createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString()
-          }));
-        }
-      }
-    }
-  } catch (_) {}
-
-  // Guarantee usr_admin_1 invariant
-  const hasRootAdmin = usersList.some(
-    u => u.id === 'usr_admin_1' || u.email?.toLowerCase() === 'admin@zecratary.com'
-  );
-  if (!hasRootAdmin) {
-    usersList.unshift(DEFAULT_ADMIN);
-    writeJsonUsers(usersList);
-  }
-
-  return NextResponse.json({ success: true, users: usersList }, {
-    headers: {
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0'
-    }
-  });
+  return NextResponse.json({ success: true, users: await currentList() }, { headers: NO_STORE });
 }
 
 export async function POST(req: Request) {
   try {
-    const payload = await req.json();
-    let usersList: any[] = readJsonUsers();
+    const payload = await req.json().catch(() => ({}));
+    const email = String(payload.email || '').toLowerCase().trim();
+    const id = payload.id ? String(payload.id) : '';
 
-    const cleanEmail = (payload.email || '').toLowerCase().trim();
-    const cleanId = payload.id || 'usr_' + Date.now().toString(36);
-    const assignedPlan = payload.subscriptionPlan || payload.subscription_plan || 'taster';
-    const isRoot = cleanId === 'usr_admin_1' || cleanEmail === 'admin@zecratary.com';
-    const role = isRoot ? 'admin' : (payload.role || 'user');
+    let existing: any = null;
+    if (id) existing = await findUserById(id).catch(() => null);
+    if (!existing && email) existing = await findUserByEmail(email).catch(() => null);
 
-    const normalized = {
-      id: cleanId,
-      name: payload.name || 'User',
-      email: cleanEmail,
-      password: payload.password,
-      role: role,
-      subscriptionPlan: assignedPlan,
-      createdAt: payload.createdAt || payload.created_at || new Date().toISOString()
-    };
-
-    const existingIndex = usersList.findIndex(
-      u => u.id === cleanId || (u.email && u.email.toLowerCase() === cleanEmail)
-    );
-
-    if (existingIndex >= 0) {
-      usersList[existingIndex] = {
-        ...usersList[existingIndex],
-        ...normalized,
-        password: normalized.password || usersList[existingIndex].password
-      };
-    } else {
-      usersList.unshift(normalized);
+    // Admin sets a temporary password for a user.
+    if (payload.action === 'set_password') {
+      const pw = String(payload.password || '');
+      if (pw.length < 8 || pw.length > 200) {
+        return NextResponse.json({ success: false, error: 'Temporary password must be at least 8 characters.' }, { status: 400 });
+      }
+      if (!existing) return NextResponse.json({ success: false, error: 'User not found.' }, { status: 404 });
+      await setPasswordHash(existing.id, hashPassword(pw));
+      return NextResponse.json({ success: true });
     }
 
-    // Persist to relational DB if available
-    try {
-      const { getDbPool } = await import('@/lib/db').catch(() => ({ getDbPool: null as any as any }));
-      if (typeof getDbPool === 'function') {
-        const pool = await getDbPool();
-        if (pool) {
-          const sql = `
-            INSERT INTO users (id, name, email, role, subscription_plan, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (id) DO UPDATE SET
-              name = EXCLUDED.name,
-              email = EXCLUDED.email,
-              role = EXCLUDED.role,
-              subscription_plan = EXCLUDED.subscription_plan;
-          `;
-          await pool.query(sql, [
-            normalized.id,
-            normalized.name,
-            normalized.email,
-            normalized.role,
-            normalized.subscriptionPlan,
-            normalized.createdAt
-          ]).catch(() => {});
-        }
-      }
-    } catch (_) {}
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ success: false, error: 'A valid email is required.' }, { status: 400 });
+    }
+    const plan = payload.subscriptionPlan || payload.subscription_plan;
+    const isRoot = email === 'admin@zecratary.com' || (existing && existing.id === 'usr_admin_1');
+    const role = isRoot ? 'admin' : (payload.role === 'admin' ? 'admin' : 'user');
+    const pw = payload.password ? String(payload.password) : '';
+    if (pw && pw.length < 8) {
+      return NextResponse.json({ success: false, error: 'Password must be at least 8 characters.' }, { status: 400 });
+    }
 
-    writeJsonUsers(usersList);
+    if (existing) {
+      await updateUserFields(existing.id, { name: payload.name, role, plan, email });
+      if (pw) await setPasswordHash(existing.id, hashPassword(pw));
+    } else {
+      await createUser({
+        id: id || 'usr_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        email, name: payload.name || email.split('@')[0], role, plan: plan || 'taster',
+        passwordHash: pw ? hashPassword(pw) : null,
+      });
+    }
 
-    return NextResponse.json({ success: true, users: usersList });
+    const users = await currentList();
+    writeJsonUsers(users);
+    return NextResponse.json({ success: true, users });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+    return NextResponse.json({ success: false, error: err?.message || 'Server error' }, { status: 500 });
   }
 }
 
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const queryId = searchParams.get('id');
-    const queryEmail = searchParams.get('email');
-
-    let bodyData: any = {};
-    try {
-      bodyData = await req.json();
-    } catch (_) {}
-
-    const targetId = queryId || bodyData.id;
-    const targetEmail = (queryEmail || bodyData.email || '').toLowerCase().trim();
+    let body: any = {};
+    try { body = await req.json(); } catch (_) {}
+    const targetId = searchParams.get('id') || body.id || '';
+    const targetEmail = String(searchParams.get('email') || body.email || '').toLowerCase().trim();
 
     if (targetId === 'usr_admin_1' || targetEmail === 'admin@zecratary.com') {
       return NextResponse.json({ error: 'Primary administrator cannot be deleted.' }, { status: 403 });
     }
+    let row: any = null;
+    if (targetId) row = await findUserById(targetId).catch(() => null);
+    if (!row && targetEmail) row = await findUserByEmail(targetEmail).catch(() => null);
+    if (row) await deleteUserById(row.id);
 
-    let usersList: any[] = readJsonUsers();
-    usersList = usersList.filter(u => {
-      const matchId = targetId && u.id === targetId;
-      const matchEmail = targetEmail && u.email && u.email.toLowerCase() === targetEmail;
-      return !(matchId || matchEmail);
-    });
-
-    // Remove from DB if connected
-    try {
-      const { getDbPool } = await import('@/lib/db').catch(() => ({ getDbPool: null as any as any }));
-      if (typeof getDbPool === 'function') {
-        const pool = await getDbPool();
-        if (pool) {
-          await pool.query('DELETE FROM users WHERE id = $1 OR email = $2', [targetId, targetEmail]).catch(() => {});
-        }
-      }
-    } catch (_) {}
-
-    writeJsonUsers(usersList);
-
-    return NextResponse.json({ success: true, users: usersList });
+    const users = await currentList();
+    writeJsonUsers(users);
+    return NextResponse.json({ success: true, users });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: err?.message || 'Server error' }, { status: 500 });
   }
 }

@@ -86,115 +86,14 @@ export default function ForgotPasswordPage() {
       return;
     }
 
-    setLoading(true);
-
-    setTimeout(() => {
-      try {
-        initAuthStorage();
-        const rawUsers = localStorage.getItem('zecratary_users');
-        const users: User[] = rawUsers ? JSON.parse(rawUsers) : [...DEFAULT_USERS];
-        const matched = users.find(u => u.email.toLowerCase() === cleanEmail) ||
-          DEFAULT_USERS.find(u => u.email.toLowerCase() === cleanEmail);
-
-        if (!matched) {
-          setError(t('noAccountFoundEmail') || 'No account found with this email address.');
-          setLoading(false);
-          return;
-        }
-
-        const simulatedToken = Math.floor(100000 + Math.random() * 900000).toString();
-        setGeneratedToken(simulatedToken);
-        setTokenInput(simulatedToken);
-
-        setSuccess((t('resetCodeGeneratedSuccess') || 'Reset code generated for {email}. Enter code to set a new password.').replace('{email}', cleanEmail));
-        setStep(2);
-      } catch (err: any) {
-        setError(t('recoveryRequestFailed') || 'Failed to process recovery request.');
-      } finally {
-        setLoading(false);
-      }
-    }, 600);
+    // No email service is configured: the administrator sets a temporary password.
+    setSuccess(t('contactAdminForReset') || 'Password resets are handled by the administrator. Please contact them and ask for a temporary password, then sign in and change it in your profile.');
   };
 
   const handleResetPassword = async (e?: React.FormEvent | React.KeyboardEvent | React.MouseEvent) => {
     if (e && 'preventDefault' in e) e.preventDefault();
     setError('');
-    setSuccess('');
-
-    if (tokenInput.trim() !== generatedToken.trim()) {
-      setError(t('invalidSecurityCode') || 'Invalid or expired security code.');
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      setError(t('passwordMinLength') || 'Password must be at least 6 characters.');
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setError(t('passwordsDoNotMatch') || 'Passwords do not match.');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const cleanEmail = email.trim().toLowerCase();
-      const rawUsers = localStorage.getItem('zecratary_users');
-      let users: User[] = rawUsers ? JSON.parse(rawUsers) : [...DEFAULT_USERS];
-
-      const userIndex = users.findIndex(u => u.email.toLowerCase() === cleanEmail);
-      let matchedUser: any = null;
-      if (userIndex !== -1) {
-        (users[userIndex] as any).password = newPassword.trim();
-        matchedUser = users[userIndex];
-      } else {
-        const fallback = DEFAULT_USERS.find(u => u.email.toLowerCase() === cleanEmail);
-        if (fallback) {
-          const updatedFallback = { ...fallback, password: newPassword.trim() };
-          users.push(updatedFallback as any);
-          matchedUser = updatedFallback;
-        }
-      }
-
-      // 1. Asynchronously persist to PostgreSQL backend
-      try {
-        await Promise.allSettled([
-          fetch('/api/admin/users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id: matchedUser?.id,
-              email: cleanEmail,
-              password: newPassword.trim(),
-              name: matchedUser?.name,
-              role: matchedUser?.role || 'user'
-            })
-          }),
-          fetch('/api/auth/reset-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: cleanEmail,
-              password: newPassword.trim()
-            })
-          })
-        ]);
-      } catch (_) {}
-
-      // 2. Synchronize localStorage & broadcast update
-      localStorage.setItem('zecratary_users', JSON.stringify(users));
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('zecratary_users_updated'));
-        window.dispatchEvent(new Event('storage'));
-      }
-
-      setSuccess(t('passwordUpdatedRedirect') || 'Password updated successfully! Redirecting to login...');
-      setTimeout(() => router.replace('/login'), 1200);
-    } catch (err: any) {
-      setError(t('passwordUpdateFailed') || 'Failed to update password.');
-      setLoading(false);
-    }
+    setSuccess(t('contactAdminForReset') || 'Password resets are handled by the administrator. Please contact them and ask for a temporary password, then sign in and change it in your profile.');
   };
 
   const cPageBg = isDayMode ? '#f8fafc' : 'var(--color-bg, #070b13)';

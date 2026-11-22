@@ -3,6 +3,9 @@ import {
   SESSION_COOKIE, isAuthEnforced, signSession, sessionCookieOptions, isAdminEmail,
   verifyAdminPassword, verifyPasswordAgainst, isLoginBlocked, recordLoginFailure, clearLoginFailures
 } from '@/lib/session';
+import { findUserByEmail, createUser, setPasswordHash, toPublicUser } from '@/lib/userStore';
+import { hashPassword } from '@/lib/session';
+import { findJsonUser, readJsonUsers, writeJsonUsers } from '@/lib/userJson';
 import fs from 'fs';
 import path from 'path';
 
@@ -117,14 +120,55 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    let enforcedUser: any = null;
+    if (enforced) {
+      let dbUser: any = null;
+      try { dbUser = await findUserByEmail(email); } catch (_) {}
+      const jsonUser = findJsonUser(email);
+      if (adminVerified) {
+        enforcedUser = dbUser ? toPublicUser(dbUser) : (jsonUser || { id: 'usr_admin_1', name: 'System Administrator', email, subscriptionPlan: 'nutrition-pro-annual', createdAt: new Date().toISOString() });
+      } else {
+        let ok = false;
+        if (dbUser && dbUser.password_hash) {
+          ok = verifyPasswordAgainst(String(dbUser.password_hash), password);
+        } else {
+          // Legacy account: accept the old stored password once, then keep only a hash.
+          const legacy = (jsonUser && jsonUser.password) || (dbUser && (dbUser as any).password) || '';
+          const legacyIsAdmin = (jsonUser && jsonUser.role === 'admin') || (dbUser && dbUser.role === 'admin');
+          if (legacy && !legacyIsAdmin && verifyPasswordAgainst(String(legacy), password)) {
+            ok = true;
+            try {
+              const h = hashPassword(password);
+              if (dbUser) await setPasswordHash(dbUser.id, h);
+              else {
+                const nid = (jsonUser && jsonUser.id) || ('usr_' + Date.now().toString(36));
+                await createUser({ id: nid, email, name: (jsonUser && jsonUser.name) || email.split('@')[0], role: 'user', plan: (jsonUser && (jsonUser.subscriptionPlan || jsonUser.subscription_plan)) || 'taster', passwordHash: h });
+                dbUser = await findUserByEmail(email);
+              }
+              writeJsonUsers(readJsonUsers());
+            } catch (e) { console.warn('[login] legacy password migration failed:', (e as any)?.message || e); }
+          }
+        }
+        if (!ok) {
+          recordLoginFailure(limiterKey);
+          return NextResponse.json({ success: false, error: 'Invalid email or password. If you have never set a password, ask the administrator to set one for you.' }, { status: 401 });
+        }
+        enforcedUser = dbUser ? toPublicUser(dbUser) : (jsonUser ? { ...jsonUser } : null);
+        if (!enforcedUser) {
+          recordLoginFailure(limiterKey);
+          return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
+        }
+      }
+    }
+
     const cwd = process.cwd();
     const paths = [
       path.join(cwd, 'apps/web/data/users.json'),
       path.join(cwd, 'data/users.json')
     ];
 
-    let foundUser: any = null;
-    for (const p of paths) {
+    let foundUser: any = enforcedUser;
+    for (const p of (enforced ? [] : paths)) {
       if (fs.existsSync(p)) {
         try {
           const list = JSON.parse(fs.readFileSync(p, 'utf-8'));
@@ -139,7 +183,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!foundUser) {
+    if (!foundUser && !enforced) {
       try {
         const dbLib = await import('@/lib/db').catch(() => null);
         if (dbLib && typeof dbLib.query === 'function') {
@@ -152,12 +196,6 @@ export async function POST(req: NextRequest) {
       } catch (_) {}
     }
 
-    if (enforced && foundUser && !adminVerified && foundUser.password) {
-      if (!verifyPasswordAgainst(String(foundUser.password), password)) {
-        recordLoginFailure(limiterKey);
-        return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
-      }
-    }
 
     if (!foundUser) {
       const isEmailAdmin = enforced ? adminVerified : (email.includes('admin') || email.startsWith('admin@'));
