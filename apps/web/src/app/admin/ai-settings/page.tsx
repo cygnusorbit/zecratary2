@@ -1619,9 +1619,6 @@ export default function ChefAISettingsPage() {
                     <span className="text-xl font-black" style={{ color: 'var(--color-text)' }}>
                       {totalRequests.toLocaleString()}
                     </span>
-                    <span className="text-[10px] font-bold flex items-center gap-0.5" style={{ color: 'var(--color-emerald)' }}>
-                      <TrendingUp className="h-3 w-3" /> +14.2%
-                    </span>
                   </div>
                   <span className="text-[10px] mt-1 block opacity-75" style={{ color: 'var(--color-text-secondary)' }}>
                     {t('requestsInWindow', 'Requests in selected window')}
@@ -1687,9 +1684,6 @@ export default function ChefAISettingsPage() {
                   <div className="flex items-baseline gap-2">
                     <span className="text-xl font-black" style={{ color: 'var(--color-text)' }}>
                       ${totalCostEstimate.toFixed(3)}
-                    </span>
-                    <span className="text-[10px] font-bold" style={{ color: 'var(--color-emerald)' }}>
-                      99.8% OK
                     </span>
                   </div>
                   <span className="text-[10px] mt-1 block opacity-75" style={{ color: 'var(--color-text-secondary)' }}>

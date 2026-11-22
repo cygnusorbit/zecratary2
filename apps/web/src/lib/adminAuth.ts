@@ -29,7 +29,7 @@ export function requireAdminSession(req: Request): NextResponse | null {
 const WRITE_EXEMPT = ['/api/admin/database'];
 // Admin-only data that has no public consumer.
 const READ_GUARDED = [
-  '/api/admin/users', '/api/admin/keys', '/api/admin/ai', '/api/admin/test-key', '/api/admin/models',
+  '/api/admin/users', '/api/admin/keys', '/api/admin/ai-settings', '/api/admin/ai', '/api/admin/test-key', '/api/admin/models',
   '/api/admin/notification-settings', '/api/admin/plugins', '/api/admin/scan', '/api/admin/crawl-index',
 ];
 
