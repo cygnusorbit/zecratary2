@@ -139,7 +139,11 @@ export async function POST(req: NextRequest) {
     const reqUserEmail = scoped.email || bodyUserEmail;
     const reqUserId = scoped.userId || bodyUserId;
     const pantryItems = pantryItemsBody || pantry;
-    const structured = Boolean(isQuestionnaireComplete);
+    // Plan / recipe requests typed in the chef chat are answered as a structured result too, so they follow the admin "Final Results Appearance" setting.
+    const chatText = String(prompt || '');
+    const chatPlanIntent = (body as any)?.source === 'chef'
+      && /(meal\s*plan|\bmenu\b|meal\s*prep|\b\d+\s*-?\s*days?\b|\bweek(ly)?\b|\bplan\b|\brecipes?\b|how (do|to|can) (i )?(cook|make|prepare)|what (should|can) i (cook|eat|make))/i.test(chatText);
+    const structured = Boolean(isQuestionnaireComplete) || chatPlanIntent;
 
     // AI Saved Recipe Grounding Scope
     let savedRecipesContext = '';
@@ -260,8 +264,11 @@ export async function POST(req: NextRequest) {
     const historyText = !structured && Array.isArray(history)
       ? history.slice(-6).map((m: any) => `${m?.role === 'assistant' ? 'Chef' : 'User'}: ${String(m?.content || '').slice(0, 1500)}`).join('\n')
       : '';
+    const structuredTask = isQuestionnaireComplete
+      ? `Create the final result for the "${topicTitle || 'Standard Wizard'}" questionnaire.\nQuestionnaire Q&A: ${JSON.stringify(questionnaireSummary || [])}`
+      : `${historyText ? `Conversation so far:\n${historyText}\n\n` : ''}User Request: ${chatText}`;
     const userPayload = structured
-      ? `Create the final result for the "${topicTitle || 'Standard Wizard'}" questionnaire.\nQuestionnaire Q&A: ${JSON.stringify(questionnaireSummary || [])}\nPreferences: ${JSON.stringify(preferences || {})}\nMaximum plan days: ${maxPlanDays}\nPreferred presentation mode: ${resultDisplayMode}\n\n${PLAN_SCHEMA_PROMPT}`
+      ? `${structuredTask}\nPreferences: ${JSON.stringify(preferences || {})}\nMaximum plan days: ${maxPlanDays}\nPreferred presentation mode: ${resultDisplayMode}\n\n${PLAN_SCHEMA_PROMPT}\nIf the request is for a single dish or recipe, return exactly one meal on dayIndex 1.`
       : `${historyText ? `Conversation so far:\n${historyText}\n\n` : ''}User Request: ${prompt || 'Create a balanced culinary recommendation.'}\nIntake Questionnaire Answers: ${JSON.stringify(answers || questionnaireAnswers || {})}\nPreferences: ${JSON.stringify(preferences || {})}`;
     const effectiveMaxTokens = structured ? Math.max(maxTokens, 8192) : maxTokens;
 
@@ -388,7 +395,7 @@ export async function POST(req: NextRequest) {
       recipeOut = normalizeRecipe(parsed?.recommendedRecipe, sv);
       if (parsed && typeof parsed.reply === 'string' && parsed.reply.trim()) replyText = parsed.reply.trim();
       else if (planOut) replyText = `Here is your ${planOut.title}.`;
-      else replyText = 'I could not format the plan this time. Please try again.';
+      else if (isQuestionnaireComplete || /^\s*[{\[]/.test(replyText)) replyText = 'I could not format the plan this time. Please try again.';
     }
 
     // 5. Server-Side Token Deduction (Resilient, 1-argument options contract)

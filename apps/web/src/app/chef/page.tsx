@@ -1515,9 +1515,13 @@ export default function ChefChatPage() {
         id: 'ast_' + Date.now(),
         role: 'assistant',
         content: data.reply || data.response || "Here are personalized culinary recommendations based on your preferences.",
+        plan: data.plan || undefined,
         recommendedRecipe: data.recommendedRecipe || data.recipe,
         systemRecommendations: data.systemRecommendations || []
       };
+
+      const chatMode = data?.appliedSettings?.resultDisplayMode || data?.resultDisplayMode;
+      if (data.plan && (chatMode === 'card' || chatMode === 'compact' || chatMode === 'detailed')) setResultDisplayMode(chatMode);
 
       updateMessages(prev => [...prev, astMsg]);
       if (enableVoiceInteraction && voiceAutoPlay) {
