@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getActiveDatabase } from '@/lib/dbConfig';
+
+// One active database at a time: only touch the engine the app is really using.
+const usePostgres = () => getActiveDatabase() === 'postgres';
 import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
 import fs from 'fs';
 import path from 'path';
@@ -81,7 +85,7 @@ async function loadAuthoritativeUsers(): Promise<any[]> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  if (supabaseUrl && supabaseKey) {
+  if (usePostgres() && supabaseUrl && supabaseKey) {
     try {
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(supabaseUrl, supabaseKey);
@@ -105,7 +109,7 @@ async function loadAuthoritativeUsers(): Promise<any[]> {
   // MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
-    if (mysqlModule && typeof mysqlModule.query === 'function') {
+    if (!usePostgres() && mysqlModule && typeof mysqlModule.query === 'function') {
       const rows: any = await mysqlModule.query('SELECT id, name, email, wallet_balance, balance FROM users LIMIT 150');
       if (Array.isArray(rows)) {
         for (const u of rows) {
@@ -241,7 +245,7 @@ export async function POST(req: NextRequest) {
       // Persist to Supabase PostgreSQL
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-      if (supabaseUrl && supabaseKey) {
+      if (usePostgres() && supabaseUrl && supabaseKey) {
         try {
           const { createClient } = await import('@supabase/supabase-js');
           const supabase = createClient(supabaseUrl, supabaseKey);
@@ -252,7 +256,7 @@ export async function POST(req: NextRequest) {
       // Persist to MySQL
       try {
         const mysqlModule = await import('@/lib/mysql').catch(() => null);
-        if (mysqlModule && typeof mysqlModule.query === 'function') {
+        if (!usePostgres() && mysqlModule && typeof mysqlModule.query === 'function') {
           await mysqlModule.query('UPDATE users SET wallet_balance = ?, balance = ?, updated_at = NOW() WHERE email = ?', [newBal, newBal, email]);
         }
       } catch (_) {}

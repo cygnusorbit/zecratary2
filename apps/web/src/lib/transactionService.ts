@@ -1,4 +1,8 @@
 import fs from 'fs';
+import { getActiveDatabase } from '@/lib/dbConfig';
+
+// One active database at a time: only touch the engine the app is really using.
+const usePostgres = () => getActiveDatabase() === 'postgres';
 import path from 'path';
 
 export interface WalletTransactionRecord {
@@ -104,7 +108,7 @@ export async function autoHarmonizeTransactionSchema(): Promise<void> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  if (supabaseUrl && supabaseKey) {
+  if (usePostgres() && supabaseUrl && supabaseKey) {
     try {
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(supabaseUrl, supabaseKey);
@@ -114,7 +118,7 @@ export async function autoHarmonizeTransactionSchema(): Promise<void> {
 
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
-    if (mysqlModule && typeof mysqlModule.query === 'function') {
+    if (!usePostgres() && mysqlModule && typeof mysqlModule.query === 'function') {
       await mysqlModule.query(`
         CREATE TABLE IF NOT EXISTS payment_transactions (
           id VARCHAR(255) PRIMARY KEY,
@@ -168,7 +172,7 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  if (supabaseUrl && supabaseKey) {
+  if (usePostgres() && supabaseUrl && supabaseKey) {
     try {
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(supabaseUrl, supabaseKey);
@@ -213,7 +217,7 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
   // 2. MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
-    if (mysqlModule && typeof mysqlModule.query === 'function') {
+    if (!usePostgres() && mysqlModule && typeof mysqlModule.query === 'function') {
       const rows: any = await mysqlModule.query(
         "SELECT * FROM payment_transactions ORDER BY created_at DESC LIMIT 300"
       );
@@ -301,7 +305,7 @@ export async function calculateAuthoritativeUserBalance(
   // Supabase PostgreSQL
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (supabaseUrl && supabaseKey) {
+  if (usePostgres() && supabaseUrl && supabaseKey) {
     try {
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(supabaseUrl, supabaseKey);
@@ -316,7 +320,7 @@ export async function calculateAuthoritativeUserBalance(
   // MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
-    if (mysqlModule && typeof mysqlModule.query === 'function') {
+    if (!usePostgres() && mysqlModule && typeof mysqlModule.query === 'function') {
       const rows: any = await mysqlModule.query("SELECT wallet_balance, balance FROM users WHERE email = ? OR id = ? LIMIT 1", [normEmail, userId]);
       if (Array.isArray(rows) && rows.length > 0) {
         const val = Number(rows[0].wallet_balance ?? rows[0].balance ?? defaultBal);
@@ -353,7 +357,7 @@ export async function recordAuthoritativeTransaction(tx: WalletTransactionRecord
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  if (supabaseUrl && supabaseKey) {
+  if (usePostgres() && supabaseUrl && supabaseKey) {
     try {
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(supabaseUrl, supabaseKey);
@@ -388,7 +392,7 @@ export async function recordAuthoritativeTransaction(tx: WalletTransactionRecord
   // MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
-    if (mysqlModule && typeof mysqlModule.query === 'function') {
+    if (!usePostgres() && mysqlModule && typeof mysqlModule.query === 'function') {
       await mysqlModule.query(
         `INSERT INTO payment_transactions 
          (id, user_id, email, customer_email, customer_name, plan_name, amount, balance_after, currency, type, gateway, status, description, transfer_reference, confirmed_at, confirmed_amount, failure_reason, notes, test_mode, created_at)
@@ -441,7 +445,7 @@ export async function deleteAuthoritativeTransactions(ids: string[]): Promise<bo
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  if (supabaseUrl && supabaseKey) {
+  if (usePostgres() && supabaseUrl && supabaseKey) {
     try {
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(supabaseUrl, supabaseKey);
@@ -452,7 +456,7 @@ export async function deleteAuthoritativeTransactions(ids: string[]): Promise<bo
   // 3. MySQL
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
-    if (mysqlModule && typeof mysqlModule.query === 'function') {
+    if (!usePostgres() && mysqlModule && typeof mysqlModule.query === 'function') {
       const placeholders = ids.map(() => '?').join(',');
       await mysqlModule.query(
         `DELETE FROM payment_transactions WHERE id IN (${placeholders})`,
@@ -469,7 +473,7 @@ export async function deleteAllAuthoritativeTransactions(): Promise<boolean> {
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (supabaseUrl && supabaseKey) {
+  if (usePostgres() && supabaseUrl && supabaseKey) {
     try {
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(supabaseUrl, supabaseKey);
@@ -479,7 +483,7 @@ export async function deleteAllAuthoritativeTransactions(): Promise<boolean> {
 
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
-    if (mysqlModule && typeof mysqlModule.query === 'function') {
+    if (!usePostgres() && mysqlModule && typeof mysqlModule.query === 'function') {
       await mysqlModule.query("TRUNCATE TABLE payment_transactions");
     }
   } catch (_) {}
