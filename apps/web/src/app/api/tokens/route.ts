@@ -1,3 +1,5 @@
+import { scopeToSession } from '@/lib/requestUser';
+import { isAuthEnforced as isAuthEnforcedNow } from '@/lib/session';
 import { NextRequest, NextResponse } from 'next/server';
 import { getActiveDatabase } from '@/lib/dbConfig';
 import { query as dbQuery } from '@/lib/db';
@@ -90,8 +92,10 @@ export async function OPTIONS() {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const userId = searchParams.get('userId') || 'usr_admin_1';
-    const email = (searchParams.get('email') || 'admin@zecratary.com').toLowerCase().trim();
+    const scoped = scopeToSession(req, { email: searchParams.get('email') || 'admin@zecratary.com', userId: searchParams.get('userId') || 'usr_admin_1' });
+    if (scoped.error) return scoped.error;
+    const userId = scoped.userId;
+    const email = scoped.email;
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const limit = Math.max(1, parseInt(searchParams.get('limit') || '10', 10));
     const searchQuery = (searchParams.get('search') || '').toLowerCase().trim();
@@ -217,12 +221,15 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const action = body.action || 'purchase';
-    const userId = body.userId || 'usr_admin_1';
-    const userEmail = (body.userEmail || 'admin@zecratary.com').toLowerCase().trim();
+    const scoped = scopeToSession(req, { email: body.userEmail || 'admin@zecratary.com', userId: body.userId || 'usr_admin_1' });
+    if (scoped.error) return scoped.error;
+    const userId = scoped.userId;
+    const userEmail = scoped.email;
 
     const allTxs = readTokenTransactions();
 
     if (action === 'purchase') {
+      if (isAuthEnforcedNow() && !scoped.isAdmin) return NextResponse.json({ success: false, error: 'Payments are not enabled yet. Please contact the administrator.' }, { status: 403 });
       const tokens = Number(body.tokens || body.tokenAmount || 0);
       const price = Number(body.price || body.priceDollars || 0);
       const pkgName = body.packageName || 'Token Bundle';

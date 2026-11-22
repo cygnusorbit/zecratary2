@@ -21,10 +21,14 @@ async function align(dialect: string): Promise<void> {
     );
     return;
   }
+  const ts = dialect === 'mysql' ? 'DATETIME DEFAULT CURRENT_TIMESTAMP' : 'TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP';
   const add: Array<[string, string]> = [
-    ['password_hash', 'TEXT'],
-    ['subscription_plan', 'VARCHAR(100)'],
+    ['email', 'VARCHAR(255)'],
     ['name', 'VARCHAR(255)'],
+    ['role', "VARCHAR(50) DEFAULT 'user'"],
+    ['subscription_plan', 'VARCHAR(100)'],
+    ['password_hash', 'TEXT'],
+    ['created_at', ts],
   ];
   for (const [name, type] of add) {
     if (cols.has(name)) continue;

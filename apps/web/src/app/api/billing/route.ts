@@ -1,3 +1,5 @@
+import { scopeToSession } from '@/lib/requestUser';
+import { isAuthEnforced as isAuthEnforcedNow } from '@/lib/session';
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
@@ -76,8 +78,10 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const emailParam = searchParams.get('email');
-    const userIdParam = searchParams.get('userId');
+    const scopedGet = scopeToSession(req, { email: searchParams.get('email'), userId: searchParams.get('userId') });
+    if (scopedGet.error) return scopedGet.error;
+    const emailParam = scopedGet.email || null;
+    const userIdParam = scopedGet.userId || null;
 
     let cleanEmail = (emailParam || '').toLowerCase().trim();
 
@@ -186,8 +190,10 @@ export async function POST(req: NextRequest) {
     }
 
     const action = body.action || 'change_plan';
-    const email = (body.email || body.userEmail || '').toLowerCase().trim();
-    const userId = body.userId || '';
+    const scopedPost = scopeToSession(req, { email: body.email || body.userEmail, userId: body.userId });
+    if (scopedPost.error) return scopedPost.error;
+    const email = scopedPost.email;
+    const userId = scopedPost.userId;
 
     if (!email && !userId) {
       return NextResponse.json({ success: false, error: 'Customer email or userId is required.' }, {
@@ -221,6 +227,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Plan Change / Upgrade Actions (Supporting Wallet, Stripe, PayPal, and Manual Wire)
     if (action === 'change_plan' || action === 'upgrade_plan' || action === 'switch_plan') {
+      if (isAuthEnforcedNow() && !scopedPost.isAdmin) return NextResponse.json({ success: false, error: 'Payments are not enabled yet. Please contact the administrator.' }, { status: 403 });
       const rawPlanSlug = String(body.planSlug || 'taster').toLowerCase().trim();
       const planSlug = rawPlanSlug.replace(/[^a-z0-9-]+/g, '-');
       const planName = body.planName || 'Plan';

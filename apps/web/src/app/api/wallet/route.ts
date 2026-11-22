@@ -1,3 +1,5 @@
+import { scopeToSession } from '@/lib/requestUser';
+import { isAuthEnforced as isAuthEnforcedNow } from '@/lib/session';
 import { NextRequest, NextResponse } from 'next/server';
 import { getActiveDatabase } from '@/lib/dbConfig';
 
@@ -68,8 +70,10 @@ export async function GET(req: NextRequest) {
     autoHarmonizeTransactionSchema().catch(() => {});
 
     const { searchParams } = new URL(req.url);
-    const email = searchParams.get('email') || 'admin@zecratary.com';
-    const userId = searchParams.get('userId') || 'usr_admin_1';
+    const scoped = scopeToSession(req, { email: searchParams.get('email') || 'admin@zecratary.com', userId: searchParams.get('userId') || 'usr_admin_1' });
+    if (scoped.error) return scoped.error;
+    const email = scoped.email;
+    const userId = scoped.userId;
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const limit = Math.max(1, parseInt(searchParams.get('limit') || '10', 10));
     const search = (searchParams.get('search') || '').toLowerCase().trim();
@@ -174,8 +178,10 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const action = body.action || 'topup';
-    const userId = body.userId || 'usr_admin_1';
-    const email = body.email || 'admin@zecratary.com';
+    const scoped = scopeToSession(req, { email: body.email || 'admin@zecratary.com', userId: body.userId || 'usr_admin_1' });
+    if (scoped.error) return scoped.error;
+    const userId = scoped.userId;
+    const email = scoped.email;
 
     if (action === 'reconcile_wallet') {
       const liveBal = await calculateAuthoritativeUserBalance(userId, email, 150.00);
@@ -196,6 +202,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'topup') {
+      if (isAuthEnforcedNow() && !scoped.isAdmin) return NextResponse.json({ success: false, error: 'Payments are not enabled yet. Please contact the administrator.' }, { status: 403, headers: CORS_HEADERS });
       const amount = Number(body.amount || 0);
       const bonus = Number(body.bonus || 0);
       const totalCredited = amount + bonus;
