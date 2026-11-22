@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  SESSION_COOKIE, isAuthEnforced, signSession, sessionCookieOptions, isAdminEmail,
+  verifyAdminPassword, verifyPasswordAgainst, isLoginBlocked, recordLoginFailure, clearLoginFailures
+} from '@/lib/session';
 import fs from 'fs';
 import path from 'path';
 
@@ -96,6 +100,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Email and password required' }, { status: 400 });
     }
 
+    const enforced = isAuthEnforced();
+    const ip = (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'unknown';
+    const limiterKey = ip + ':' + email;
+    let adminVerified = false;
+    if (enforced) {
+      if (isLoginBlocked(limiterKey)) {
+        return NextResponse.json({ success: false, error: 'Too many attempts. Try again in 15 minutes.' }, { status: 429 });
+      }
+      if (isAdminEmail(email)) {
+        if (!verifyAdminPassword(password)) {
+          recordLoginFailure(limiterKey);
+          return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
+        }
+        adminVerified = true;
+      }
+    }
+
     const cwd = process.cwd();
     const paths = [
       path.join(cwd, 'apps/web/data/users.json'),
@@ -131,8 +152,15 @@ export async function POST(req: NextRequest) {
       } catch (_) {}
     }
 
+    if (enforced && foundUser && !adminVerified && foundUser.password) {
+      if (!verifyPasswordAgainst(String(foundUser.password), password)) {
+        recordLoginFailure(limiterKey);
+        return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
+      }
+    }
+
     if (!foundUser) {
-      const isEmailAdmin = email.includes('admin') || email.startsWith('admin@');
+      const isEmailAdmin = enforced ? adminVerified : (email.includes('admin') || email.startsWith('admin@'));
       foundUser = {
         id: `usr_${Date.now()}`,
         name: email.split('@')[0],
@@ -142,6 +170,16 @@ export async function POST(req: NextRequest) {
         createdAt: new Date().toISOString()
       };
     }
+
+    if (enforced) {
+      // Only the verified env admin can be an admin; nobody is promoted because of their email text or a database flag.
+      foundUser = { ...foundUser, role: adminVerified ? 'admin' : 'user' };
+    }
+    // Never send password material to the browser.
+    foundUser = { ...foundUser };
+    delete foundUser.password;
+    delete foundUser.password_hash;
+    clearLoginFailures(limiterKey);
 
     await recordDatabaseLogin(email, foundUser.id);
 
@@ -161,6 +199,11 @@ export async function POST(req: NextRequest) {
         sameSite: 'lax',
         maxAge: 86400 * 7
       });
+    }
+
+    if (enforced) {
+      const sid = signSession({ id: foundUser.id, email, role: foundUser.role === 'admin' ? 'admin' : 'user' });
+      if (sid) response.cookies.set(SESSION_COOKIE, sid, sessionCookieOptions());
     }
 
     return response;

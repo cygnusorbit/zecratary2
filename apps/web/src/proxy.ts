@@ -1,7 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/middleware";
+import { guardAdminApi } from "@/lib/adminAuth";
 
 export async function proxy(request: NextRequest) {
+  const denied = guardAdminApi(request);
+  if (denied) return denied;
   try {
     return createClient(request);
   } catch (err) {

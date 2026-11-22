@@ -341,6 +341,7 @@ function LoginForm() {
 
     try {
       let resolvedUser = null;
+      let serverRejected = false;
 
       // 1. First attempt fast server-side database login (/api/auth/login)
       try {
@@ -354,11 +355,13 @@ function LoginForm() {
           if (authData?.success && authData?.user) {
             resolvedUser = authData.user;
           }
+        } else if (authRes.status === 401 || authRes.status === 429) {
+          serverRejected = true;
         }
       } catch (_) {}
 
-      // 2. Seamless fallback to @/lib/auth loginUser
-      if (!resolvedUser) {
+      // 2. Seamless fallback to @/lib/auth loginUser (only when the server could not be reached)
+      if (!resolvedUser && !serverRejected) {
         resolvedUser = await Promise.resolve(loginUser(cleanEmail, password));
       }
 

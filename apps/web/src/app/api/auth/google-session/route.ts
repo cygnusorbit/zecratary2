@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isAuthEnforced } from '@/lib/session';
 import fs from 'fs';
 import path from 'path';
 
@@ -135,7 +136,7 @@ export async function POST(req: NextRequest) {
     const picture = profile.picture || '';
     const googleId = profile.sub || profile.id || Date.now().toString();
 
-    const isEmailAdmin = email.includes('admin') || email === 'cygnusorbit@gmail.com' || email.startsWith('admin@');
+    const isEmailAdmin = isAuthEnforced() ? false : (email.includes('admin') || email === 'cygnusorbit@gmail.com' || email.startsWith('admin@'));
 
     const candidateUser = {
       id: `usr_g_${googleId}`,

@@ -27,7 +27,8 @@ export async function POST() {
     'zecratary_auth_session',
     'currentUser',
     'user',
-    'token'
+    'token',
+    'zecratary_sid'
   ];
 
   cookieKeys.forEach(k => {
