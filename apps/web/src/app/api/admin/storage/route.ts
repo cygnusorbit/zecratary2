@@ -3,6 +3,8 @@ import { secureJson, restoreMaskedSecrets } from '@/lib/secretRedaction';
 import { query } from '@/lib/db';
 import fs from 'fs';
 import path from 'path';
+import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
+import { stripSecretsDeep } from '@/lib/secretVault';
 
 
 // Module-scoped type-safe database row extractors (unexported to prevent Next.js TS2344)
@@ -122,17 +124,9 @@ export async function GET() {
   let settings: any = readServerStorageFallback();
 
   try {
-    const sRes: any = await Promise.race([
-      query(`SELECT storage_settings FROM admin_settings WHERE id = 'primary_settings' OR id = '1' LIMIT 1`),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('DB Timeout')), 3000))
-    ]).catch(() => null);
-
-    const sRow = parseDbRow(sRes);
-    if (sRow?.storage_settings) {
-      const parsed = typeof sRow.storage_settings === 'string' ? JSON.parse(sRow.storage_settings) : sRow.storage_settings;
-      if (parsed && typeof parsed === 'object') {
-        settings = { ...(settings || {}), ...parsed };
-      }
+    const stored = await getJsonSetting<any>('storage_settings');
+    if (stored && typeof stored === 'object') {
+      settings = { ...(settings || {}), ...stored };
     }
   } catch (err: any) {
     console.warn('[Storage API] Handled fallback to server JSON store:', err?.message || err);
@@ -152,7 +146,7 @@ export async function GET() {
       enabled: false,
       endpoint: 'https://tnhrkjtujdfgvwhsuuxb.storage.supabase.co/storage/v1/s3',
       region: 'us-west-1',
-      accessKeyId: 'f3e0affef5c74972a535153349eb24cc',
+      accessKeyId: '',
       secretAccessKey: '',
       bucket: 'recipes',
       bucketName: 'recipes',
@@ -247,25 +241,9 @@ export async function POST(req: Request) {
 
     const jsonStr = JSON.stringify(normalizedSettings);
 
-    // Dual-dialect database persistence
+    // Database persistence (secrets are encrypted by the settings store)
     try {
-      await query(
-        `INSERT INTO admin_settings (id, storage_settings, updated_at)
-         VALUES ('primary_settings', $1::jsonb, NOW())
-         ON CONFLICT (id) DO UPDATE SET
-           storage_settings = EXCLUDED.storage_settings,
-           updated_at = NOW()`,
-        [jsonStr]
-      ).catch(async () => {
-        return await query(
-          `INSERT INTO admin_settings (id, storage_settings, updated_at)
-           VALUES ('primary_settings', ?, NOW())
-           ON DUPLICATE KEY UPDATE
-             storage_settings = VALUES(storage_settings),
-             updated_at = NOW()`,
-          [jsonStr]
-        );
-      });
+      await setJsonSetting('storage_settings', normalizedSettings, 'storage');
     } catch (dbErr: any) {
       console.warn('[Storage API] Database warning during save:', dbErr?.message || dbErr);
     }
@@ -280,7 +258,7 @@ export async function POST(req: Request) {
         if (fs.existsSync(fPath)) {
           try { existing = JSON.parse(fs.readFileSync(fPath, 'utf8')); } catch (_) {}
         }
-        existing.storageSettings = normalizedSettings;
+        existing.storageSettings = stripSecretsDeep(normalizedSettings);
         existing.updatedAt = new Date().toISOString();
         fs.writeFileSync(fPath, JSON.stringify(existing, null, 2), 'utf8');
       } catch (_) {}

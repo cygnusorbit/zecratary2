@@ -5,6 +5,8 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { query } from '@/lib/db';
+import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
+import { stripSecretsDeep } from '@/lib/secretVault';
 
 export interface StorageConfig {
   provider: 'localhost' | 'supabase';
@@ -102,14 +104,10 @@ export function getCanonicalRecipesDir(): string {
 export const getRecipesDir = getCanonicalRecipesDir;
 
 export async function getStorageSettings(): Promise<StorageConfig> {
-  // 1. Try PostgreSQL & MySQL DB
+  // 1. Database (decrypted by the settings store)
   try {
-    const res: any = await query('SELECT storage_settings FROM admin_settings WHERE id = $1;', ['primary_settings']);
-    const row = Array.isArray(res) ? res[0] : res?.rows?.[0];
-    if (row && row.storage_settings) {
-      const parsed = typeof row.storage_settings === 'string'
-        ? JSON.parse(row.storage_settings)
-        : row.storage_settings;
+    const parsed: any = await getJsonSetting<any>('storage_settings');
+    if (parsed && typeof parsed === 'object') {
       memoryStorageConfig = {
         ...DEFAULT_STORAGE_CONFIG,
         ...parsed,
@@ -156,15 +154,9 @@ export async function saveStorageSettings(config: Partial<StorageConfig>): Promi
 
   memoryStorageConfig = merged;
 
-  // 1. PostgreSQL & MySQL Persistence
+  // 1. Database (secrets are encrypted by the settings store)
   try {
-    await query(`
-      INSERT INTO admin_settings (id, storage_settings, updated_at)
-      VALUES ('primary_settings', $1::jsonb, NOW())
-      ON CONFLICT (id) DO UPDATE SET
-        storage_settings = EXCLUDED.storage_settings,
-        updated_at = NOW();
-    `, [JSON.stringify(merged)]);
+    await setJsonSetting('storage_settings', merged, 'storage');
   } catch (err: any) {
     console.warn('[StorageService] DB commit notice:', err.message);
   }
@@ -182,7 +174,7 @@ export async function saveStorageSettings(config: Partial<StorageConfig>): Promi
       if (fs.existsSync(jp)) {
         try { existing = JSON.parse(fs.readFileSync(jp, 'utf8')); } catch (_) {}
       }
-      existing.storage_settings = merged;
+      existing.storage_settings = stripSecretsDeep(merged);
       fs.writeFileSync(jp, JSON.stringify(existing, null, 2), 'utf8');
     } catch (_) {}
   }
