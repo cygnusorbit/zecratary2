@@ -42,7 +42,17 @@ export async function getStoredChefApiKey(provider: string): Promise<string> {
   const settings = await getServerAdminSettings();
   const chef = settings?.chefAiSettings || settings?.chef_ai_settings || {};
   const key = typeof chef.apiKey === 'string' ? chef.apiKey.trim() : '';
-  if (!key || isMasked(key)) return '';
   const chefProvider = String(chef.provider || settings?.aiProvider || 'gemini').toLowerCase();
-  return chefProvider === String(provider || 'gemini').toLowerCase() ? key : '';
+  const want = String(provider || 'gemini').toLowerCase();
+  if (key && !isMasked(key) && chefProvider === want) return key;
+
+  // Fall back to the key saved through the keys endpoint (survives restarts).
+  try {
+    const { getJsonSetting } = await import('@/lib/adminSettingsStore');
+    const book: any = await getJsonSetting('ai_api_keys');
+    const name = want === 'openai' ? 'OPENAI_API_KEY' : want === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'GEMINI_API_KEY';
+    const v = book && book[name] && typeof book[name].value === 'string' ? book[name].value.trim() : '';
+    if (v && !isMasked(v)) return v;
+  } catch (_) {}
+  return '';
 }

@@ -1,239 +1,109 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
+import { maskSecret, isMasked } from '@/lib/adminGuard';
 
-
-// Module-scoped type-safe database row extractors (unexported to prevent Next.js TS2344)
-function parseDbRows<T = any>(res: any): T[] {
-  if (!res) return [];
-  if (Array.isArray(res)) return res;
-  if (typeof res === 'object' && Array.isArray((res as any).rows)) return (res as any).rows;
-  return [];
-}
-
-function parseDbRow<T = any>(res: any): T | null {
-  const rows = parseDbRows<T>(res);
-  return rows.length > 0 ? rows[0] : null;
-}
-
-
+// AI provider keys for the admin AI page.
+// - Admin-only (guarded in proxy via lib/adminAuth, reads included).
+// - Only a fixed list of AI key names is ever read or written. Other environment values (database URLs, session secret, ...) are never touched.
+// - The browser only ever receives masked values; the real value stays on the server.
 export const dynamic = 'force-dynamic';
 
-let cachedPool: any = null;
+const STORE_KEY = 'ai_api_keys';
+const ALLOWED = ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY'];
 
-async function getPostgresPool() {
-  if (cachedPool) return cachedPool;
-  const connStr = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL;
-  if (!connStr) return null;
+interface StoredKey { name?: string; provider?: string; value: string; status?: string; updatedAt?: string }
+type KeyBook = Record<string, StoredKey>;
+
+async function loadBook(): Promise<KeyBook> {
+  try { return (await getJsonSetting<KeyBook>(STORE_KEY)) || {}; } catch (_) { return {}; }
+}
+
+export async function OPTIONS() { return new NextResponse(null, { status: 204 }); }
+
+export async function GET() {
   try {
-    // @ts-ignore - pg declaration handled via custom d.ts
+    const book = await loadBook();
+    const envMap: Record<string, string> = {};
+    const keys: any[] = [];
 
-    const { Pool } = await import('pg');
-    const requiresSsl = connStr.includes('sslmode=require') || 
-                        connStr.includes('neon.tech') || 
-                        connStr.includes('supabase.co') || 
-                        process.env.NODE_ENV === 'production';
-    cachedPool = new Pool({
-      connectionString: connStr,
-      ssl: requiresSsl ? { rejectUnauthorized: false } : false
-    });
-    return cachedPool;
-  } catch (err) {
-    return null;
+    for (const name of ALLOWED) {
+      const fromEnv = (process.env[name] || '').trim();
+      const stored = book[name];
+      const value = (stored && stored.value) || fromEnv;
+      if (value) envMap[name] = maskSecret(value);
+      if (stored && stored.value) {
+        keys.push({
+          id: name,
+          name: stored.name || name,
+          provider: stored.provider || (name.includes('OPENAI') ? 'openai' : name.includes('ANTHROPIC') ? 'anthropic' : 'gemini'),
+          envKey: name,
+          keyValue: maskSecret(stored.value),
+          status: stored.status || 'active',
+        });
+      }
+    }
+    return NextResponse.json({ success: true, keys, envMap }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err?.message || 'Failed to load keys' }, { status: 500 });
   }
 }
 
-async function initPostgresTables(pool: any) {
-  if (!pool) return;
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS admin_api_keys (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255),
-        provider VARCHAR(100),
-        env_key VARCHAR(100) UNIQUE,
-        key_value TEXT,
-        status VARCHAR(50) DEFAULT 'active',
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-  } catch (_) {}
-}
-
-function getEnvFilePaths(): string[] {
-  const cwd = process.cwd();
-  const candidates = [
-    path.join(cwd, '.env'),
-    path.join(cwd, '.env.local'),
-    path.join(cwd, 'apps', 'web', '.env'),
-    path.join(cwd, 'apps', 'web', '.env.local'),
-    path.resolve(cwd, '..', '.env'),
-    path.resolve(cwd, '..', '.env.local')
-  ];
-  const existing = candidates.filter(p => fs.existsSync(p));
-  return existing.length > 0 ? Array.from(new Set(existing)) : [path.join(cwd, '.env')];
-}
-
-function parseEnvFile(filePath: string): Record<string, string> {
-  const map: Record<string, string> = {};
-  if (!fs.existsSync(filePath)) return map;
-  try {
-    const lines = fs.readFileSync(filePath, 'utf-8').split(/\r?\n/);
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) continue;
-      const idx = trimmed.indexOf('=');
-      if (idx > 0) {
-        const k = trimmed.substring(0, idx).trim();
-        let v = trimmed.substring(idx + 1).trim();
-        if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
-          v = v.slice(1, -1);
-        }
-        map[k] = v;
-      }
-    }
-  } catch (_) {}
-  return map;
-}
-
-function updateEnvFile(filePath: string, key: string, value: string) {
+function updateLocalEnvFile(filePath: string, key: string, value: string) {
   let content = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : '';
   const regex = new RegExp(`^${key}=.*$`, 'm');
-  const safeVal = value.includes(' ') || value.includes('#') ? `"${value}"` : value;
-
-  if (regex.test(content)) {
-    content = content.replace(regex, `${key}=${safeVal}`);
-  } else {
+  const line = `${key}='${value}'`;
+  if (regex.test(content)) content = content.replace(regex, line);
+  else {
     if (content.length > 0 && !content.endsWith('\n')) content += '\n';
-    content += `${key}=${safeVal}\n`;
+    content += line + '\n';
   }
   fs.writeFileSync(filePath, content, 'utf-8');
 }
 
-export async function GET() {
-  try {
-    const envMap: Record<string, string> = {};
-    const envPaths = getEnvFilePaths();
-    for (const ep of envPaths) {
-      Object.assign(envMap, parseEnvFile(ep));
-    }
-
-    ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'OPENAI_API_KEY'].forEach(k => {
-      if (process.env[k] && !envMap[k]) envMap[k] = process.env[k]!;
-    });
-
-    const pool = await getPostgresPool();
-    const dbKeys: any[] = [];
-    if (pool) {
-      await initPostgresTables(pool);
-      const res = await pool.query('SELECT * FROM admin_api_keys ORDER BY updated_at DESC;');
-      for (const row of res.rows) {
-        dbKeys.push({
-          id: row.id,
-          name: row.name,
-          provider: row.provider,
-          envKey: row.env_key,
-          keyValue: row.key_value,
-          status: row.status
-        });
-        if (row.env_key && row.key_value) envMap[row.env_key] = row.key_value;
-      }
-    }
-
-    return NextResponse.json({ success: true, keys: dbKeys, envMap });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
-  }
-}
-
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { name, provider, envKey, keyValue, model, status } = body;
+    const body = await req.json().catch(() => ({}));
+    const provider = String(body.provider || 'gemini');
+    const envKey = String(body.envKey || (provider === 'gemini' ? 'GEMINI_API_KEY' : provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY')).trim();
+    const value = String(body.keyValue || '').trim();
 
-    const keyToSave = (envKey || (provider === 'gemini' ? 'GEMINI_API_KEY' : 'OPENAI_API_KEY')).trim();
-    const valToSave = (keyValue || '').trim();
-
-    if (!keyToSave) {
-      return NextResponse.json({ success: false, error: 'Target environment key is required.' }, { status: 400 });
+    if (!ALLOWED.includes(envKey)) {
+      return NextResponse.json({ success: false, error: 'That key name is not allowed.' }, { status: 400 });
+    }
+    // A masked value means "unchanged": nothing to save.
+    if (!value || isMasked(value)) {
+      return NextResponse.json({ success: true, message: 'Key unchanged.' });
+    }
+    if (value.length < 10 || value.length > 500 || /[\r\n']/.test(value)) {
+      return NextResponse.json({ success: false, error: 'That does not look like a valid API key.' }, { status: 400 });
     }
 
-    for (const ep of getEnvFilePaths()) {
-      try { updateEnvFile(ep, keyToSave, valToSave); } catch (_) {}
+    const book = await loadBook();
+    book[envKey] = {
+      name: body.name || book[envKey]?.name || envKey,
+      provider,
+      value,
+      status: body.status || 'active',
+      updatedAt: new Date().toISOString(),
+    };
+    if (envKey === 'GEMINI_API_KEY') book['GOOGLE_API_KEY'] = { ...book[envKey] };
+    await setJsonSetting(STORE_KEY, book, 'ai');
+
+    // Make it take effect immediately for this running server.
+    process.env[envKey] = value;
+    if (envKey === 'GEMINI_API_KEY') process.env['GOOGLE_API_KEY'] = value;
+
+    // Local development only: also keep the dev .env.local in step. Production uses the hosting panel's variables.
+    if (process.env.NODE_ENV !== 'production') {
+      const cwd = process.cwd();
+      const target = fs.existsSync(path.join(cwd, 'apps', 'web')) ? path.join(cwd, 'apps', 'web', '.env.local') : path.join(cwd, '.env.local');
+      try { updateLocalEnvFile(target, envKey, value); } catch (_) {}
     }
 
-    process.env[keyToSave] = valToSave;
-    if (keyToSave === 'GEMINI_API_KEY') process.env['GOOGLE_API_KEY'] = valToSave;
-
-    const pool = await getPostgresPool();
-    if (pool) {
-      await initPostgresTables(pool);
-      await pool.query(
-        `INSERT INTO admin_api_keys (name, provider, env_key, key_value, status, updated_at)
-         VALUES ($1, $2, $3, $4, $5, NOW())
-         ON CONFLICT (env_key)
-         DO UPDATE SET
-           key_value = EXCLUDED.key_value,
-           name = COALESCE(EXCLUDED.name, admin_api_keys.name),
-           provider = COALESCE(EXCLUDED.provider, admin_api_keys.provider),
-           status = COALESCE(EXCLUDED.status, admin_api_keys.status),
-           updated_at = NOW();`,
-        [
-          name || (provider === 'gemini' ? 'Google Gemini Production' : 'OpenAI GPT-4o'),
-          provider || 'gemini',
-          keyToSave,
-          valToSave,
-          status || 'active'
-        ]
-      );
-
-      // Preserve model identifier during key synchronization
-      try {
-        const settingsRes = await pool.query('SELECT * FROM admin_settings LIMIT 1;');
-        if (settingsRes.rows && settingsRes.rows.length > 0) {
-          const row = settingsRes.rows[0];
-          let val = row.value || {};
-          if (typeof val === 'string') {
-            try { val = JSON.parse(val); } catch (_) { val = {}; }
-          }
-          if (!val.chefAiSettings) val.chefAiSettings = {};
-          val.chefAiSettings.apiKey = valToSave;
-          val.chefAiSettings.provider = provider || val.chefAiSettings.provider || 'gemini';
-
-          const resolvedModel = model || row.ai_model || val.chefAiSettings.model || val.aiModel;
-          if (resolvedModel) {
-            val.chefAiSettings.model = resolvedModel;
-            val.aiModel = resolvedModel;
-          }
-
-          let chefAi = row.chef_ai_settings || {};
-          if (typeof chefAi === 'string') {
-            try { chefAi = JSON.parse(chefAi); } catch (_) { chefAi = {}; }
-          }
-          chefAi.apiKey = valToSave;
-          chefAi.provider = provider || chefAi.provider || 'gemini';
-          if (resolvedModel) chefAi.model = resolvedModel;
-
-          await pool.query(
-            `UPDATE admin_settings 
-             SET value = $1::jsonb, 
-                 chef_ai_settings = $2::jsonb,
-                 ai_model = COALESCE($3, ai_model),
-                 ai_provider = COALESCE($4, ai_provider),
-                 updated_at = NOW() 
-             WHERE id = $5;`,
-            [JSON.stringify(val), JSON.stringify(chefAi), resolvedModel || null, provider || null, row.id]
-          );
-        }
-      } catch (_) {}
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: `Key saved to local .env and synchronized (${keyToSave})`
-    });
+    return NextResponse.json({ success: true, message: `Key saved (${envKey}).` });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: err?.message || 'Save failed' }, { status: 500 });
   }
 }
