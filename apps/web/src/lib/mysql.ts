@@ -12,7 +12,7 @@ export function getMysqlUri(): string | null {
 export function parseMysqlConfig(uriString: string) {
   try {
     const trimmed = (uriString || '').trim();
-    const match = trimmed.match(/^mysql:\/\/([^:]+):(.*)@([^@:\/]+)(?::(\d+))?\/([^?]+)(?:\?(.*))?$/);
+    const match = trimmed.match(/^mysql:\/\/([^:@]+)(?::(.*))?@([^@:\/]+)(?::(\d+))?\/([^?]+)(?:\?(.*))?$/);
     if (match) {
       return {
         user: decodeURIComponent(match[1]),

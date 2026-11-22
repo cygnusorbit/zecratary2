@@ -6,6 +6,8 @@ declare const __non_webpack_require__: any;
 
 import { Pool } from 'pg';
 import type { PoolConfig } from 'pg';
+import { getActiveDatabase } from '@/lib/dbConfig';
+import { parseMysqlConfig } from '@/lib/mysql';
 
 export type DatabaseDialect = 'postgres' | 'mysql';
 
@@ -23,15 +25,7 @@ declare global {
 }
 
 export function getDatabaseDialect(): DatabaseDialect {
-  const explicit = (process.env.DATABASE_TYPE || '').toLowerCase().trim();
-  if (explicit === 'mysql') return 'mysql';
-  if (explicit === 'postgres' || explicit === 'postgresql') return 'postgres';
-
-  const url = process.env.MYSQL_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
-  if (url.startsWith('mysql://') || (Boolean(process.env.MYSQL_URL) && !url.startsWith('postgres'))) {
-    return 'mysql';
-  }
-  return 'postgres';
+  return getActiveDatabase();
 }
 
 export function isPostgres(): boolean {
@@ -152,6 +146,21 @@ export function getDbPool(): any {
   return p;
 }
 
+// mysql2 parses string URLs with new URL(), which throws "Invalid URL" when the
+// password contains '#', '@' or similar. Parse the segments explicitly instead.
+function mysqlConnectionTarget(connStr: string): any {
+  const parsed = parseMysqlConfig(connStr);
+  if (!parsed) return connStr;
+  return {
+    host: parsed.host,
+    port: parsed.port,
+    user: parsed.user,
+    password: parsed.password,
+    database: parsed.database,
+    connectTimeout: 8000,
+  };
+}
+
 export function formatQueryForDialect(sql: string, dialect?: DatabaseDialect): string {
   const d = dialect || getDatabaseDialect();
   if (d === 'postgres') return sql;
@@ -221,7 +230,7 @@ export async function query<T = any>(sql: string, params: any[] = []): Promise<T
         return [] as T[];
       }
 
-      const connection = await mysqlModule.createConnection(connStr);
+      const connection = await mysqlModule.createConnection(mysqlConnectionTarget(connStr));
       try {
         const formattedSql = formatQueryForDialect(sql, 'mysql');
         const [resultRows] = await connection.execute(formattedSql, params);
@@ -275,7 +284,7 @@ export async function transaction<T = any>(callback: (client: any, dialect?: Dat
         throw new Error('MySQL driver unavailable for transaction.');
       }
 
-      const connection = await mysqlModule.createConnection(getConnectionString());
+      const connection = await mysqlModule.createConnection(mysqlConnectionTarget(getConnectionString()));
       try {
         await connection.beginTransaction();
         const result = await callback(connection, 'mysql');

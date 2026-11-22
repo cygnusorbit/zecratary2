@@ -9,6 +9,7 @@ import {
 } from '@/lib/databaseSyncEngine';
 import { injectCompleteMysqlDatabase } from '@/lib/mysqlSchemaInjector';
 import { getMysqlPool } from '@/lib/mysql';
+import { requireDatabaseAdmin, maskSecret, maskConnectionUri, isMasked } from '@/lib/adminGuard';
 
 export const dynamic = 'force-dynamic';
 
@@ -186,8 +187,8 @@ function parseConnectionDetails(uriString: string, defaultEngine: 'postgresql' |
 export async function GET() {
   const envData = readCurrentEnv();
 
-  const supabaseUrl = envData.NEXT_PUBLIC_SUPABASE_URL || 'https://tnhrkjtujdfgvwhsuuxb.supabase.co';
-  const supabaseAnonKey = envData.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || envData.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_afBBLw4l9N08lDX60x_5XQ_z6TIP7HI';
+  const supabaseUrl = envData.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseAnonKey = envData.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || envData.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
   const supabaseServiceKey = envData.SUPABASE_SERVICE_ROLE_KEY || '';
   const supabasePoolerUri = envData.DATABASE_URL || envData.SUPABASE_POOLER_URI || '';
   const postgresUri = envData.POSTGRES_URL || 'postgresql://postgres:postgres@localhost:5432/zecratary?schema=public';
@@ -241,13 +242,21 @@ export async function GET() {
       credentialsManagedIn: '.env.local',
       databaseSyncStatus: 'Isolated .env configuration'
     },
+    // Secrets are never returned to the browser; only masked previews.
     config: {
       supabaseUrl,
-      supabaseAnonKey,
-      supabaseServiceKey,
-      supabasePoolerUri,
-      postgresUri,
-      mysqlUri
+      supabaseAnonKey: maskSecret(supabaseAnonKey),
+      supabaseServiceKey: maskSecret(supabaseServiceKey),
+      supabasePoolerUri: maskConnectionUri(supabasePoolerUri),
+      postgresUri: maskConnectionUri(postgresUri),
+      mysqlUri: maskConnectionUri(mysqlUri)
+    },
+    secretsConfigured: {
+      supabaseAnonKey: Boolean(supabaseAnonKey),
+      supabaseServiceKey: Boolean(supabaseServiceKey),
+      supabasePoolerUri: Boolean(supabasePoolerUri),
+      postgresUri: Boolean(envData.POSTGRES_URL),
+      mysqlUri: Boolean(envData.MYSQL_URL)
     },
     telemetry: {
       version: activeProfile === 'supabase_cloud' ? 'PostgreSQL 15.x / Supabase Cloud' : (engine === 'mysql' ? 'MySQL 8.0 Daemon' : 'PostgreSQL 15.4 Daemon'),
@@ -262,6 +271,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const denied = requireDatabaseAdmin(req);
+  if (denied) return denied;
   try {
     const body = await req.json();
     const { action, uri, config, targetProfile } = body;
@@ -287,10 +298,13 @@ export async function POST(req: Request) {
     // 4. TEST CONNECTION (Unified HTTP REST & TCP Socket Handshake)
     if (action === 'test_connection' || action === 'auto_detect_connect') {
       const targetUri = (uri || '').trim();
+      if (isMasked(targetUri)) {
+        return NextResponse.json({ success: false, error: 'Stored secrets are masked. Re-enter the full connection string to test it.' });
+      }
       const isHttp = targetUri.startsWith('http://') || targetUri.startsWith('https://');
 
       if (isHttp) {
-        const apiKey = config?.supabaseAnonKey || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_afBBLw4l9N08lDX60x_5XQ_z6TIP7HI';
+        const apiKey = (config?.supabaseAnonKey && !isMasked(config.supabaseAnonKey)) ? config.supabaseAnonKey : (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '');
         const start = Date.now();
         try {
           const res = await fetch(`${targetUri.replace(/\/$/, '')}/rest/v1/`, {
@@ -345,17 +359,17 @@ export async function POST(req: Request) {
       };
 
       if (config?.supabaseUrl) envUpdates.NEXT_PUBLIC_SUPABASE_URL = config.supabaseUrl;
-      if (config?.supabaseAnonKey) {
+      if (config?.supabaseAnonKey && !isMasked(config.supabaseAnonKey)) {
         envUpdates.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = config.supabaseAnonKey;
         envUpdates.NEXT_PUBLIC_SUPABASE_ANON_KEY = config.supabaseAnonKey;
       }
-      if (config?.supabaseServiceKey) envUpdates.SUPABASE_SERVICE_ROLE_KEY = config.supabaseServiceKey;
-      if (config?.supabasePoolerUri) {
+      if (config?.supabaseServiceKey && !isMasked(config.supabaseServiceKey)) envUpdates.SUPABASE_SERVICE_ROLE_KEY = config.supabaseServiceKey;
+      if (config?.supabasePoolerUri && !isMasked(config.supabasePoolerUri)) {
         envUpdates.DATABASE_URL = config.supabasePoolerUri;
         envUpdates.SUPABASE_POOLER_URI = config.supabasePoolerUri;
       }
 
-      if (uri) {
+      if (uri && !isMasked(uri)) {
         if (selectedProfile === 'localhost_mysql') {
           envUpdates.MYSQL_URL = uri;
         } else if (selectedProfile === 'localhost_postgres') {

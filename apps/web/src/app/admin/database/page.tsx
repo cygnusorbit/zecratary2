@@ -21,6 +21,16 @@ interface TableInfo {
   category?: string;
 }
 
+// Sends the optional server-side admin token (ADMIN_DB_TOKEN) with database actions.
+function dbAdminHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  try {
+    const token = typeof window !== 'undefined' ? window.sessionStorage.getItem('zecratary_admin_db_token') : null;
+    if (token) headers['x-admin-token'] = token;
+  } catch (_) {}
+  return headers;
+}
+
 export default function AdminDatabasePage() {
   const { t } = useTranslation();
 
@@ -47,8 +57,8 @@ export default function AdminDatabasePage() {
   const [showPassword, setShowPassword] = useState(false);
 
   // Form State - Supabase Cloud
-  const [supabaseUrl, setSupabaseUrl] = useState('https://tnhrkjtujdfgvwhsuuxb.supabase.co');
-  const [supabaseAnonKey, setSupabaseAnonKey] = useState('sb_publishable_afBBLw4l9N08lDX60x_5XQ_z6TIP7HI');
+  const [supabaseUrl, setSupabaseUrl] = useState('');
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState('');
   const [supabaseServiceKey, setSupabaseServiceKey] = useState('');
   const [supabasePoolerUri, setSupabasePoolerUri] = useState('');
   const [showSupabaseSecret, setShowSupabaseSecret] = useState(false);
@@ -165,7 +175,7 @@ export default function AdminDatabasePage() {
     try {
       const res = await fetch('/api/admin/database', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: dbAdminHeaders(),
         body: JSON.stringify({ action: 'sync_to_mysql' })
       });
       const data = await res.json();
@@ -196,7 +206,7 @@ export default function AdminDatabasePage() {
     try {
       const res = await fetch('/api/admin/database', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: dbAdminHeaders(),
         body: JSON.stringify({ action: 'sync_to_supabase' })
       });
       const data = await res.json();
@@ -226,7 +236,7 @@ export default function AdminDatabasePage() {
     try {
       const res = await fetch('/api/admin/database', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: dbAdminHeaders(),
         body: JSON.stringify({ action: 'optimize_tables' })
       });
       const data = await res.json();
@@ -251,7 +261,7 @@ export default function AdminDatabasePage() {
     try {
       const res = await fetch('/api/admin/database', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: dbAdminHeaders(),
         body: JSON.stringify({ 
           action: 'test_connection', 
           uri: targetUri,
@@ -286,7 +296,7 @@ export default function AdminDatabasePage() {
     try {
       const res = await fetch('/api/admin/database', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: dbAdminHeaders(),
         body: JSON.stringify({
           action: 'connect_database',
           targetProfile: targetType,
@@ -325,7 +335,7 @@ export default function AdminDatabasePage() {
     try {
       const res = await fetch('/api/admin/database', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: dbAdminHeaders(),
         body: JSON.stringify({
           action: 'save_connection',
           targetProfile: targetType,
