@@ -1,3 +1,4 @@
+import { applyWalletDelta } from '@/lib/transactionService';
 import { query } from '@/lib/db';
 import { Pool } from 'pg';
 import { sanitizeTokenSymbol } from '@/lib/tokenSymbol';
@@ -705,10 +706,23 @@ export async function purchaseTokenPackage(
       };
     }
 
-    updatedWalletBalance = Math.max(0, updatedWalletBalance - packagePrice);
-    await query(`
-      UPDATE users SET wallet_balance = $1, updated_at = NOW() WHERE id = $2
-    `, [updatedWalletBalance, user.id]);
+    // One atomic statement debits the wallet (refused if it would go below zero); the ledger rows record exactly that movement.
+    const debit = await applyWalletDelta(user.id, user.email, -packagePrice);
+    if (!debit.ok) {
+      return {
+        success: false,
+        tokensAdded: 0,
+        tokensToAdd: 0,
+        newBalance: Number(user.token_balance || 0),
+        requiresWalletTopUp: true,
+        packagePrice,
+        shortfall: Math.max(0, packagePrice - debit.newBalance),
+        wallet_balance: debit.newBalance,
+        newWalletBalance: debit.newBalance,
+        error: `Insufficient wallet balance ($${debit.newBalance.toFixed(2)} available). This bundle requires $${packagePrice.toFixed(2)}. Please top up your wallet first.`
+      };
+    }
+    updatedWalletBalance = debit.newBalance;
 
     const wtxId = `wtx_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     await query(`

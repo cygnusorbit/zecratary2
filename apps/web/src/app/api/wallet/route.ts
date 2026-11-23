@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import { 
   calculateAuthoritativeUserBalance, 
+  applyWalletDelta,
   getAllAuthoritativeTransactions, 
   recordAuthoritativeTransaction, 
   autoHarmonizeTransactionSchema 
@@ -130,6 +131,8 @@ export async function GET(req: NextRequest) {
     let totalDeposited = 0;
     let totalSpent = 0;
     userTxs.forEach((tx: any) => {
+      // Only money that really moved counts: pending, cancelled and failed entries are listed but not totalled.
+      if (!['completed', 'succeeded', 'confirmed', 'success'].includes(String(tx.status || 'completed').toLowerCase())) return;
       const amt = Number(tx.amount || 0);
       const isDebit = amt < 0 || ['debit', 'purchase', 'withdrawal', 'fee'].includes((tx.type || '').toLowerCase());
       if (isDebit) {
@@ -165,7 +168,7 @@ export async function GET(req: NextRequest) {
       page,
       totalPages,
       stats: {
-        totalDeposited: totalDeposited || userBalance,
+        totalDeposited: totalDeposited,
         totalSpent: totalSpent || 0,
         totalEvents: userTxs.length || 1
       }
@@ -214,40 +217,12 @@ export async function POST(req: NextRequest) {
       const gateway = body.gateway || 'stripe';
       const transferRef = body.transferReference || `ref_${Date.now()}`;
 
-      const acctTop = await getUserWalletAccount(userId, email);
-      const currentBal = acctTop.exists ? acctTop.wallet : await calculateAuthoritativeUserBalance(userId, email, 0);
-      const newBal = currentBal + totalCredited;
-
-      // Update PostgreSQL (Supabase)
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-      if (usePostgres() && supabaseUrl && supabaseKey) {
-        try {
-          const { createClient } = await import('@supabase/supabase-js');
-          const supabase = createClient(supabaseUrl, supabaseKey);
-          await supabase.from('users').upsert({
-            email,
-            wallet_balance: newBal,
-            balance: newBal,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'email' });
-        } catch (_) {}
-      }
-
-      // Update MySQL
-      try {
-        const mysqlModule = await import('@/lib/mysql').catch(() => null);
-        if (!usePostgres() && mysqlModule && typeof mysqlModule.query === 'function') {
-          await mysqlModule.query(
-            "UPDATE users SET wallet_balance = ?, balance = ? WHERE email = ? OR id = ?",
-            [newBal, newBal, email, userId]
-          );
-        }
-      } catch (_) {}
-
-      // Write the new balance to the account row on whichever database is active.
-      if (acctTop.exists) {
-        try { await appQuery('UPDATE users SET wallet_balance = $1, updated_at = NOW() WHERE id = $2 OR LOWER(email) = LOWER($3)', [newBal, userId, email]); } catch (_) {}
+      // One atomic statement credits the wallet; the ledger row below records exactly that movement.
+      const moved = await applyWalletDelta(userId, email, totalCredited);
+      let newBal = moved.newBalance;
+      if (!moved.exists) {
+        // No account row (ledger-only customer): legacy calculation.
+        newBal = (await calculateAuthoritativeUserBalance(userId, email, 0)) + totalCredited;
       }
 
       const newTx = {

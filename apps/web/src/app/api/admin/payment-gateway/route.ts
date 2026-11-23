@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { secureJson, restoreMaskedSecrets } from '@/lib/secretRedaction';
 import { isAdminRequest, requireSignedIn } from '@/lib/adminAuth';
+import { query as pgQuery } from '@/lib/db';
 import { getActiveDatabase } from '@/lib/dbConfig';
 
 // One active database at a time: only touch the engine the app is really using.
@@ -13,6 +14,7 @@ import {
   recordAuthoritativeTransaction, 
   deleteAuthoritativeTransactions,
   calculateAuthoritativeUserBalance,
+  applyWalletDelta,
   WalletTransactionRecord 
 } from '@/lib/transactionService';
 
@@ -100,33 +102,18 @@ export async function POST(req: NextRequest) {
       const userEmail = targetTx.email || targetTx.customer_email || targetTx.customerEmail || 'admin@zecratary.com';
       const userId = targetTx.user_id || targetTx.userId || 'usr_admin_1';
 
-      const currentBalance = await calculateAuthoritativeUserBalance(userId, userEmail, 0);
-      const newBalance = currentBalance + amountToCredit;
-
-      // Supabase PostgreSQL
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-      if (usePostgres() && supabaseUrl && supabaseKey) {
-        try {
-          const { createClient } = await import('@supabase/supabase-js');
-          const supabase = createClient(supabaseUrl, supabaseKey);
-          await supabase
-            .from('users')
-            .update({ wallet_balance: newBalance, balance: newBalance, updated_at: new Date().toISOString() })
-            .or(`id.eq.${userId},email.eq.${userEmail}`);
-        } catch (_) {}
+      // A settlement can only be approved once; a second approval would credit the wallet twice.
+      if (['succeeded', 'completed', 'confirmed'].includes(String(targetTx.status || '').toLowerCase())) {
+        return secureJson({ success: false, error: 'This transfer was already approved.' }, { status: 409, headers: CORS_HEADERS });
       }
 
-      // MySQL
-      try {
-        const mysqlModule = await import('@/lib/mysql').catch(() => null);
-        if (!usePostgres() && mysqlModule && typeof mysqlModule.query === 'function') {
-          await mysqlModule.query(
-            "UPDATE users SET wallet_balance = ?, balance = ?, updated_at = NOW() WHERE id = ? OR email = ?",
-            [newBalance, newBalance, userId, userEmail]
-          );
-        }
-      } catch (_) {}
+      // One atomic statement credits the wallet; the ledger row below records exactly that movement.
+      const moved = await applyWalletDelta(userId, userEmail, amountToCredit);
+      let newBalance = moved.newBalance;
+      if (!moved.exists) {
+        const currentBalance = await calculateAuthoritativeUserBalance(userId, userEmail, 0);
+        newBalance = currentBalance + amountToCredit;
+      }
 
       // Disk users.json
       const diskUsersPath = path.join(process.cwd(), 'apps/web/data/users.json');

@@ -3,7 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import { sanitizeTokenSymbol } from '@/lib/tokenSymbol';
 import { query as dbQuery } from '@/lib/db';
-import { initTokenTables } from '@/lib/tokenService';
+import { initTokenTables, saveTokenSettings as saveTokenSettingsDb, getUserTokenAccount, addTokensToUser } from '@/lib/tokenService';
+import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,32 +111,21 @@ export async function GET() {
       transactions = transactions.slice(0, 300);
     } catch (_) {}
 
-    // 1. Dual-DB: PostgreSQL (Supabase)
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-    if (supabaseUrl && supabaseKey) {
-      try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        const { data: dbData } = await supabase
-          .from('admin_settings')
-          .select('value')
-          .eq('key', 'token_settings')
-          .maybeSingle();
-
-        if (dbData?.value) {
-          const merged = { ...settings, ...dbData.value };
-          return NextResponse.json({
-            success: true,
-            tokenSettings: merged,
-            settings: merged,
-            transactions,
-            currencySymbol: '$',
-            currency: 'USD'
-          }, { headers: CORS_HEADERS });
-        }
-      } catch (_) {}
-    }
+    // 1. Active database (shared settings store: local Postgres, Supabase pooler or MySQL)
+    try {
+      const mirror = await getJsonSetting<any>('token_settings');
+      if (mirror && typeof mirror === 'object') {
+        const merged = { ...settings, ...mirror };
+        return NextResponse.json({
+          success: true,
+          tokenSettings: merged,
+          settings: merged,
+          transactions,
+          currencySymbol: '$',
+          currency: 'USD'
+        }, { headers: CORS_HEADERS });
+      }
+    } catch (_) {}
 
     // 2. Dual-DB: MySQL
     try {
@@ -181,27 +171,38 @@ export async function POST(req: NextRequest) {
       const amount = Number(body.amount || 0);
       const symbol = body.token_symbol || '🪙';
 
-      const allTxs = readTransactions();
+      if (!targetEmail || !isFinite(amount) || amount <= 0) {
+        return NextResponse.json({ success: false, error: 'Enter a customer email and an amount above zero.' }, { status: 400, headers: CORS_HEADERS });
+      }
+      const signed = adjustType === 'deduct' ? -amount : amount;
+      const acct = await getUserTokenAccount(null, targetEmail);
+      if (!acct.exists) {
+        return NextResponse.json({ success: false, error: 'No account found for that email.' }, { status: 404, headers: CORS_HEADERS });
+      }
+      if (acct.balance + signed < 0) {
+        return NextResponse.json({ success: false, error: `Cannot deduct ${amount}: the balance is only ${acct.balance}.`, balance: acct.balance }, { status: 400, headers: CORS_HEADERS });
+      }
+      const adjDesc = `Manual Adjustment: ${body.reason || 'Customer Support'} (${body.notes || 'Console'})`;
+      // The stored balance and the ledger row move together (addTokensToUser updates the balance and writes the row).
+      const newBalanceAfter = await addTokensToUser({ userEmail: targetEmail, amount: signed, type: 'adjust', description: adjDesc });
       const newTx = {
         id: `tx_adj_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         customer_email: targetEmail,
         user_email: targetEmail,
-        amount: adjustType === 'deduct' ? -amount : amount,
-        balance_after: amount,
+        amount: signed,
+        balance_after: newBalanceAfter ?? acct.balance + signed,
         type: 'adjust',
-        description: `Manual Adjustment: ${body.reason || 'Customer Support'} (${body.notes || 'Console'})`,
+        description: adjDesc,
         created_at: new Date().toISOString()
       };
 
-      allTxs.unshift(newTx);
-      saveTransactions(allTxs);
-
+      // The database ledger row is the record; no second copy is written to the JSON mirror (it would show twice).
       return NextResponse.json({
         success: true,
         message: 'Balance adjustment successfully processed',
         transaction: newTx,
-        new_balance: amount,
-        balance_after: amount
+        new_balance: newTx.balance_after,
+        balance_after: newTx.balance_after
       }, { headers: CORS_HEADERS });
     }
 
@@ -217,18 +218,9 @@ export async function POST(req: NextRequest) {
 
     saveTokenSettings(updated);
 
-    // Persist to PostgreSQL (Supabase)
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-    if (supabaseUrl && supabaseKey) {
-      try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        await supabase
-          .from('admin_settings')
-          .upsert({ key: 'token_settings', value: updated, updated_at: new Date().toISOString() }, { onConflict: 'key' });
-      } catch (_) {}
-    }
+    // Persist to the active database (settings mirror + the authoritative token_settings table)
+    try { await setJsonSetting('token_settings', updated, 'tokens'); } catch (_) {}
+    try { await saveTokenSettingsDb(updated); } catch (_) {}
 
     // Persist to MySQL
     try {
@@ -259,15 +251,7 @@ export async function DELETE() {
       fs.writeFileSync(fPath, '[]', 'utf8');
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-    if (supabaseUrl && supabaseKey) {
-      try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        await supabase.from('token_transactions').delete().neq('id', '0');
-      } catch (_) {}
-    }
+    try { await dbQuery('DELETE FROM token_transactions'); } catch (_) {}
 
     try {
       const mysqlModule = await import('@/lib/mysql').catch(() => null);

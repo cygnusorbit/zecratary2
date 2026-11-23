@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { applyWalletDelta } from '@/lib/transactionService';
 import Stripe from 'stripe';
 
 
@@ -96,18 +97,9 @@ export async function POST(req: Request) {
         const existingRows = Array.isArray(existingRes) ? existingRes : ((existingRes as any)?.rows || []);
 
         if (existingRows.length === 0) {
-          const userUpdateRes = await query(
-            `UPDATE users 
-             SET wallet_balance = COALESCE(wallet_balance, 0) + $1, updated_at = NOW()
-             WHERE id::text = $2 OR (LOWER(email) = LOWER($3) AND $3 != '')
-             RETURNING id, email, wallet_balance`,
-            [totalAddition, String(userId || ''), customerEmail]
-          ).catch(() => ({ rows: [] }));
-
-          const uRows = Array.isArray(userUpdateRes) ? userUpdateRes : ((userUpdateRes as any)?.rows || []);
-          const updatedUser = uRows[0];
-          const newBal = updatedUser ? parseFloat(updatedUser.wallet_balance || 0) : totalAddition;
-          const finalUserId = updatedUser?.id || userId || 'user';
+          const credit = await applyWalletDelta(userId ? String(userId) : null, customerEmail || null, totalAddition).catch(() => null);
+          const newBal = credit && credit.ok && credit.exists ? Number(credit.newBalance ?? 0) : totalAddition;
+          const finalUserId = userId || customerEmail || 'user';
 
           const wtxId = `wtx_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
           const desc = bonusCredit > 0

@@ -106,39 +106,20 @@ export async function GET(req: NextRequest) {
     const settings = readTokenSettings();
     let allTxs = readTokenTransactions();
 
-    // Query Supabase for latest transactions
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-    const mergeRemoteTxs = (tData: any) => {
-      if (Array.isArray(tData) && tData.length > 0) {
-        const tMap = new Map();
-        allTxs.forEach(t => tMap.set(t.id, t));
-        tData.forEach((t: any) => tMap.set(t.id, t));
-        allTxs = Array.from(tMap.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      }
-    };
-
+    // The database ledger is the source of truth: its rows add up to the stored balance.
+    // The JSON mirror is only a fallback when the database cannot be read, otherwise it adds entries the balance never saw.
     try {
-      const dbRows: any = await dbQuery('SELECT * FROM token_transactions ORDER BY created_at DESC LIMIT 250');
-      mergeRemoteTxs(Array.isArray(dbRows) ? dbRows : dbRows?.rows);
+      const dbRows: any = await dbQuery(
+        'SELECT * FROM token_transactions WHERE user_id = $1 OR LOWER(user_email) = $2 ORDER BY created_at DESC',
+        [String(userId || ''), String(email || '').toLowerCase()]
+      );
+      const rows = Array.isArray(dbRows) ? dbRows : dbRows?.rows;
+      if (Array.isArray(rows)) allTxs = rows;
     } catch (_) {}
-    if (getActiveDatabase() !== 'mysql' && supabaseUrl && supabaseKey) {
-      try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        const { data: tData } = await supabase.from('token_transactions').select('*').order('created_at', { ascending: false }).limit(250);
-        if (Array.isArray(tData) && tData.length > 0) {
-          const tMap = new Map();
-          allTxs.forEach(t => tMap.set(t.id, t));
-          tData.forEach(t => tMap.set(t.id, t));
-          allTxs = Array.from(tMap.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        }
-      } catch (_) {}
-    }
 
     const userTxs = allTxs.filter((tx: any) => {
       const txEmail = (tx.customer_email || tx.user_email || '').toLowerCase().trim();
-      const matchUser = !tx.user_id || tx.user_id === userId || txEmail === email;
+      const matchUser = tx.user_id === userId || (!!txEmail && txEmail === email);
       if (!matchUser) return false;
 
       if (typeFilter !== 'all' && tx.type && !tx.type.toLowerCase().includes(typeFilter.toLowerCase())) {

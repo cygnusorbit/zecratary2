@@ -394,7 +394,7 @@ function WalletContent() {
 
       // Independent fetch calls: slow gateways never block wallet balance
       const walletController = new AbortController();
-      const walletTimeout = setTimeout(() => walletController.abort(), 4000);
+      const walletTimeout = setTimeout(() => walletController.abort(), 20000);
 
       const walletRes = await fetch(`/api/wallet?${qParams.toString()}`, { 
         cache: 'no-store',

@@ -97,6 +97,7 @@ let memoryLoaded = false;
 
 export default function AdminTokenSettingPage() {
   const { t, locale } = useTranslation();
+  const [symbolRejected, setSymbolRejected] = useState(false);
 
   const tr = useCallback((key: string, fallback: string): string => {
     if (typeof t === 'function') {

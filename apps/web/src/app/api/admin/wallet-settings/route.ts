@@ -4,6 +4,7 @@ import { getActiveDatabase } from '@/lib/dbConfig';
 // One active database at a time: only touch the engine the app is really using.
 const usePostgres = () => getActiveDatabase() === 'postgres';
 import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
+import { query as pgQuery } from '@/lib/db';
 import fs from 'fs';
 import path from 'path';
 import { 
@@ -12,6 +13,7 @@ import {
   deleteAllAuthoritativeTransactions,
   recordAuthoritativeTransaction,
   calculateAuthoritativeUserBalance,
+  applyWalletDelta,
   autoHarmonizeTransactionSchema 
 } from '@/lib/transactionService';
 
@@ -81,15 +83,10 @@ function writeDiskSettings(settings: any): void {
 async function loadAuthoritativeUsers(): Promise<any[]> {
   const userMap = new Map<string, any>();
 
-  // PostgreSQL (Supabase)
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (usePostgres() && supabaseUrl && supabaseKey) {
+  // PostgreSQL (the active database)
+  if (usePostgres()) {
     try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      const { data } = await supabase.from('users').select('id, name, email, wallet_balance, balance').limit(150);
+      const data: any[] = await pgQuery('SELECT id, name, email, wallet_balance, balance FROM users LIMIT 150');
       if (Array.isArray(data)) {
         for (const u of data) {
           const key = String(u.id || u.email);
@@ -238,28 +235,22 @@ export async function POST(req: NextRequest) {
       const userId = targetUser ? targetUser.id : `usr_${email.replace(/[^a-zA-Z0-9]/g, '_')}`;
       const customerName = targetUser ? targetUser.name : email.split('@')[0];
 
-      const currentBal = await calculateAuthoritativeUserBalance(userId, email, targetUser ? targetUser.wallet_balance : 0);
       const diff = isDebit ? -numAmount : numAmount;
-      const newBal = Math.max(0, currentBal + diff);
-
-      // Persist to Supabase PostgreSQL
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-      if (usePostgres() && supabaseUrl && supabaseKey) {
-        try {
-          const { createClient } = await import('@supabase/supabase-js');
-          const supabase = createClient(supabaseUrl, supabaseKey);
-          await supabase.from('users').update({ wallet_balance: newBal, balance: newBal, updated_at: new Date().toISOString() }).eq('email', email);
-        } catch (_) {}
+      // One atomic statement moves the stored balance; the ledger row below records exactly that movement.
+      const moved = await applyWalletDelta(userId, email, diff);
+      if (moved.exists && !moved.ok) {
+        return NextResponse.json({
+          success: false,
+          error: `Insufficient wallet balance for this debit ($${moved.newBalance.toFixed(2)} available).`,
+          wallet_balance: moved.newBalance
+        }, { status: 400, headers: CORS_HEADERS });
       }
-
-      // Persist to MySQL
-      try {
-        const mysqlModule = await import('@/lib/mysql').catch(() => null);
-        if (!usePostgres() && mysqlModule && typeof mysqlModule.query === 'function') {
-          await mysqlModule.query('UPDATE users SET wallet_balance = ?, balance = ?, updated_at = NOW() WHERE email = ?', [newBal, newBal, email]);
-        }
-      } catch (_) {}
+      let newBal = moved.newBalance;
+      if (!moved.exists) {
+        // Account row not found: legacy fallback for customers that only exist in the ledger.
+        const currentBal = await calculateAuthoritativeUserBalance(userId, email, 0);
+        newBal = Math.max(0, currentBal + diff);
+      }
 
       // Persist to Disk users.json
       const diskUsersPath = path.join(process.cwd(), 'apps/web/data/users.json');

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
 
 // Define seed fallback data path
 function getFallbackDataPaths(): string[] {
@@ -46,29 +47,15 @@ export async function GET(req: NextRequest) {
     // 1. Check local file / standalone cache first
     let pages = readLocalPages();
 
-    // 2. Dual Database Query (PostgreSQL / Supabase / MySQL)
-    // If Supabase credentials are configured in Hostinger environment
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (supabaseUrl && supabaseKey) {
-      try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        const { data, error } = await supabase.from('frontend_pages').select('*').order('order_index', { ascending: true });
-        if (!error && Array.isArray(data) && data.length > 0) {
-          pages = data.map((row: any) => ({
-            ...row,
-            elements: typeof row.elements === 'string' ? JSON.parse(row.elements) : (row.elements || []),
-            padding: typeof row.padding === 'string' ? JSON.parse(row.padding) : (row.padding || {}),
-            footer: typeof row.footer === 'string' ? JSON.parse(row.footer) : (row.footer || {}),
-          }));
-          // Mirror to local disk cache
-          writeLocalPages(pages);
-        }
-      } catch (dbErr) {
-        console.warn('[API Frontend] Supabase query fallback to cached pages:', dbErr);
+    // 2. Active database (settings store) — local, no cloud round trip
+    try {
+      const stored = await getJsonSetting<any[]>('frontend_pages');
+      if (Array.isArray(stored) && stored.length > 0) {
+        pages = stored;
+        writeLocalPages(pages);
       }
+    } catch (dbErr) {
+      console.warn('[API Frontend] DB read fallback to cached pages:', dbErr);
     }
 
     // Ensure we always return at least the default home page
@@ -121,6 +108,10 @@ export async function POST(req: NextRequest) {
     const { action, page, id } = body;
 
     let currentPages = readLocalPages();
+    try {
+      const stored = await getJsonSetting<any[]>('frontend_pages');
+      if (Array.isArray(stored) && stored.length > 0) currentPages = stored;
+    } catch {}
 
     if (action === 'save_page' && page) {
       const idx = currentPages.findIndex((p: any) => p.id === page.id);
@@ -131,33 +122,10 @@ export async function POST(req: NextRequest) {
       }
       writeLocalPages(currentPages);
 
-      // Persist to PostgreSQL / Supabase if active
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-      if (supabaseUrl && supabaseKey) {
-        try {
-          const { createClient } = await import('@supabase/supabase-js');
-          const supabase = createClient(supabaseUrl, supabaseKey);
-          await supabase.from('frontend_pages').upsert({
-            id: page.id,
-            title: page.title,
-            slug: page.slug,
-            description: page.description,
-            status: page.status,
-            is_default: page.is_default,
-            is_published: page.is_published,
-            show_in_nav: page.show_in_nav,
-            show_in_footer: page.show_in_footer,
-            order_index: page.order_index,
-            elements: page.elements,
-            padding: page.padding,
-            footer: page.footer,
-            updated_at: new Date().toISOString(),
-          });
-        } catch (dbErr) {
-          console.warn('[API Frontend POST] Supabase write skipped, saved locally:', dbErr);
-        }
+      try {
+        await setJsonSetting('frontend_pages', currentPages, 'cms');
+      } catch (dbErr) {
+        console.warn('[API Frontend POST] DB write skipped, saved locally:', dbErr);
       }
 
       return NextResponse.json({ success: true, page });
@@ -169,6 +137,7 @@ export async function POST(req: NextRequest) {
         is_default: p.id === id,
       }));
       writeLocalPages(currentPages);
+      try { await setJsonSetting('frontend_pages', currentPages, 'cms'); } catch {}
       return NextResponse.json({ success: true });
     }
 

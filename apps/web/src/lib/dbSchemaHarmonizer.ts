@@ -83,8 +83,8 @@ async function harmonizePostgreSql(connectionString: string): Promise<boolean> {
       `ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS confirmed_amount NUMERIC(10,2);`,
 
       // Backfill
-      `UPDATE users SET wallet_balance = COALESCE(balance, 150.00) WHERE wallet_balance IS NULL;`,
-      `UPDATE users SET balance = COALESCE(wallet_balance, 150.00) WHERE balance IS NULL;`,
+      `UPDATE users SET wallet_balance = COALESCE(balance, 0.00) WHERE wallet_balance IS NULL;`,
+      `UPDATE users SET balance = COALESCE(wallet_balance, 0.00) WHERE balance IS NULL;`,
       `UPDATE admin_settings SET setting_value = COALESCE(value, '') WHERE setting_value IS NULL;`,
       `UPDATE admin_settings SET value = COALESCE(setting_value, '') WHERE value IS NULL;`,
       `UPDATE admin_settings SET "key" = COALESCE(setting_key, '') WHERE "key" IS NULL;`,
@@ -159,8 +159,8 @@ async function harmonizeMySql(connectionString: string): Promise<boolean> {
     }
 
     try {
-      await connection.query(`UPDATE users SET wallet_balance = COALESCE(balance, 150.00) WHERE wallet_balance IS NULL`);
-      await connection.query(`UPDATE users SET balance = COALESCE(wallet_balance, 150.00) WHERE balance IS NULL`);
+      await connection.query(`UPDATE users SET wallet_balance = COALESCE(balance, 0.00) WHERE wallet_balance IS NULL`);
+      await connection.query(`UPDATE users SET balance = COALESCE(wallet_balance, 0.00) WHERE balance IS NULL`);
       await connection.query(`UPDATE admin_settings SET setting_value = COALESCE(value, '') WHERE setting_value IS NULL`);
       await connection.query(`UPDATE admin_settings SET value = COALESCE(setting_value, '') WHERE value IS NULL`);
       await connection.query(`UPDATE admin_settings SET \`key\` = COALESCE(setting_key, '') WHERE \`key\` IS NULL`);

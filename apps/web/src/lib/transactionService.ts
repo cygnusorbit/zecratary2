@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { getActiveDatabase } from '@/lib/dbConfig';
+import { query as pgQuery, getDatabaseDialect } from '@/lib/db';
 
 // One active database at a time: only touch the engine the app is really using.
 const usePostgres = () => getActiveDatabase() === 'postgres';
@@ -105,17 +106,6 @@ export function writeDiskTransactions(txs: WalletTransactionRecord[]): void {
 }
 
 export async function autoHarmonizeTransactionSchema(): Promise<void> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (usePostgres() && supabaseUrl && supabaseKey) {
-    try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      await supabase.from('payment_transactions').select('id').limit(1);
-    } catch (_) {}
-  }
-
   try {
     const mysqlModule = await import('@/lib/mysql').catch(() => null);
     if (!usePostgres() && mysqlModule && typeof mysqlModule.query === 'function') {
@@ -168,22 +158,11 @@ export async function autoHarmonizeTransactionSchema(): Promise<void> {
 export async function getAllAuthoritativeTransactions(): Promise<WalletTransactionRecord[]> {
   const combinedMap = new Map<string, WalletTransactionRecord>();
 
-  // 1. PostgreSQL (Supabase)
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (usePostgres() && supabaseUrl && supabaseKey) {
+  // 1. PostgreSQL (the active database: local Postgres or Supabase pooler, through the shared pool)
+  if (usePostgres()) {
     try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
-      const { data, error } = await supabase
-        .from('payment_transactions')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(300);
-
-      if (!error && Array.isArray(data)) {
+      const data: any[] = await pgQuery('SELECT * FROM payment_transactions ORDER BY created_at DESC LIMIT 300');
+      if (Array.isArray(data)) {
         for (const row of data) {
           if (row.id) {
             combinedMap.set(String(row.id), {
@@ -253,6 +232,36 @@ export async function getAllAuthoritativeTransactions(): Promise<WalletTransacti
     }
   } catch (_) {}
 
+  // 2b. Wallet movements that other flows record in wallet_transactions (token and plan purchases paid from the
+  //     wallet, Stripe webhook credits, billing). They are part of the same wallet ledger, so they are shown here too.
+  try {
+    const wrows: any = await pgQuery('SELECT * FROM wallet_transactions ORDER BY created_at DESC LIMIT 500');
+    if (Array.isArray(wrows)) {
+      for (const row of wrows) {
+        const rowId = String(row.id || '');
+        if (!rowId || combinedMap.has(rowId)) continue;
+        const mail = row.user_email || row.email || '';
+        combinedMap.set(rowId, {
+          id: rowId,
+          user_id: row.user_id || undefined,
+          email: mail,
+          customer_email: mail,
+          customer_name: mail ? String(mail).split('@')[0] : 'Customer',
+          plan_name: row.description || 'Wallet activity',
+          amount: Number(row.amount || 0),
+          balance_after: Number(row.balance_after || 0),
+          currency: row.currency || 'USD',
+          type: row.type || 'wallet',
+          gateway: row.gateway || 'wallet',
+          status: row.status === 'succeeded' ? 'completed' : (row.status || 'completed'),
+          description: row.description || 'Wallet activity',
+          transfer_reference: row.gateway_tx_id || '',
+          created_at: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString()
+        });
+      }
+    }
+  } catch (_) {}
+
   // 3. Fallback Disk Merge
   const diskRecords = readDiskTransactions();
   for (const r of diskRecords) {
@@ -302,16 +311,12 @@ export async function calculateAuthoritativeUserBalance(
     }
   }
 
-  // Supabase PostgreSQL
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (usePostgres() && supabaseUrl && supabaseKey) {
+  // PostgreSQL (the active database)
+  if (usePostgres()) {
     try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      const { data } = await supabase.from('users').select('wallet_balance, balance').or(`email.eq.${normEmail},id.eq.${userId}`).maybeSingle();
-      if (data) {
-        const val = Number(data.wallet_balance ?? data.balance ?? defaultBal);
+      const rows: any[] = await pgQuery('SELECT wallet_balance, balance FROM users WHERE email = $1 OR id = $2 LIMIT 1', [normEmail, userId]);
+      if (Array.isArray(rows) && rows.length > 0) {
+        const val = Number(rows[0].wallet_balance ?? rows[0].balance ?? defaultBal);
         if (!isNaN(val)) return val;
       }
     } catch (_) {}
@@ -353,39 +358,40 @@ export async function recordAuthoritativeTransaction(tx: WalletTransactionRecord
   const updated = [tx, ...filtered];
   writeDiskTransactions(updated);
 
-  // PostgreSQL (Supabase)
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (usePostgres() && supabaseUrl && supabaseKey) {
+  // PostgreSQL (the active database)
+  if (usePostgres()) {
     try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
-      await supabase
-        .from('payment_transactions')
-        .upsert({
-          id: tx.id,
-          user_id: tx.user_id || tx.userId || 'usr_admin_1',
-          email: tx.email || tx.customer_email || 'admin@zecratary.com',
-          customer_email: tx.customer_email || tx.email || 'admin@zecratary.com',
-          customer_name: tx.customer_name || 'Customer',
-          plan_name: tx.plan_name || 'Wallet Deposit',
-          amount: tx.amount,
-          balance_after: tx.balance_after || 0,
-          currency: tx.currency || 'USD',
-          type: tx.type || 'topup',
-          gateway: tx.gateway || 'stripe',
-          status: tx.status || 'completed',
-          description: tx.description || 'Wallet deposit',
-          transfer_reference: tx.transfer_reference || tx.transferReference || tx.id,
-          confirmed_at: tx.confirmed_at || tx.confirmedAt || null,
-          confirmed_amount: tx.confirmed_amount ?? tx.confirmedAmount ?? null,
-          failure_reason: tx.failure_reason || tx.failureReason || null,
-          notes: tx.notes || null,
-          test_mode: tx.test_mode ?? tx.testMode ?? false,
-          created_at: tx.created_at || new Date().toISOString()
-        }, { onConflict: 'id' });
+      await pgQuery(
+        `INSERT INTO payment_transactions
+         (id, user_id, email, customer_email, customer_name, plan_name, amount, balance_after, currency, type, gateway, status, description, transfer_reference, confirmed_at, confirmed_amount, failure_reason, notes, test_mode, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+         ON CONFLICT (id) DO UPDATE SET
+           balance_after = EXCLUDED.balance_after, status = EXCLUDED.status, confirmed_at = EXCLUDED.confirmed_at,
+           confirmed_amount = EXCLUDED.confirmed_amount, failure_reason = EXCLUDED.failure_reason,
+           notes = EXCLUDED.notes, test_mode = EXCLUDED.test_mode`,
+        [
+          tx.id,
+          tx.user_id || tx.userId || 'usr_admin_1',
+          tx.email || tx.customer_email || 'admin@zecratary.com',
+          tx.customer_email || tx.email || 'admin@zecratary.com',
+          tx.customer_name || 'Customer',
+          tx.plan_name || 'Wallet Deposit',
+          tx.amount,
+          tx.balance_after || 0,
+          tx.currency || 'USD',
+          tx.type || 'topup',
+          tx.gateway || 'stripe',
+          tx.status || 'completed',
+          tx.description || 'Wallet deposit',
+          tx.transfer_reference || tx.transferReference || tx.id,
+          tx.confirmed_at || tx.confirmedAt || null,
+          tx.confirmed_amount ?? tx.confirmedAmount ?? null,
+          tx.failure_reason || tx.failureReason || null,
+          tx.notes || null,
+          Boolean(tx.test_mode ?? tx.testMode ?? false),
+          tx.created_at || new Date().toISOString()
+        ]
+      );
     } catch (_) {}
   }
 
@@ -441,15 +447,10 @@ export async function deleteAuthoritativeTransactions(ids: string[]): Promise<bo
   const updated = current.filter(t => !idSet.has(String(t.id)));
   writeDiskTransactions(updated);
 
-  // 2. PostgreSQL (Supabase)
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (usePostgres() && supabaseUrl && supabaseKey) {
+  // 2. PostgreSQL (the active database)
+  if (usePostgres()) {
     try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      await supabase.from('payment_transactions').delete().in('id', Array.from(idSet));
+      await pgQuery('DELETE FROM payment_transactions WHERE id = ANY($1::text[])', [Array.from(idSet)]);
     } catch (_) {}
   }
 
@@ -471,13 +472,9 @@ export async function deleteAuthoritativeTransactions(ids: string[]): Promise<bo
 export async function deleteAllAuthoritativeTransactions(): Promise<boolean> {
   writeDiskTransactions([]);
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (usePostgres() && supabaseUrl && supabaseKey) {
+  if (usePostgres()) {
     try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      await supabase.from('payment_transactions').delete().neq('id', '___non_existent___');
+      await pgQuery('DELETE FROM payment_transactions');
     } catch (_) {}
   }
 
@@ -501,3 +498,51 @@ export const deleteTransaction = async (id: string) => deleteAuthoritativeTransa
 export const deleteTransactions = deleteAuthoritativeTransactions;
 export const deleteAuthoritativeTransaction = async (id: string) => deleteAuthoritativeTransactions([id]);
 export const harmonizeTransactionSchema = autoHarmonizeTransactionSchema;
+
+
+export interface WalletDeltaResult {
+  ok: boolean;
+  exists: boolean;
+  newBalance: number;
+  insufficient?: boolean;
+}
+
+// Moves a wallet balance by a signed amount in ONE statement (no read-modify-write), so the stored balance and the
+// ledger row written from `newBalance` can never drift apart. A debit that would go below zero is refused.
+export async function applyWalletDelta(userId: string | null | undefined, email: string | null | undefined, delta: number): Promise<WalletDeltaResult> {
+  const uid = String(userId || '');
+  const mail = String(email || '').trim().toLowerCase();
+  const d = Math.round(Number(delta) * 100) / 100;
+  if (!isFinite(d)) return { ok: false, exists: false, newBalance: 0 };
+  const where = '(id = $2 OR LOWER(email) = $3)';
+  const guard = 'COALESCE(wallet_balance, 0) + $1 >= 0';
+  try {
+    if (getDatabaseDialect() === 'postgres') {
+      const rows: any[] = await pgQuery(
+        `UPDATE users SET wallet_balance = COALESCE(wallet_balance, 0) + $1, balance = COALESCE(wallet_balance, 0) + $1, updated_at = NOW()
+         WHERE ${where} AND ${guard} RETURNING wallet_balance`,
+        [d, uid, mail]
+      );
+      if (Array.isArray(rows) && rows.length > 0) return { ok: true, exists: true, newBalance: Number(rows[0].wallet_balance) };
+    } else {
+      // MySQL has no RETURNING: check, move by the delta in one UPDATE, then read the result back.
+      const before: any[] = await pgQuery('SELECT wallet_balance FROM users WHERE id = $1 OR LOWER(email) = $2 LIMIT 1', [uid, mail]);
+      if (Array.isArray(before) && before.length > 0) {
+        const cur = Number(before[0].wallet_balance || 0);
+        if (cur + d < 0) return { ok: false, exists: true, insufficient: true, newBalance: cur };
+        await pgQuery(
+          `UPDATE users SET wallet_balance = COALESCE(wallet_balance, 0) + $1, balance = COALESCE(wallet_balance, 0) + $1, updated_at = NOW()
+           WHERE ${where} AND ${guard}`,
+          [d, uid, mail]
+        );
+        const after: any[] = await pgQuery('SELECT wallet_balance FROM users WHERE id = $1 OR LOWER(email) = $2 LIMIT 1', [uid, mail]);
+        if (Array.isArray(after) && after.length > 0) return { ok: true, exists: true, newBalance: Number(after[0].wallet_balance) };
+      }
+    }
+    const found: any[] = await pgQuery('SELECT wallet_balance FROM users WHERE id = $1 OR LOWER(email) = $2 LIMIT 1', [uid, mail]);
+    if (Array.isArray(found) && found.length > 0) {
+      return { ok: false, exists: true, insufficient: true, newBalance: Number(found[0].wallet_balance || 0) };
+    }
+  } catch (_) {}
+  return { ok: false, exists: false, newBalance: 0 };
+}

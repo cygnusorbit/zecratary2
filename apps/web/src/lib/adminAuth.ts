@@ -45,7 +45,7 @@ const WRITE_EXEMPT = ['/api/admin/database'];
 // Admin-only data that has no public consumer.
 const READ_GUARDED = [
   '/api/admin/users', '/api/admin/secrets', '/api/admin/keys', '/api/admin/ai-settings', '/api/admin/ai', '/api/admin/test-key', '/api/admin/models',
-  '/api/admin/database', '/api/admin/payment', '/api/admin/social-env', '/api/admin/social-login', '/api/admin/social-config',
+  '/api/admin/database', '/api/admin/reconcile-balances', '/api/admin/payment', '/api/admin/social-env', '/api/admin/social-login', '/api/admin/social-config',
   '/api/admin/notification-settings', '/api/admin/plugins', '/api/admin/scan', '/api/admin/crawl-index',
 ];
 

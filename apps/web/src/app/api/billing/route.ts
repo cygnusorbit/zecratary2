@@ -2,6 +2,8 @@ import { scopeToSession } from '@/lib/requestUser';
 import { isAuthEnforced as isAuthEnforcedNow } from '@/lib/session';
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { applyWalletDelta } from '@/lib/transactionService';
+import { addTokensToUser } from '@/lib/tokenService';
 
 export const dynamic = 'force-dynamic';
 
@@ -254,9 +256,12 @@ export async function POST(req: NextRequest) {
         const newName = body.userName || email.split('@')[0] || 'Member';
         await safeDbExecute(
           `INSERT INTO users (id, email, name, role, subscription_plan, plan_interval, token_balance, wallet_balance, created_at, updated_at)
-           VALUES ($1, $2, $3, 'user', 'taster', 'MONTH', 25000, 0.00, NOW(), NOW())`,
+           VALUES ($1, $2, $3, 'user', 'taster', 'MONTH', 0, 0.00, NOW(), NOW())`,
           [newId, email || `${newId}@example.com`, newName]
         );
+        try {
+          await addTokensToUser({ userId: newId, userEmail: email || `${newId}@example.com`, amount: 25000, type: 'signup_bonus', description: 'Starter token allowance' });
+        } catch {}
         activeUser = {
           id: newId,
           email: email || `${newId}@example.com`,
@@ -267,7 +272,7 @@ export async function POST(req: NextRequest) {
       }
 
       let currentBal = Number(activeUser?.wallet_balance ?? 0);
-      let currentTokens = Number(activeUser?.token_balance ?? 25000);
+      let currentTokens = Number(activeUser?.token_balance ?? 0);
       let newBal = currentBal;
       let newTokens = currentTokens;
 
@@ -283,12 +288,16 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        newBal = Math.max(0, currentBal - amount);
+        // Atomic debit (never goes below zero), then ledger the real resulting balance
+        const debit = await applyWalletDelta(activeUser.id, activeUser.email, -amount);
+        if (!debit.ok || debit.insufficient) {
+          return NextResponse.json({
+            success: false,
+            error: `Insufficient wallet balance. Plan costs ${currency} ${amount.toFixed(2)}. Please top up your wallet.`
+          }, { status: 400, headers: { 'Content-Type': 'application/json' } });
+        }
+        newBal = Number(debit.newBalance ?? 0);
 
-        // Update wallet balance in database
-        await safeDbExecute(`UPDATE users SET wallet_balance = $1, updated_at = NOW() WHERE id = $2`, [newBal, activeUser.id]);
-
-        // Record audit entry in wallet_transactions
         const wtxId = 'wtx_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
         await safeDbExecute(
           `INSERT INTO wallet_transactions (id, user_id, user_email, amount, balance_after, type, category, description, created_at)
@@ -336,12 +345,13 @@ export async function POST(req: NextRequest) {
 
       // Grant tokens and update plan on user record
       if (tokenLimit > 0) {
-        newTokens = currentTokens + tokenLimit;
+        const granted = await addTokensToUser({ userId: activeUser.id, userEmail: activeUser.email, amount: tokenLimit, type: 'plan_grant', description: `${planName} plan token allowance` });
+        newTokens = granted != null ? Number(granted) : currentTokens + tokenLimit;
       }
 
       await safeDbExecute(
-        `UPDATE users SET subscription_plan = $1, plan_interval = $2, plan_expiry_date = $3, payment_method = $4, token_balance = $5, updated_at = NOW() WHERE id = $6`,
-        [planSlug, interval, expDate.toISOString(), gateway, newTokens, activeUser.id]
+        `UPDATE users SET subscription_plan = $1, plan_interval = $2, plan_expiry_date = $3, payment_method = $4, updated_at = NOW() WHERE id = $5`,
+        [planSlug, interval, expDate.toISOString(), gateway, activeUser.id]
       );
 
       return NextResponse.json({
