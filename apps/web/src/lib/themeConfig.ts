@@ -290,8 +290,27 @@ export async function saveThemeColors(colors: ThemeColors): Promise<void> {
   } catch (_) {}
 }
 
-export async function fetchAndApplyServerTheme(): Promise<void> {
+let lastThemeFetchAt = 0;
+let lastThemeSignature = '';
+
+// Applies a theme only when it really differs from what is already showing, so navigating between pages never repaints the same colours.
+function applyIfChanged(theme: ThemeColors): void {
+  const sig = JSON.stringify(theme);
+  if (sig === lastThemeSignature) return;
+  lastThemeSignature = sig;
+  setMemoryThemeColors(theme);
+  applyThemeToDocument(theme);
+  try {
+    // Keep the cached copy in step with the server, so the next page load paints the right colours from the first frame.
+    const cached = localStorage.getItem('zecratary_theme_colors');
+    if (cached !== sig) localStorage.setItem('zecratary_theme_colors', sig);
+  } catch (_) {}
+}
+
+export async function fetchAndApplyServerTheme(force = false): Promise<void> {
   if (typeof window === 'undefined') return;
+  if (!force && Date.now() - lastThemeFetchAt < 30000) return;
+  lastThemeFetchAt = Date.now();
   try {
     const res = await fetch('/api/admin/settings', { cache: 'no-store' });
     if (res.ok) {
@@ -299,8 +318,7 @@ export async function fetchAndApplyServerTheme(): Promise<void> {
       const settings = data?.settings || data;
       const theme = settings?.themeColors || settings?.theme_colors;
       if (theme && Object.keys(theme).length > 0) {
-        setMemoryThemeColors(theme);
-        applyThemeToDocument(theme);
+        applyIfChanged(theme);
       }
       const font = settings?.fontFamily || settings?.font_family;
       if (font) {
@@ -316,8 +334,7 @@ export async function fetchAndApplyServerTheme(): Promise<void> {
       const uData = await uRes.json();
       const uTheme = uData?.themeColors || uData?.theme_colors;
       if (uTheme && Object.keys(uTheme).length > 0) {
-        setMemoryThemeColors(uTheme);
-        applyThemeToDocument(uTheme);
+        applyIfChanged(uTheme);
       }
       if (uData?.fontFamily || uData?.font_family) {
         applyGlobalFont(uData.fontFamily || uData.font_family);

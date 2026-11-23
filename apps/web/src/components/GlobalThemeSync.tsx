@@ -73,14 +73,19 @@ export default function GlobalThemeSync() {
       document.documentElement.classList.remove('theme-preloading');
     }
 
-    fetchAndApplyServerTheme();
+    fetchAndApplyServerTheme(true);
 
     const handleThemeUpdate = (e: Event) => {
+      // Other tabs change storage with a key. Plain 'storage' events fired by our own pages (recipes, planner, shopping) are not theme changes.
+      if (e.type === 'storage') {
+        const key = (e as StorageEvent).key;
+        if (!key || !key.startsWith('zecratary_theme')) return;
+      }
       const detail = (e as CustomEvent)?.detail;
       if (detail && typeof detail === 'object' && !('mode' in detail)) {
         applyThemeToDocument(detail);
       } else {
-        fetchAndApplyServerTheme();
+        fetchAndApplyServerTheme(e.type === 'zecratary_admin_settings_updated');
       }
     };
 

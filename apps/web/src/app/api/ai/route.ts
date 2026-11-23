@@ -7,17 +7,27 @@ import { scopeToSession } from '@/lib/requestUser';
 // Asks Gemini (with Google Search) for real recipe page links. The links are only candidates: each one is fetched and must contain a readable recipe before it is used.
 async function webSearchRecipeUrls(apiKey: string, model: string, query: string, skip: string[]): Promise<string[]> {
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      signal: AbortSignal.timeout(10000),
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: `Find 6 real recipe pages on the web for: ${query.slice(0, 300)}. Reply with ONLY the full page URLs, one per line, no other text. Use direct recipe pages (not search or category pages) from different well-known recipe websites.` }] }],
-        tools: [{ googleSearch: {} }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 400, ...fastThinking(model) },
-      }),
-    });
-    const data: any = await res.json().catch(() => null);
+    let res: Response | null = null;
+    let data: any = null;
+    let current = resolveGeminiModel(model);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${current}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        signal: AbortSignal.timeout(10000),
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: `Find 6 real recipe pages on the web for: ${query.slice(0, 300)}. Reply with ONLY the full page URLs, one per line, no other text. Use direct recipe pages (not search or category pages) from different well-known recipe websites.` }] }],
+          tools: [{ googleSearch: {} }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 400, ...fastThinking(current) },
+        }),
+      });
+      data = await res.json().catch(() => null);
+      if (res.ok) break;
+      if (!isRetiredModelError(res.status, data?.error?.message || '')) return [];
+      retiredGeminiModels.add(current);
+      current = resolveGeminiModel(current);
+    }
+    if (!res || !res.ok) return [];
     const text: string = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p?.text || '').join('\n');
     const chunks: string[] = (data?.candidates?.[0]?.groundingMetadata?.groundingChunks || []).map((c: any) => c?.web?.uri || '').filter(Boolean);
     const skipHosts = new Set(skip.map((u) => { try { return new URL(u).hostname; } catch (_) { return ''; } }));
@@ -44,6 +54,17 @@ export const dynamic = 'force-dynamic';
 // Gemini 2.5 Flash "thinks" before answering by default, which adds many seconds. Chat, consults and recipe JSON do not need it.
 function fastThinking(model: string): Record<string, any> {
   return /gemini-2\.5-flash/i.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : {};
+}
+
+// Google retires models over time ("no longer available to new users"). Remember retired ones for this server run and move to the next candidate.
+const GEMINI_FALLBACKS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
+const retiredGeminiModels = new Set<string>();
+function isRetiredModelError(status: number, message: string): boolean {
+  return status === 404 || /no longer available|not found|deprecated|is not supported/i.test(message || '');
+}
+function resolveGeminiModel(model: string): string {
+  if (!retiredGeminiModels.has(model)) return model;
+  return GEMINI_FALLBACKS.find((m) => !retiredGeminiModels.has(m)) || model;
 }
 
 function sanitizeGeminiModel(rawModel: string): string {
@@ -365,19 +386,25 @@ Reply ONLY with JSON: {"ready": boolean, "reply": string}. When not ready, "repl
         const sig = AbortSignal.timeout(10000);
         let raw = '';
         if (provider === 'gemini') {
-          const model = sanitizeGeminiModel(initialModel);
-          const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-            body: JSON.stringify({
-              contents: [{ role: 'user', parts: [{ text: transcript }] }],
-              systemInstruction: { parts: [{ text: consultSystem }] },
-              generationConfig: { temperature: 0.5, maxOutputTokens: 300, responseMimeType: 'application/json', ...fastThinking(model) },
-            }),
-            signal: sig,
-            cache: 'no-store',
-          });
-          const d: any = await r.json().catch(() => ({}));
+          let model = resolveGeminiModel(sanitizeGeminiModel(initialModel));
+          let d: any = {};
+          for (let attempt = 0; attempt < 3; attempt++) {
+            const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+              body: JSON.stringify({
+                contents: [{ role: 'user', parts: [{ text: transcript }] }],
+                systemInstruction: { parts: [{ text: consultSystem }] },
+                generationConfig: { temperature: 0.5, maxOutputTokens: 300, responseMimeType: 'application/json', ...fastThinking(model) },
+              }),
+              signal: sig,
+              cache: 'no-store',
+            });
+            d = await r.json().catch(() => ({}));
+            if (r.ok || !isRetiredModelError(r.status, d?.error?.message || '')) break;
+            retiredGeminiModels.add(model);
+            model = resolveGeminiModel(model);
+          }
           raw = (d?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text).filter(Boolean).join('');
         } else {
           const r = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -523,7 +550,7 @@ Reply ONLY with JSON: {"ready": boolean, "reply": string}. When not ready, "repl
     const effectiveMaxTokens = structured ? Math.max(maxTokens, 8192) : maxTokens;
 
     if (provider === 'gemini') {
-      let targetModel = sanitizeGeminiModel(initialModel);
+      let targetModel = resolveGeminiModel(sanitizeGeminiModel(initialModel));
       finalModelUsed = targetModel;
 
       const promptPayload = userPayload;
@@ -576,9 +603,11 @@ Reply ONLY with JSON: {"ready": boolean, "reply": string}. When not ready, "repl
         data = retry.data;
       }
 
-      // Graceful Retry 2: If model is deprecated or not found (404), auto-fallback to gemini-2.5-flash / gemini-3.6-flash
-      if (!res.ok && (res.status === 404 || data?.error?.message?.includes('not found') || data?.error?.message?.includes('no longer available'))) {
-        const fallbackModel = targetModel === 'gemini-2.5-flash' ? 'gemini-3.6-flash' : 'gemini-2.5-flash';
+      // Graceful Retry 2: model retired or not found: walk the fallback list until one answers.
+      for (let hop = 0; hop < 3 && !res.ok && isRetiredModelError(res.status, data?.error?.message || ''); hop++) {
+        retiredGeminiModels.add(finalModelUsed);
+        const fallbackModel = resolveGeminiModel(finalModelUsed);
+        if (fallbackModel === finalModelUsed) break;
         finalModelUsed = fallbackModel;
         const retryFallback = await generateGeminiContent(fallbackModel, false);
         res = retryFallback.res;

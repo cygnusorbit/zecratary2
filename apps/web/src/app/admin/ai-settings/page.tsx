@@ -3151,8 +3151,8 @@ export default function ChefAISettingsPage() {
 
               {/* RECOMMENDED RECIPES URL (PRIMARY SOURCE FOR /chef) */}
               <div className="space-y-3 pt-3 border-t transition-colors duration-200" style={{ borderColor: 'var(--color-border)' }}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                  <div>
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2 xl:gap-4">
+                  <div className="min-w-0 xl:flex-1">
                     <h3 className="font-bold text-xs flex items-center gap-1.5" style={{ color: 'var(--color-primary)' }}>
                       <Globe className="h-4 w-4" style={{ color: 'var(--color-primary)' }} /> {t('recommendedRecipesUrlHeader', 'Recommended Recipes Url')}
                     </h3>
@@ -3160,9 +3160,9 @@ export default function ChefAISettingsPage() {
                       {t('recommendedRecipesUrlDesc', 'Configure primary source URLs for recipe recommendations. When users ask for recipes on /chef, the server reads these sites and the AI builds on the real recipes it finds there. Use recipe pages or recipe index pages (blog home, category or collection pages).')}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 shrink-0">
                     <span 
-                      className="text-[10px] px-2.5 py-0.5 rounded-full font-bold border shrink-0"
+                      className="text-[10px] px-2.5 py-0.5 rounded-full font-bold border shrink-0 whitespace-nowrap"
                       style={{
                         backgroundColor: 'var(--color-inner-dark)',
                         borderColor: recommendedRecipeUrls.length > 0 ? 'var(--color-primary)' : 'var(--color-border)',
@@ -3175,7 +3175,7 @@ export default function ChefAISettingsPage() {
                       <button
                         type="button"
                         onClick={() => checkRecipeUrls(recommendedRecipeUrls)}
-                        className="text-[10px] font-bold transition cursor-pointer hover:opacity-80"
+                        className="text-[10px] font-bold transition cursor-pointer hover:opacity-80 whitespace-nowrap"
                         style={{ color: 'var(--color-primary)' }}
                       >
                         {t('checkSources', 'Check sources')}
@@ -3185,7 +3185,7 @@ export default function ChefAISettingsPage() {
                       <button
                         type="button"
                         onClick={handleClearAllRecommendedUrls}
-                        className="text-[10px] text-red-400 hover:text-red-500 font-bold transition cursor-pointer"
+                        className="text-[10px] text-red-400 hover:text-red-500 font-bold transition cursor-pointer whitespace-nowrap"
                       >
                         {t('clearAll', 'Clear All')}
                       </button>
