@@ -3396,6 +3396,32 @@ export default function ChefAISettingsPage() {
         <ImageKeyCard />
 
       </div>
+
+      {/* FLOATING SAVE BUTTON (bottom right, visible on every tab) */}
+      <div className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-40" role="region" aria-label={t('saveConfigurationBtn', 'Save Configuration')}>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={isSaving}
+          className="text-white font-extrabold text-xs px-5 py-3 rounded-2xl transition shadow-2xl flex items-center gap-2 cursor-pointer hover:opacity-90 disabled:opacity-50"
+          style={{
+            backgroundColor: 'var(--color-primary)',
+            boxShadow: 'var(--color-primary-shadow, 0 10px 25px -4px rgba(0, 0, 0, 0.45))'
+          }}
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>{t('saving', 'Saving...')}</span>
+            </>
+          ) : (
+            <>
+              <Check className="h-4 w-4" />
+              <span>{t('saveConfigurationBtn', 'Save Configuration')}</span>
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 }

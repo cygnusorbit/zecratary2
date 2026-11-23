@@ -270,6 +270,7 @@ export async function POST(req: NextRequest) {
     const chefSettings = serverSettings?.chefAiSettings || serverSettings?.aiSettings || {};
 
     // Small talk ("hello", "thanks", "bye") gets a short human reply: no recipes, no sources, no tokens.
+    let smallTalkFallback = '';
     if ((body as any)?.source === 'chef' && !isQuestionnaireComplete) {
       const t = chatText.trim().toLowerCase().replace(/[!.,?~]+/g, ' ').replace(/\s+/g, ' ').trim();
       const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
@@ -285,9 +286,7 @@ export async function POST(req: NextRequest) {
       } else if (/^(bye|goodbye|see you|see ya|good night|goodnight)$/.test(t)) {
         quick = 'Bye for now! Happy cooking 🍳';
       }
-      if (quick) {
-        return NextResponse.json({ success: true, reply: quick + '\u2064', consumedSystemTokens: 0, remainingBalance: null, sourcesUsed: [] });
-      }
+      smallTalkFallback = quick;
     }
 
     
@@ -309,6 +308,50 @@ export async function POST(req: NextRequest) {
     const temperature = typeof chefSettings.temperature === 'number' ? chefSettings.temperature : 0.7;
     const maxTokens = typeof chefSettings.maxTokens === 'number' ? chefSettings.maxTokens : 4096;
     const systemPrompt = chefSettings.systemPrompt || 'You are Chef Foodie, an expert autonomous culinary AI assistant.';
+    if (smallTalkFallback) {
+      // Greetings are answered by the model too, so the admin "System Prompt / Autonomous Persona" (name, tone, language) is followed. The canned line is only the fallback.
+      let reply = smallTalkFallback;
+      try {
+        if (apiKey) {
+          const sys = `${systemPrompt}\n\nCHAT STYLE: you are chatting with a person. Reply in 1 or 2 short, natural sentences, plain text only (no markdown, no lists), in the language the user wrote. Greet them in your own persona and invite them to say what they would like to eat or cook. Do not list recipes.`;
+          let text = '';
+          if (provider === 'gemini') {
+            let model = resolveGeminiModel(sanitizeGeminiModel(initialModel));
+            for (let attempt = 0; attempt < 3 && !text; attempt++) {
+              const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+                body: JSON.stringify({
+                  contents: [{ role: 'user', parts: [{ text: chatText.slice(0, 200) }] }],
+                  systemInstruction: { parts: [{ text: sys }] },
+                  generationConfig: { temperature: 0.8, maxOutputTokens: 120, ...fastThinking(model) },
+                }),
+                signal: AbortSignal.timeout(6000),
+                cache: 'no-store',
+              });
+              const d: any = await r.json().catch(() => ({}));
+              if (r.ok) { text = (d?.candidates?.[0]?.content?.parts || []).map((p: any) => p?.text || '').join('').trim(); break; }
+              if (!isRetiredModelError(r.status, d?.error?.message || '')) break;
+              retiredGeminiModels.add(model);
+              model = resolveGeminiModel(model);
+            }
+          } else {
+            const r = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ model: initialModel || 'gpt-4o', messages: [{ role: 'system', content: sys }, { role: 'user', content: chatText.slice(0, 200) }], temperature: 0.8, max_tokens: 120 }),
+              signal: AbortSignal.timeout(6000),
+              cache: 'no-store',
+            });
+            const d: any = await r.json().catch(() => ({}));
+            text = String(d?.choices?.[0]?.message?.content || '').trim();
+          }
+          if (text) reply = text.replace(/[*_#`]/g, '').slice(0, 400);
+        }
+      } catch (_) { /* keep the fallback line */ }
+      return NextResponse.json({ success: true, reply: reply + '\u2064', consumedSystemTokens: 0, remainingBalance: null, sourcesUsed: [] });
+    }
+
     const enableWebSearch = chefSettings.enableWebSearch !== false;
     const enablePantryContext = chefSettings.enablePantryContext !== false;
     const strictDiet = chefSettings.strictDietEnforcement !== false;
@@ -374,7 +417,7 @@ export async function POST(req: NextRequest) {
       const capDays = Number(chefSettings.maxPlanDays) || 7;
       const userMsgs = historyArr.filter((m: any) => m?.role === 'user').slice(-5).map((m: any) => String(m?.content || '').slice(0, 300));
       const transcript = [...historyArr.slice(-6).map((m: any) => `${m?.role === 'assistant' ? 'Chef' : 'User'}: ${String(m?.content || '').replace(CONSULT_MARK, '').slice(0, 400)}`), `User: ${chatText.slice(0, 400)}`].join('\n');
-      const consultSystem = `You are Chef Foodie, chatting with a user to work out what they want to cook. Your goal is to collect just enough to build a COMPLETE recipe plan.
+      const consultSystem = `${systemPrompt}\n\nFor this chat, follow the persona above (name, tone, language). Your job now: chat with the user to work out what they want to cook. Your goal is to collect just enough to build a COMPLETE recipe plan.
 Known profile (never repeat it back): ${known || 'none'}.
 What you need, in this order: (1) WHAT they want to eat or cook (a dish, cuisine, craving, mood, or they let you decide); (2) FOR HOW MANY DAYS to plan (1 means just today; maximum ${capDays}); (3) optionally which meals, cooking time or skill, ingredients to leave out, budget. Never skip (1) or (2) unless the user already stated them.
 Rules: ask exactly ONE short, warm question at a time (under 25 words), in plain text with no lists, no markdown and no asterisks. Skip anything already answered or implied. If the user says "you decide" or "anything", accept that and move on. Ask at most 3 questions in total (so far you asked ${consultQuestions}). You are ready only when both (1) what to eat and (2) how many days are known (accept "you decide" for (1)), or the user seems impatient.
