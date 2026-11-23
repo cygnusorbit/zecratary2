@@ -516,6 +516,28 @@ Reply ONLY with JSON: {"ready": boolean, "reply": string}. When not ready, "repl
       fullSystemInstructions += `STRICTLY PROHIBITED INGREDIENTS & TERMS (Never suggest or include):\n${filterWords.join(', ')}\n\n`;
     }
 
+    // Not enough tokens: stop BEFORE the AI runs (and before any website is read), instead of answering for free.
+    try {
+      const activeUserPre = reqUserEmail || reqUserId;
+      if (activeUserPre) {
+        const ts = await import('@/lib/tokenService');
+        const tset: any = await ts.getTokenSettings();
+        if (tset?.isEnabled) {
+          const need = Math.max(Number(tset.chefCost) || 0, Number(tset.mealPlannerCost) || 0);
+          const acct = await ts.getUserTokenAccount(reqUserId || activeUserPre, reqUserEmail || activeUserPre);
+          if (acct.exists && need > 0 && acct.balance < need) {
+            return NextResponse.json({
+              success: false,
+              insufficientTokens: true,
+              error: `Insufficient ${tset.tokenName || 'tokens'}. You need ${need} ${tset.tokenSymbol || ''} and have ${acct.balance}.`,
+              required: need,
+              remainingBalance: acct.balance,
+            }, { status: 402 });
+          }
+        }
+      }
+    } catch (_) { /* never block a chat because the token check itself failed */ }
+
     // Primary recipe sources: really read the configured sites and hand the model complete recipes from them.
     let sourceRecipes: SourceRecipe[] = [];
     if (recommendedUrls.length > 0 && sourceMode !== 'off' && structured) {
@@ -750,7 +772,10 @@ Reply ONLY with JSON: {"ready": boolean, "reply": string}. When not ready, "repl
           const settings = typeof tokenService.getTokenSettings === 'function' 
             ? await tokenService.getTokenSettings() 
             : null;
-          const chefCost = settings?.chefCost || 8;
+          // Charge what the user is shown on the token page: a plan costs the Meal Plan price, any other answer the AI Chef price.
+          const chefCost = (planOut ? (settings?.mealPlannerCost ?? settings?.chefCost) : settings?.chefCost) || 8;
+          const kindLabel = planOut ? 'Meal plan' : recipeOut ? 'Recipe' : 'Chat';
+          const askSnippet = chatText.replace(/\s+/g, ' ').trim().slice(0, 60);
           consumedTokens = 0;
 
           // Single options object contract to satisfy TypeScript TS2554
@@ -761,7 +786,7 @@ Reply ONLY with JSON: {"ready": boolean, "reply": string}. When not ready, "repl
             amount: chefCost,
             tokens: chefCost,
             feature: 'chef',
-            description: 'Chef AI Assistant Query'
+            description: `Chef AI ${kindLabel}: "${askSnippet}"`
           });
 
           // Only report a charge when the deduction really happened.

@@ -10,6 +10,7 @@ import {
   UserCheck, ArrowDownLeft, ArrowUpRight, Scale, RefreshCw, RotateCcw
 } from 'lucide-react';
 import { useTranslation } from '@/components/LanguageProvider';
+import { sanitizeTokenSymbol } from '@/lib/tokenSymbol';
 
 export interface TokenPackage {
   id: string;
@@ -375,7 +376,7 @@ export default function AdminTokenSettingPage() {
     isSavingRef.current = true;
     setFeedback(null);
 
-    const activeSymbol = settings.tokenSymbol.trim() || '🪙';
+    const activeSymbol = sanitizeTokenSymbol(settings.tokenSymbol) || '🪙';
     const resolvedChef = Number(settings.aiChefCost ?? settings.chefCost ?? 2);
 
     const normalizedPkgs = (settings.packages || []).map(p => ({
@@ -1278,7 +1279,22 @@ export default function AdminTokenSettingPage() {
                       data-bwignore="true"
                       data-form-type="other"
                       value={settings.tokenSymbol}
-                      onChange={(e) => setSettings({ ...settings, tokenSymbol: e.target.value })}
+                      onChange={(e) => {
+                        const clean = sanitizeTokenSymbol(e.target.value);
+                        setSymbolRejected(clean !== e.target.value);
+                        setSettings({ ...settings, tokenSymbol: clean });
+                      }}
+                      onPaste={(e) => {
+                        // Pasted text is filtered the same way: only symbols and emoji get through, never code or words.
+                        e.preventDefault();
+                        const pasted = e.clipboardData.getData('text');
+                        const clean = sanitizeTokenSymbol(pasted);
+                        setSymbolRejected(clean !== pasted);
+                        if (clean) setSettings({ ...settings, tokenSymbol: sanitizeTokenSymbol(clean) });
+                      }}
+                      onDrop={(e) => e.preventDefault()}
+                      maxLength={16}
+                      spellCheck={false}
                       placeholder={tr('tokenSymbolPlaceholder', 'e.g. 🪙, 💎, ⚡')}
                       className="flex-1 px-3.5 py-2.5 rounded-xl border outline-none font-bold text-center"
                       style={{ backgroundColor: 'var(--color-inner-dark)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
@@ -1290,6 +1306,11 @@ export default function AdminTokenSettingPage() {
                       {activeTokenSymbol}
                     </div>
                   </div>
+                  <p className="mt-1 text-[11px]" style={{ color: symbolRejected ? 'var(--color-primary)' : 'var(--color-text-secondary)' }}>
+                    {symbolRejected
+                      ? tr('tokenSymbolRejected', 'Only a symbol or emoji is allowed. Letters, numbers and code were removed.')
+                      : tr('tokenSymbolHint', 'Symbol or emoji only. Letters, numbers and pasted code are not accepted.')}
+                  </p>
                 </div>
 
                 <div>

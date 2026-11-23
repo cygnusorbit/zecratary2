@@ -1,5 +1,6 @@
 import { query } from '@/lib/db';
 import { Pool } from 'pg';
+import { sanitizeTokenSymbol } from '@/lib/tokenSymbol';
 
 let poolInstance: Pool | null = null;
 export function getPool(): Pool {
@@ -319,6 +320,7 @@ export async function saveTokenSettings(settings: Partial<TokenSettings> & Recor
   const merged: TokenSettings = {
     ...current,
     ...settings,
+    tokenSymbol: sanitizeTokenSymbol(settings.tokenSymbol ?? current.tokenSymbol) || '🪙',
     chefCost: chefCostVal,
     aiChefCost: chefCostVal,
     packages: Array.isArray(settings.packages) ? settings.packages : current.packages,
@@ -385,6 +387,18 @@ export async function getUserTokenBalance(userId?: string | null, userEmail?: st
     }
   } catch (_) {}
   return 0;
+}
+
+// Looks the user's token account up, so callers can tell "no account" (e.g. an admin login) from "account with 0 tokens".
+export async function getUserTokenAccount(userId?: string | null, userEmail?: string | null): Promise<{ exists: boolean; balance: number }> {
+  await initTokenTables();
+  try {
+    let list: any[] = [];
+    if (userId) list = parseDbRows(await query('SELECT token_balance FROM users WHERE id = $1 LIMIT 1', [userId]));
+    if (list.length === 0 && userEmail) list = parseDbRows(await query('SELECT token_balance FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) LIMIT 1', [userEmail.trim()]));
+    if (list.length > 0) return { exists: true, balance: Number(list[0].token_balance ?? 0) };
+  } catch (_) {}
+  return { exists: false, balance: 0 };
 }
 
 // ----------------------------------------------------------------------------------
@@ -456,6 +470,15 @@ export async function deductUserTokens(
   }
 
   if (!userRow) {
+    // No token account (for example an admin login): nothing to charge, but the use is still written to the ledger so it is visible.
+    try {
+      const txId0 = 'tx_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
+      const type0 = feature.startsWith('usage_') ? feature : `usage_${feature}`;
+      await query(`
+        INSERT INTO token_transactions (id, user_id, user_email, amount, balance_after, type, description, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      `, [txId0, userId || userEmail || 'unknown', userEmail || userId || 'unknown', 0, 0, type0, `${description} (no token account, not charged: ${cost})`]);
+    } catch (_) {}
     return { success: false, error: 'User account not found' };
   }
 

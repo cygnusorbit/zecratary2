@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { sanitizeTokenSymbol } from '@/lib/tokenSymbol';
+import { query as dbQuery } from '@/lib/db';
+import { initTokenTables } from '@/lib/tokenService';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,7 +95,20 @@ export async function OPTIONS() {
 export async function GET() {
   try {
     const settings = readTokenSettings();
-    const transactions = readTransactions();
+    let transactions = readTransactions();
+    // The AI chat, imports and purchases write their charges to the token_transactions table, not to the JSON file: read both.
+    try {
+      await initTokenTables();
+      const res: any = await dbQuery('SELECT id, user_id, user_email, amount, balance_after, type, description, created_at FROM token_transactions ORDER BY created_at DESC LIMIT 300');
+      const rows: any[] = Array.isArray(res) ? res : (res?.rows || []);
+      const seen = new Set(transactions.map((t: any) => String(t.id)));
+      for (const r of rows) {
+        if (seen.has(String(r.id))) continue;
+        transactions.push({ id: r.id, user_email: r.user_email, amount: Number(r.amount), balance_after: Number(r.balance_after), type: r.type, description: r.description, created_at: r.created_at });
+      }
+      transactions.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+      transactions = transactions.slice(0, 300);
+    } catch (_) {}
 
     // 1. Dual-DB: PostgreSQL (Supabase)
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -197,6 +213,7 @@ export async function POST(req: NextRequest) {
       ...payload,
       updated_at: new Date().toISOString()
     };
+    if (updated.tokenSymbol !== undefined) updated.tokenSymbol = sanitizeTokenSymbol(updated.tokenSymbol) || '🪙';
 
     saveTokenSettings(updated);
 

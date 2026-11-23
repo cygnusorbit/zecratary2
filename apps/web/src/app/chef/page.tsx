@@ -13,6 +13,7 @@ import {
 import { getCurrentUser, initAuthStorage, User } from '@/lib/auth';
 import { useTranslation } from '@/components/LanguageProvider';
 import TokenPurchaseModal from '@/components/TokenPurchaseModal';
+import CountrySelect from '@/components/CountrySelect';
 import ChefFlowCard, { ChefFlowState } from '@/components/ChefFlowCard';
 import { FlowRecipe, matchExisting, comparePantry, parseDays, startDateFor, buildPlannedMeals, buildTemplate, buildShoppingItems, appendLocalList } from '@/lib/chefFlow';
 
@@ -225,11 +226,6 @@ const DIETARY_OPTIONS = [
 const ALLERGY_OPTIONS = [
   'Peanuts', 'Tree Nuts', 'Milk', 'Eggs', 'Fish',
   'Shellfish', 'Soy', 'Gluten', 'Other'
-];
-
-const COUNTRIES = [
-  'Singapore', 'United States', 'United Kingdom', 'Australia', 
-  'Canada', 'Malaysia', 'Japan', 'Germany', 'France', 'India'
 ];
 
 const DEFAULT_SECTIONS = [
@@ -2073,7 +2069,7 @@ export default function ChefChatPage() {
               color: 'var(--color-emerald)'
             }}
           >
-            {t('countryLabelPref', 'Country:')} <strong className="font-bold" style={{ color: 'var(--color-text)' }}>{country}</strong>
+            {t('nationalCuisineLabelPref', 'National Cuisine:')} <strong className="font-bold" style={{ color: 'var(--color-text)' }}>{country}</strong>
           </span>
 
           {selectedDiets.map((d) => (
@@ -3867,25 +3863,9 @@ export default function ChefChatPage() {
 
               <div className="space-y-2">
                 <label className="block font-bold text-xs" style={{ color: 'var(--color-primary)' }}>
-                  {t('countryTitle', 'Country')}
+                  {t('nationalCuisineTitle', 'National Cuisine')}
                 </label>
-                <div className="relative">
-                  <select
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
-                    className="w-full border rounded-xl px-4 py-2.5 text-xs outline-none cursor-pointer appearance-none shadow-sm font-medium"
-                    style={{
-                      backgroundColor: 'var(--color-inner-dark)',
-                      borderColor: 'var(--color-border)',
-                      color: 'var(--color-text)'
-                    }}
-                  >
-                    {COUNTRIES.map((c) => (
-                      <option key={c} value={c} style={{ backgroundColor: 'var(--color-card)', color: 'var(--color-text)' }}>{c}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="h-4 w-4 absolute right-3 top-3 pointer-events-none" style={{ color: 'var(--color-primary)' }} />
-                </div>
+                <CountrySelect value={country} onChange={setCountry} />
               </div>
 
               <div className="space-y-2">
