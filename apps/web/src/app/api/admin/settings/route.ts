@@ -4,6 +4,7 @@ import { getJsonSetting, setJsonSetting } from '@/lib/adminSettingsStore';
 import fs from 'fs';
 import path from 'path';
 import { stripSecretsDeep } from '@/lib/secretVault';
+import { isAdminRequest } from '@/lib/adminAuth';
 
 function getCandidatePaths(): string[] {
   return [
@@ -40,6 +41,21 @@ function writeLocalSettings(data: any): void {
   try {
     fs.writeFileSync(targetFile, JSON.stringify(stripSecretsDeep(data), null, 2), 'utf-8');
   } catch (e) {}
+}
+
+// Visitors need branding, theme, languages, plans and the chef's behaviour switches. Payment records (these
+// carry customer names and emails), storage paths, the system prompt and the knowledge base stay with admins.
+function publicSettingsView(settings: any) {
+  const out: any = { ...(settings || {}) };
+  delete out.paymentSettings;
+  delete out.storage_settings;
+  delete out.storage;
+  if (out.chefAiSettings && typeof out.chefAiSettings === 'object') {
+    const chef = { ...out.chefAiSettings };
+    for (const k of ['apiKey', 'systemPrompt', 'knowledgeBaseList', 'customVocabularyList']) delete chef[k];
+    out.chefAiSettings = chef;
+  }
+  return out;
 }
 
 export async function GET(req: NextRequest) {
@@ -80,6 +96,8 @@ export async function GET(req: NextRequest) {
       };
       writeLocalSettings(settings);
     }
+
+    if (!isAdminRequest(req)) settings = publicSettingsView(settings);
 
     return secureJson({ success: true, settings }, {
       headers: {

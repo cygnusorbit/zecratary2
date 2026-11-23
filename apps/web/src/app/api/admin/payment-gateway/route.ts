@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { secureJson, restoreMaskedSecrets } from '@/lib/secretRedaction';
+import { isAdminRequest, requireSignedIn } from '@/lib/adminAuth';
 import { getActiveDatabase } from '@/lib/dbConfig';
 
 // One active database at a time: only touch the engine the app is really using.
@@ -28,7 +29,10 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = requireSignedIn(req);
+  if (denied) return denied;
+  const admin = isAdminRequest(req);
   try {
     const [settings, allTransactions] = await Promise.all([
       getAuthoritativeGatewaySettings(),
@@ -57,7 +61,8 @@ export async function GET() {
       paypalKeysVerified: settings.paypalKeysVerified,
       currency: settings.currency,
       manual_details: settings.manual_details,
-      transactions: allTransactions
+      // Payment records of every user are for administrators only.
+      transactions: admin ? allTransactions : []
     }, { headers: CORS_HEADERS });
   } catch (err: any) {
     return secureJson({ success: false, error: err.message }, { status: 500, headers: CORS_HEADERS });

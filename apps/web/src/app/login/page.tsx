@@ -8,7 +8,7 @@ import {
   Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle2, 
   ArrowRight, ChefHat, ExternalLink 
 } from 'lucide-react';
-import { getCurrentUser, loginUser, initAuthStorage, setCurrentUser } from '@/lib/auth';
+import { getCurrentUser, loginUser, initAuthStorage, setCurrentUser, checkServerSession } from '@/lib/auth';
 import { useTranslation } from '@/components/LanguageProvider';
 import { applyThemeToDocument } from '@/lib/themeConfig';
 
@@ -322,7 +322,11 @@ function LoginForm() {
   }, [searchParams]);
 
   useEffect(() => {
-    verifySession();
+    // Only bounce a signed-in visitor away when the server still honours the session; otherwise the stale
+    // local sign-in is cleared by checkServerSession and the login form stays usable.
+    let cancelled = false;
+    checkServerSession().then((r) => { if (!cancelled && r === 'valid') verifySession(); });
+    return () => { cancelled = true; };
   }, [verifySession]);
 
   // 7. Fast Credential Submission with Direct Database Route & Client Fallback

@@ -8,7 +8,6 @@ import {
   ShieldAlert, Check, RefreshCw, Bot, Zap, SlidersHorizontal, ListPlus, Trash2, Plus, Layers, FolderPlus, LayoutTemplate, Mic, Volume2, Settings, Eye, EyeOff, Calendar, Clock, Flame, Users, ToggleLeft, ToggleRight, BookOpen, BookA, Ban, X, CheckCircle, ChevronDown, BarChart3, TrendingUp, MessageSquare
 } from 'lucide-react';
 import { useTranslation } from '@/components/LanguageProvider';
-import ImageKeyCard from '@/components/ImageKeyCard';
 import { 
   purgeLegacyBrowserAdminStorage, 
   fetchServerAdminSettings, 
@@ -3392,8 +3391,6 @@ export default function ChefAISettingsPage() {
             </div>
           </div>
         )}
-
-        <ImageKeyCard />
 
       </div>
 

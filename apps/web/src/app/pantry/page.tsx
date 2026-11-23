@@ -45,39 +45,12 @@ export default function PantryPage() {
       const raw = localStorage.getItem('zecratary_pantry_items') || localStorage.getItem('zecratary_pantry');
       let allItems: any[] = raw ? JSON.parse(raw) : [];
 
-      if (!Array.isArray(allItems) || allItems.length === 0) {
-        allItems = [
-          { 
-            id: 'p_1_' + user.id, 
-            userId: user.id, 
-            createdBy: user.email, 
-            name: 'Eggs', 
-            quantity: '6', 
-            unit: 'units', 
-            category: 'Dairy', 
-            expiryDate: '2026-11-15' 
-          },
-          { 
-            id: 'p_2_' + user.id, 
-            userId: user.id, 
-            createdBy: user.email, 
-            name: 'Jasmine Rice', 
-            quantity: '2', 
-            unit: 'kg', 
-            category: 'Grains and Pasta', 
-            expiryDate: '2027-01-20' 
-          },
-          { 
-            id: 'p_3_' + user.id, 
-            userId: user.id, 
-            createdBy: user.email, 
-            name: 'Olive Oil', 
-            quantity: '1', 
-            unit: 'bottle', 
-            category: 'Condiments and Sauces', 
-            expiryDate: '2027-08-30' 
-          }
-        ];
+      if (!Array.isArray(allItems)) allItems = [];
+
+      // Earlier versions seeded three sample items (Eggs, Jasmine Rice, Olive Oil) into every new pantry. Drop those once.
+      const seeded = (item: any) => /^p_[123]_/.test(String(item?.id || '')) && ['Eggs', 'Jasmine Rice', 'Olive Oil'].includes(item?.name);
+      if (allItems.some(seeded)) {
+        allItems = allItems.filter((item: any) => !seeded(item));
         localStorage.setItem('zecratary_pantry_items', JSON.stringify(allItems));
         localStorage.setItem('zecratary_pantry', JSON.stringify(allItems));
       }

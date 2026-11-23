@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { isAdminRequest } from '@/lib/adminAuth';
 import { secureJson, restoreMaskedSecrets } from '@/lib/secretRedaction';
 import { query } from '@/lib/db';
 import fs from 'fs';
@@ -120,7 +121,7 @@ function readServerStorageFallback(): any {
   return null;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   let settings: any = readServerStorageFallback();
 
   try {
@@ -188,6 +189,17 @@ export async function GET() {
     finalConfig.localhost.recipesJsonDir,
     finalConfig.localhost.uploadDir
   );
+
+  if (!isAdminRequest(req)) {
+    // Visitors only need to know where images are served from; keep paths, endpoints and keys private.
+    const publicView = {
+      provider: finalConfig.provider,
+      localhost: { publicPrefix: finalConfig.localhost.publicPrefix, publicServingUrl: finalConfig.localhost.publicServingUrl, maxFileSizeMb: finalConfig.localhost.maxFileSizeMb },
+      supabase: { enabled: finalConfig.supabase.enabled, bucket: finalConfig.supabase.bucket, bucketName: finalConfig.supabase.bucket, publicUrl: finalConfig.supabase.publicUrl, publicUrlPrefix: finalConfig.supabase.publicUrl },
+      allowedFormats: finalConfig.allowedFormats
+    };
+    return secureJson({ success: true, storageSettings: publicView, settings: publicView }, { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } });
+  }
 
   return secureJson({
     success: true,

@@ -340,7 +340,7 @@ export default function RecipesPage() {
   }, [applyGlobalTheme]);
 
   useEffect(() => {
-    document.title = `${t('recipesTitle') || t('savedRecipesTitle') || 'Recipes'} - FoodiePrep`;
+    document.title = `${t('recipesTitle') || t('savedRecipesTitle', 'Recipes')} - FoodiePrep`;
     initAuthStorage();
     const user = getCurrentUser();
     if (!user) {
@@ -572,7 +572,7 @@ export default function RecipesPage() {
     }
 
     setShowAddToPlanModal(false);
-    const alertMsg = (t('scheduledMealAlert') || 'Successfully scheduled "{title}" in your meal plan!')
+    const alertMsg = (t('scheduledMealAlert', 'Successfully scheduled "{title}" in your meal plan!'))
       .replace('{title}', recName);
     alert(alertMsg);
   };
@@ -599,7 +599,7 @@ export default function RecipesPage() {
   };
 
   const handleDeleteRecipe = async (id: string) => {
-    if (!confirm(t('confirmDeleteRecipe') || 'Are you sure you want to delete this recipe?')) return;
+    if (!confirm(t('confirmDeleteRecipe', 'Are you sure you want to delete this recipe?'))) return;
     
     try {
       await Promise.allSettled([
@@ -655,7 +655,7 @@ export default function RecipesPage() {
       }
     } catch (err) {
       console.error('[RecipesPage] Error deleting recipe:', err);
-      alert(t('errorDeletingRecipe') || 'Failed to delete recipe. Please try again.');
+      alert(t('errorDeletingRecipe', 'Failed to delete recipe. Please try again.'));
     }
   };
 
@@ -739,7 +739,7 @@ export default function RecipesPage() {
 
   const handleSaveEdit = () => {
     if (!editForm.title.trim()) {
-      alert(t('enterRecipeTitleAlert') || 'Please enter a recipe title.');
+      alert(t('enterRecipeTitleAlert', 'Please enter a recipe title.'));
       setEditTab('info');
       return;
     }
@@ -902,7 +902,7 @@ export default function RecipesPage() {
   const handleConfirmAddToShoppingList = async () => {
     const selectedItems = shoppingModalIngredients.filter(i => i.selected);
     if (selectedItems.length === 0) {
-      alert(t('noIngredientsSelectedAlert') || 'No ingredients selected.');
+      alert(t('noIngredientsSelectedAlert', 'No ingredients selected.'));
       return;
     }
 
@@ -961,7 +961,7 @@ export default function RecipesPage() {
     }
 
     setIsShoppingModalOpen(false);
-    const alertMsg = (t('addedItemsShoppingAlert') || 'Added {count} items to your Shopping List!')
+    const alertMsg = (t('addedItemsShoppingAlert', 'Added {count} items to your Shopping List!'))
       .replace('{count}', String(selectedItems.length));
     alert(alertMsg);
   };
@@ -1061,10 +1061,10 @@ export default function RecipesPage() {
       <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-[var(--color-primary)]">
-            {t('recipesTitle') || t('savedRecipesTitle') || 'Recipes'}
+            {t('recipesTitle') || t('savedRecipesTitle', 'Recipes')}
           </h1>
           <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-            {(t('savedRecipesSubtitle') || 'Your collection of favorite recipes ({count})').replace('{count}', String(recipes.length))}
+            {(t('savedRecipesSubtitle', 'Your collection of favorite recipes ({count})')).replace('{count}', String(recipes.length))}
           </p>
         </div>
 
@@ -1110,7 +1110,7 @@ export default function RecipesPage() {
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)')}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary)')}
           >
-            <UploadCloud className="h-4 w-4"/> {t('createRecipe') || 'Create Recipe'}
+            <UploadCloud className="h-4 w-4"/> {t('createRecipe', 'Create Recipe')}
           </Link>
         </div>
       </div>
@@ -1125,7 +1125,7 @@ export default function RecipesPage() {
               autoComplete="off"
               data-lpignore="true"
               data-form-type="other"
-              placeholder={t('searchByNamePlaceholder') || 'Search by name'}
+              placeholder={t('searchByNamePlaceholder', 'Search by name')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full border rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none"
@@ -1152,7 +1152,7 @@ export default function RecipesPage() {
               color: 'var(--color-text-secondary)'
             }}
           >
-            <SlidersHorizontal className="h-4 w-4" style={{ color: 'var(--color-emerald)' }}/> {t('filter') || 'Filter'}
+            <SlidersHorizontal className="h-4 w-4" style={{ color: 'var(--color-emerald)' }}/> {t('filter', 'Filter')}
           </button>
         </div>
 
@@ -1174,7 +1174,7 @@ export default function RecipesPage() {
               }}
             >
               <Heart className={`h-3.5 w-3.5 ${filterFavorites ? 'fill-current' : ''}`} style={{ color: filterFavorites ? 'var(--color-primary)' : 'var(--color-text-secondary)' }}/>
-              <span>{t('favorites') || 'Favorites'}</span>
+              <span>{t('favorites', 'Favorites')}</span>
             </button>
 
             {/* Ingredients Popover Filter */}
@@ -1194,7 +1194,7 @@ export default function RecipesPage() {
                 }}
               >
                 <Carrot className="h-3.5 w-3.5" style={{ color: 'var(--color-emerald)' }}/>
-                <span>{t('ingredientsFilter') || 'Ingredients'} {selectedIngredientsList.length > 0 ? `(${selectedIngredientsList.length})` : ''}</span>
+                <span>{t('ingredientsFilter', 'Ingredients')} {selectedIngredientsList.length > 0 ? `(${selectedIngredientsList.length})` : ''}</span>
                 <ChevronDown className="h-3.5 w-3.5 opacity-70"/>
               </button>
 
@@ -1220,7 +1220,7 @@ export default function RecipesPage() {
                         autoComplete="off"
                         data-lpignore="true"
                         data-form-type="other"
-                        placeholder={t('searchIngredientsPlaceholder') || 'Search ingredients'}
+                        placeholder={t('searchIngredientsPlaceholder', 'Search ingredients')}
                         value={ingredientQuery}
                         onChange={(e) => setIngredientQuery(e.target.value)}
                         className="w-full bg-transparent px-3 py-2 text-xs outline-none"
@@ -1262,7 +1262,7 @@ export default function RecipesPage() {
                   )}
 
                   <p className="text-[11px] leading-tight pt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
-                    {t('recipesMustContainIngredients') || 'Recipes must contain all listed ingredients.'}
+                    {t('recipesMustContainIngredients', 'Recipes must contain all listed ingredients.')}
                   </p>
                 </div>
               )}
@@ -1285,7 +1285,7 @@ export default function RecipesPage() {
                 }}
               >
                 <Utensils className="h-3.5 w-3.5 opacity-70"/>
-                <span>{selectedType === 'All Types' ? (t('recipeTypeLabel') || 'Recipe Type') : selectedType}</span>
+                <span>{selectedType === 'All Types' ? (t('recipeTypeLabel', 'Recipe Type')) : selectedType}</span>
                 <ChevronDown className="h-3.5 w-3.5 opacity-70"/>
               </button>
 
@@ -1334,7 +1334,7 @@ export default function RecipesPage() {
               }}
             >
               <CheckCircle2 className="h-3.5 w-3.5" style={{ color: filterCooked ? 'var(--color-emerald)' : 'var(--color-text-secondary)' }}/>
-              <span>{t('cooked') || 'Cooked'}</span>
+              <span>{t('cooked', 'Cooked')}</span>
             </button>
 
             {/* Rating Dropdown */}
@@ -1354,7 +1354,7 @@ export default function RecipesPage() {
                 }}
               >
                 <Star className="h-3.5 w-3.5 opacity-70"/>
-                <span>{selectedRating === 'All Ratings' ? (t('rating') || 'Rating') : selectedRating}</span>
+                <span>{selectedRating === 'All Ratings' ? (t('rating', 'Rating')) : selectedRating}</span>
                 <ChevronDown className="h-3.5 w-3.5 opacity-70"/>
               </button>
 
@@ -1404,7 +1404,7 @@ export default function RecipesPage() {
                 }}
               >
                 <Hourglass className="h-3.5 w-3.5 opacity-70"/>
-                <span>{selectedPrepTime === 'All Prep Times' ? (t('prepTime') || 'Prep Time') : selectedPrepTime}</span>
+                <span>{selectedPrepTime === 'All Prep Times' ? (t('prepTime', 'Prep Time')) : selectedPrepTime}</span>
                 <ChevronDown className="h-3.5 w-3.5 opacity-70"/>
               </button>
 
@@ -1454,7 +1454,7 @@ export default function RecipesPage() {
                 }}
               >
                 <Clock className="h-3.5 w-3.5 opacity-70"/>
-                <span>{selectedCookTime === 'All Cook Times' ? (t('cookTime') || 'Cook Time') : selectedCookTime}</span>
+                <span>{selectedCookTime === 'All Cook Times' ? (t('cookTime', 'Cook Time')) : selectedCookTime}</span>
                 <ChevronDown className="h-3.5 w-3.5 opacity-70"/>
               </button>
 
@@ -1493,7 +1493,7 @@ export default function RecipesPage() {
       {/* Grid */}
       {loading ? (
         <div className="text-xs py-12 text-center" style={{ color: 'var(--color-text-secondary)' }}>
-          {t('loadingRecipes') || 'Loading recipes...'}
+          {t('loadingRecipes', 'Loading recipes...')}
         </div>
       ) : (
         <div className={`grid ${GRID_CONFIG[gridMode].colsClass} gap-4 sm:gap-5`}>
@@ -1550,7 +1550,7 @@ export default function RecipesPage() {
                           borderColor: 'var(--color-border)',
                           color: 'var(--color-primary)'
                         }}
-                        title={isRecipeTimerRunning ? `Timer: ${formatTimerTime(timerSecondsLeft)}` : (t('startTimer') || 'Start Kitchen Timer')}
+                        title={isRecipeTimerRunning ? `Timer: ${formatTimerTime(timerSecondsLeft)}` : (t('startTimer', 'Start Kitchen Timer'))}
                       >
                         <Timer className={`h-3.5 w-3.5 ${isRecipeTimerRunning ? 'animate-pulse' : ''}`}/>
                       </button>
@@ -1568,7 +1568,7 @@ export default function RecipesPage() {
                           borderColor: 'var(--color-border)',
                           color: 'var(--color-text-secondary)'
                         }}
-                        title={r.isCooked ? (t('cooked') || 'Cooked') : (t('markAsCooked') || 'Mark as Cooked')}
+                        title={r.isCooked ? (t('cooked', 'Cooked')) : (t('markAsCooked', 'Mark as Cooked'))}
                       >
                         <CheckCircle2 className="h-3.5 w-3.5"/>
                       </button>
@@ -1586,7 +1586,7 @@ export default function RecipesPage() {
                           borderColor: 'var(--color-border)',
                           color: 'var(--color-text-secondary)'
                         }}
-                        title={r.isFavorite ? (t('favorites') || 'Favorite') : (t('addToFavorites') || 'Add to Favorites')}
+                        title={r.isFavorite ? (t('favorites', 'Favorite')) : (t('addToFavorites', 'Add to Favorites'))}
                       >
                         <Heart 
                           className={`h-3.5 w-3.5 ${r.isFavorite ? 'fill-current' : ''}`}
@@ -1633,7 +1633,7 @@ export default function RecipesPage() {
                     onClick={(e) => handleOpenTimer(e, r)}
                     className="text-[11px] flex items-center gap-1 shrink-0 font-medium hover:opacity-80 transition cursor-pointer"
                     style={{ color: isRecipeTimerRunning ? 'var(--color-primary)' : 'var(--color-text-secondary)' }}
-                    title={t('startTimer') || 'Start Kitchen Timer'}
+                    title={t('startTimer', 'Start Kitchen Timer')}
                   >
                     <Clock className="h-3 w-3"/> {(r.prepTimeMinutes || 15) + (r.cookTimeMinutes || 10)}m
                   </button>
@@ -1651,7 +1651,7 @@ export default function RecipesPage() {
           style={{ borderColor: 'var(--color-border)' }}
         >
           <span style={{ color: 'var(--color-text-secondary)' }}>
-            {(t('showingRecipesRange') || 'Showing {start} - {end} of {total} recipes')
+            {(t('showingRecipesRange', 'Showing {start} - {end} of {total} recipes'))
               .replace('{start}', String(startIndex + 1))
               .replace('{end}', String(Math.min(startIndex + itemsPerPage, filtered.length)))
               .replace('{total}', String(filtered.length))}
@@ -1772,10 +1772,10 @@ export default function RecipesPage() {
 
                       <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
                         <span className="border text-white px-3 py-1.5 rounded-full flex items-center gap-1.5 bg-black/60 border-white/20">
-                          <Clock className="h-3.5 w-3.5"/> {(t('cookTimePrefix') || 'Cook: {time} minutes').replace('{time}', String(selectedRecipe.cookTimeMinutes || 10))}
+                          <Clock className="h-3.5 w-3.5"/> {(t('cookTimePrefix', 'Cook: {time} minutes')).replace('{time}', String(selectedRecipe.cookTimeMinutes || 10))}
                         </span>
                         <span className="border text-white px-3 py-1.5 rounded-full flex items-center gap-1.5 bg-black/60 border-white/20">
-                          <Clock className="h-3.5 w-3.5"/> {(t('prepTimePrefix') || 'Prep: {time} minutes').replace('{time}', String(selectedRecipe.prepTimeMinutes || 30))}
+                          <Clock className="h-3.5 w-3.5"/> {(t('prepTimePrefix', 'Prep: {time} minutes')).replace('{time}', String(selectedRecipe.prepTimeMinutes || 30))}
                         </span>
                         <span className="border text-white px-3 py-1.5 rounded-full flex items-center gap-1.5 bg-black/60 border-white/20">
                           <Utensils className="h-3.5 w-3.5"/> {recipeCategoryBadge}
@@ -1813,7 +1813,7 @@ export default function RecipesPage() {
                       >
                         <BookmarkPlus className="h-4 w-4 shrink-0" style={{ color: 'var(--color-primary)' }}/>
                         <span className="truncate">
-                          {assignedBook ? assignedBook.title : (t('addToCookbook') || t('addToBook') || 'Add to Cookbook')}
+                          {assignedBook ? assignedBook.title : (t('addToCookbook') || t('addToBook', 'Add to Cookbook'))}
                         </span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-70 ml-0.5"/>
                       </button>
@@ -1830,19 +1830,19 @@ export default function RecipesPage() {
                             }}
                           >
                             <div className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 flex items-center justify-between" style={{ color: 'var(--color-text-secondary)' }}>
-                              <span>{t('selectCookbook') || 'Select Cookbook'}</span>
+                              <span>{t('selectCookbook', 'Select Cookbook')}</span>
                               <Link 
                                 className="hover:underline font-bold" 
                                 href="/books"
                                 style={{ color: 'var(--color-emerald)' }}
                               >
-                                {t('manage') || 'Manage'}
+                                {t('manage', 'Manage')}
                               </Link>
                             </div>
 
                             <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
                               {books.length === 0 ? (
-                                <div className="text-xs px-2.5 py-2" style={{ color: 'var(--color-text-secondary)' }}>{t('noCookbooksAvailable') || 'No cookbooks available'}</div>
+                                <div className="text-xs px-2.5 py-2" style={{ color: 'var(--color-text-secondary)' }}>{t('noCookbooksAvailable', 'No cookbooks available')}</div>
                               ) : (
                                 books.map((b) => {
                                   const isAssigned = (selectedRecipe.bookId || selectedRecipe.book_id) === b.id;
@@ -1885,7 +1885,7 @@ export default function RecipesPage() {
                         color: 'var(--color-primary)'
                       }}
                     >
-                      <CalendarPlus className="h-4 w-4" style={{ color: 'var(--color-primary)' }}/> {t('addToPlan') || 'Add to Plan'}
+                      <CalendarPlus className="h-4 w-4" style={{ color: 'var(--color-primary)' }}/> {t('addToPlan', 'Add to Plan')}
                     </button>
 
                     <button
@@ -1898,7 +1898,7 @@ export default function RecipesPage() {
                         color: 'var(--color-primary)'
                       }}
                     >
-                      <ShoppingCart className="h-4 w-4" style={{ color: 'var(--color-primary)' }}/> {t('shoppingList') || 'Shopping List'}
+                      <ShoppingCart className="h-4 w-4" style={{ color: 'var(--color-primary)' }}/> {t('shoppingList', 'Shopping List')}
                     </button>
                   </div>
 
@@ -1911,7 +1911,7 @@ export default function RecipesPage() {
                         className="text-xs font-bold flex items-center gap-1.5"
                         style={{ color: 'var(--color-primary)' }}
                       >
-                        <Users className="h-4 w-4"/> {t('servingsLabel') || 'Servings'}
+                        <Users className="h-4 w-4"/> {t('servingsLabel', 'Servings')}
                       </span>
 
                       {/* Stepper: -1 / Input / +1 */}
@@ -1927,7 +1927,7 @@ export default function RecipesPage() {
                           onClick={() => setCurrentServings(prev => Math.max(1, prev - 1))}
                           className="px-3 py-1.5 font-bold cursor-pointer transition hover:bg-black/10 dark:hover:bg-white/10 select-none"
                           style={{ color: 'var(--color-text-secondary)' }}
-                          title={t('decreaseServings') || 'Decrease Servings (-1)'}
+                          title={t('decreaseServings', 'Decrease Servings (-1)')}
                         >
                           -
                         </button>
@@ -1950,7 +1950,7 @@ export default function RecipesPage() {
                           }}
                           className="w-12 py-1 text-xs font-black text-center bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           style={{ color: 'var(--color-text)' }}
-                          title={t('servingsCount') || 'Current Servings'}
+                          title={t('servingsCount', 'Current Servings')}
                         />
 
                         <button
@@ -1958,7 +1958,7 @@ export default function RecipesPage() {
                           onClick={() => setCurrentServings(prev => prev + 1)}
                           className="px-3 py-1.5 font-bold cursor-pointer transition hover:bg-black/10 dark:hover:bg-white/10 select-none"
                           style={{ color: 'var(--color-text-secondary)' }}
-                          title={t('increaseServings') || 'Increase Servings (+1)'}
+                          title={t('increaseServings', 'Increase Servings (+1)')}
                         >
                           +
                         </button>
@@ -1991,7 +1991,7 @@ export default function RecipesPage() {
                               color: 'var(--color-text-secondary)'
                             }}
                           >
-                            {t('originServingsBadge') || 'Origin'}: {baseServings}
+                            {t('originServingsBadge', 'Origin')}: {baseServings}
                           </span>
                         )}
 
@@ -2008,7 +2008,7 @@ export default function RecipesPage() {
                             title={t('resetServingsTooltip') || `Reset to origin ${baseServings} servings`}
                           >
                             <RotateCcw className="h-3 w-3"/>
-                            <span>{t('reset') || 'Reset'}</span>
+                            <span>{t('reset', 'Reset')}</span>
                           </button>
                         )}
                       </div>
@@ -2025,7 +2025,7 @@ export default function RecipesPage() {
                         }}
                       >
                         <Timer className={`h-3.5 w-3.5 ${activeTimerRecipe?.id === selectedRecipe.id && isTimerRunning ? 'animate-pulse' : ''}`}/> 
-                        <span>{activeTimerRecipe?.id === selectedRecipe.id && isTimerRunning ? formatTimerTime(timerSecondsLeft) : (t('timerBtn') || 'Timer')}</span>
+                        <span>{activeTimerRecipe?.id === selectedRecipe.id && isTimerRunning ? formatTimerTime(timerSecondsLeft) : (t('timerBtn', 'Timer'))}</span>
                       </button>
 
                       <button
@@ -2037,13 +2037,13 @@ export default function RecipesPage() {
                           color: 'var(--color-primary)'
                         }}
                       >
-                        <Edit3 className="h-3.5 w-3.5"/> {t('editBtn') || 'Edit'}
+                        <Edit3 className="h-3.5 w-3.5"/> {t('editBtn', 'Edit')}
                       </button>
 
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(window.location.href);
-                          alert(t('recipeLinkCopiedAlert') || 'Recipe link copied!');
+                          alert(t('recipeLinkCopiedAlert', 'Recipe link copied!'));
                         }}
                         className="border font-bold text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm"
                         style={{
@@ -2052,7 +2052,7 @@ export default function RecipesPage() {
                           color: 'var(--color-primary)'
                         }}
                       >
-                        <Share2 className="h-3.5 w-3.5"/> {t('shareRecipeBtn') || 'Share Recipe'}
+                        <Share2 className="h-3.5 w-3.5"/> {t('shareRecipeBtn', 'Share Recipe')}
                       </button>
                     </div>
                   </div>
@@ -2074,7 +2074,7 @@ export default function RecipesPage() {
                         style={{ color: 'var(--color-text)' }}
                       >
                         <span className="font-extrabold tracking-tight">
-                          {selectedRecipe.isCooked ? (t('cooked') || 'Cooked') : (t('markAsCooked') || 'Mark as Cooked')}
+                          {selectedRecipe.isCooked ? (t('cooked', 'Cooked')) : (t('markAsCooked', 'Mark as Cooked'))}
                         </span>
                         
                         <span 
@@ -2116,7 +2116,7 @@ export default function RecipesPage() {
                         style={{ color: 'var(--color-text-secondary)' }}
                       >
                         <Edit3 className="h-3.5 w-3.5"/>
-                        <span className="italic">{t('addANote') || 'Add a note'}</span>
+                        <span className="italic">{t('addANote', 'Add a note')}</span>
                       </button>
 
                       {isNoteOpen && (
@@ -2126,7 +2126,7 @@ export default function RecipesPage() {
                             autoComplete="off"
                             data-lpignore="true"
                             data-form-type="other"
-                            placeholder={t('addNotesPlaceholder') || 'Add notes...'}
+                            placeholder={t('addNotesPlaceholder', 'Add notes...')}
                             value={noteText}
                             onChange={(e) => setNoteText(e.target.value)}
                             className="flex-1 border rounded-xl px-3 py-2 text-xs outline-none"
@@ -2147,7 +2147,7 @@ export default function RecipesPage() {
                             className="text-white font-bold text-xs px-3.5 py-2 rounded-xl transition cursor-pointer shadow-sm"
                             style={{ backgroundColor: 'var(--color-primary)' }}
                           >
-                            {t('save') || 'Save'}
+                            {t('save', 'Save')}
                           </button>
                         </div>
                       )}
@@ -2169,11 +2169,11 @@ export default function RecipesPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <h3 className="text-xl font-black" style={{ color: 'var(--color-text)' }}>
-                          {t('ingredientsHeading') || 'Ingredients'}
+                          {t('ingredientsHeading', 'Ingredients')}
                         </h3>
                         {servingDiffPercent !== 0 && (
                           <span className="text-[11px] font-bold" style={{ color: 'var(--color-text-secondary)' }}>
-                            ({currentServings} {t('servingsLabel') || 'servings'})
+                            ({currentServings} {t('servingsLabel', 'servings')})
                           </span>
                         )}
                       </div>
@@ -2238,7 +2238,7 @@ export default function RecipesPage() {
 
                   {/* INSTRUCTIONS SECTION */}
                   <div className="px-5 space-y-4">
-                    <h3 className="text-xl font-black" style={{ color: 'var(--color-text)' }}>{t('instructionsHeading') || 'Instructions'}</h3>
+                    <h3 className="text-xl font-black" style={{ color: 'var(--color-text)' }}>{t('instructionsHeading', 'Instructions')}</h3>
                     
                     <div className="space-y-3.5" style={{ fontSize: `${fontSizeScale}%` }}>
                       {Array.isArray(selectedRecipe.instructions) && selectedRecipe.instructions.map((step: string, idx: number) => {
@@ -2307,12 +2307,12 @@ export default function RecipesPage() {
                         color: '#ef4444'
                       }}
                     >
-                      <Trash2 className="h-3.5 w-3.5"/> {t('deleteRecipeBtn') || 'Delete Recipe'}
+                      <Trash2 className="h-3.5 w-3.5"/> {t('deleteRecipeBtn', 'Delete Recipe')}
                     </button>
 
                     <div className="flex items-center gap-2 ml-auto text-xs">
                       <span className="font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
-                        {t('source') || 'Source'}:
+                        {t('source', 'Source')}:
                       </span>
                       {selectedRecipe.sourceUrl || selectedRecipe.source_url ? (
                         <a
@@ -2327,7 +2327,7 @@ export default function RecipesPage() {
                           }}
                         >
                           <span className="underline">
-                            {(t('visitSource') || 'Visit {domain}').replace('{domain}', getSafeHostname(selectedRecipe.sourceUrl || selectedRecipe.source_url))}
+                            {(t('visitSource', 'Visit {domain}')).replace('{domain}', getSafeHostname(selectedRecipe.sourceUrl || selectedRecipe.source_url))}
                           </span>
                           <ExternalLink className="h-3.5 w-3.5" />
                         </a>
@@ -2340,7 +2340,7 @@ export default function RecipesPage() {
                             color: 'var(--color-text-secondary)'
                           }}
                         >
-                          {t('createdManually') || 'Created manually'}
+                          {t('createdManually', 'Created manually')}
                         </span>
                       )}
                     </div>
@@ -2351,7 +2351,7 @@ export default function RecipesPage() {
                 <div className="p-6 space-y-6" data-lpignore="true">
                   <div className="flex justify-between items-center border-b pb-3" style={{ borderColor: 'var(--color-border)' }}>
                     <h3 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
-                      <Edit3 className="h-5 w-5" style={{ color: 'var(--color-primary)' }}/> {t('editRecipeTitle') || 'Edit Recipe'}
+                      <Edit3 className="h-5 w-5" style={{ color: 'var(--color-primary)' }}/> {t('editRecipeTitle', 'Edit Recipe')}
                     </h3>
                     <button
                       onClick={() => setIsEditing(false)}
@@ -2370,9 +2370,9 @@ export default function RecipesPage() {
                     }}
                   >
                     {[
-                      { id: 'info', label: t('basicInfoTab') || 'Basic Info' },
-                      { id: 'ingredients', label: t('ingredientsTab') || 'Ingredients' },
-                      { id: 'steps', label: t('stepsTab') || 'Steps' }
+                      { id: 'info', label: t('basicInfoTab', 'Basic Info') },
+                      { id: 'ingredients', label: t('ingredientsTab', 'Ingredients') },
+                      { id: 'steps', label: t('stepsTab', 'Steps') }
                     ].map((tab) => (
                       <button
                         key={tab.id}
@@ -2401,7 +2401,7 @@ export default function RecipesPage() {
                           className="block font-bold uppercase tracking-wider text-[11px]"
                           style={{ color: 'var(--color-primary)' }}
                         >
-                          {t('photoLabel') || 'Photo'}
+                          {t('photoLabel', 'Photo')}
                         </label>
                         <label 
                           className="border-2 border-dashed rounded-2xl h-44 flex flex-col items-center justify-center cursor-pointer transition relative overflow-hidden group"
@@ -2425,7 +2425,7 @@ export default function RecipesPage() {
                                     borderColor: 'var(--color-border)'
                                   }}
                                 >
-                                  <ImagePlus className="h-4 w-4" style={{ color: 'var(--color-primary)' }}/> {t('changePhoto') || 'Change Photo'}
+                                  <ImagePlus className="h-4 w-4" style={{ color: 'var(--color-primary)' }}/> {t('changePhoto', 'Change Photo')}
                                 </span>
                                 <button
                                   type="button"
@@ -2436,14 +2436,14 @@ export default function RecipesPage() {
                                   }}
                                   className="bg-red-950/90 border border-red-500/50 text-red-400 text-xs font-bold px-3 py-1.5 rounded-xl hover:bg-red-900 cursor-pointer"
                                 >
-                                  {t('removePhoto') || 'Remove'}
+                                  {t('removePhoto', 'Remove')}
                                 </button>
                               </div>
                             </>
                           ) : (
                             <div className="text-center space-y-2">
                               <ImagePlus className="h-8 w-8 mx-auto transition" style={{ color: 'var(--color-text-secondary)' }}/>
-                              <span className="text-xs font-bold block" style={{ color: 'var(--color-text)' }}>{t('addAPhoto') || 'Add a photo'}</span>
+                              <span className="text-xs font-bold block" style={{ color: 'var(--color-text)' }}>{t('addAPhoto', 'Add a photo')}</span>
                             </div>
                           )}
                           <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
@@ -2455,7 +2455,7 @@ export default function RecipesPage() {
                           className="block font-bold uppercase tracking-wider text-[11px] mb-1.5"
                           style={{ color: 'var(--color-primary)' }}
                         >
-                          {t('recipeTitle') || 'Recipe Title'}
+                          {t('recipeTitle', 'Recipe Title')}
                         </label>
                         <input
                           type="text"
@@ -2481,7 +2481,7 @@ export default function RecipesPage() {
                           className="block font-bold uppercase tracking-wider text-[11px] mb-1.5"
                           style={{ color: 'var(--color-primary)' }}
                         >
-                          {t('description') || 'Description'}
+                          {t('description', 'Description')}
                         </label>
                         <textarea
                           rows={3}
@@ -2507,7 +2507,7 @@ export default function RecipesPage() {
                             className="block font-bold uppercase tracking-wider text-[11px] mb-1.5"
                             style={{ color: 'var(--color-primary)' }}
                           >
-                            {t('recipeTypeLabel') || 'Recipe Type'}
+                            {t('recipeTypeLabel', 'Recipe Type')}
                           </label>
                           <select
                             value={editForm.recipeType}
@@ -2530,7 +2530,7 @@ export default function RecipesPage() {
                             className="block font-bold uppercase tracking-wider text-[11px] mb-1.5"
                             style={{ color: 'var(--color-primary)' }}
                           >
-                            {t('servingsLabel') || 'Servings'}
+                            {t('servingsLabel', 'Servings')}
                           </label>
                           <input
                             type="number"
@@ -2563,7 +2563,7 @@ export default function RecipesPage() {
                             color: 'var(--color-text-secondary)'
                           }}
                         >
-                          {t('cancel') || 'Cancel'}
+                          {t('cancel', 'Cancel')}
                         </button>
                         <button
                           type="submit"
@@ -2573,7 +2573,7 @@ export default function RecipesPage() {
                           onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)')}
                           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary)')}
                         >
-                          <Save className="h-4 w-4"/> {t('saveChanges') || 'Save Changes'}
+                          <Save className="h-4 w-4"/> {t('saveChanges', 'Save Changes')}
                         </button>
                       </div>
                     </div>
@@ -2593,7 +2593,7 @@ export default function RecipesPage() {
                           className="text-sm font-bold uppercase tracking-wider"
                           style={{ color: 'var(--color-primary)' }}
                         >
-                          {t('ingredientsHeading') || 'Ingredients'}
+                          {t('ingredientsHeading', 'Ingredients')}
                         </h2>
                         <div className="flex gap-2">
                           <button
@@ -2610,7 +2610,7 @@ export default function RecipesPage() {
                               borderColor: 'var(--color-border)'
                             }}
                           >
-                            {isReorderingIngredients ? (t('done') || 'Done') : (t('reorder') || 'Reorder')}
+                            {isReorderingIngredients ? (t('done', 'Done')) : (t('reorder', 'Reorder'))}
                           </button>
                           <button
                             type="button"
@@ -2623,7 +2623,7 @@ export default function RecipesPage() {
                             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)')}
                             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary)')}
                           >
-                            <Plus className="h-3.5 w-3.5"/> {t('addIngredient') || 'Add Ingredient'}
+                            <Plus className="h-3.5 w-3.5"/> {t('addIngredient', 'Add Ingredient')}
                           </button>
                         </div>
                       </div>
@@ -2649,7 +2649,7 @@ export default function RecipesPage() {
                               autoComplete="off"
                               data-lpignore="true"
                               data-form-type="other"
-                              placeholder={t('amt') || 'Amt'}
+                              placeholder={t('amt', 'Amt')}
                               value={ing.amount}
                               onChange={(e) => {
                                 const list = [...editForm.ingredients];
@@ -2668,7 +2668,7 @@ export default function RecipesPage() {
                               autoComplete="off"
                               data-lpignore="true"
                               data-form-type="other"
-                              placeholder={t('unit') || 'Unit'}
+                              placeholder={t('unit', 'Unit')}
                               value={ing.unit}
                               onChange={(e) => {
                                 const list = [...editForm.ingredients];
@@ -2687,7 +2687,7 @@ export default function RecipesPage() {
                               autoComplete="off"
                               data-lpignore="true"
                               data-form-type="other"
-                              placeholder={t('ingredientNamePlaceholder') || 'Ingredient name...'}
+                              placeholder={t('ingredientNamePlaceholder', 'Ingredient name...')}
                               value={ing.item}
                               onChange={(e) => {
                                 const list = [...editForm.ingredients];
@@ -2746,7 +2746,7 @@ export default function RecipesPage() {
                             color: 'var(--color-text)'
                           }}
                         >
-                          {t('backBtn') || '← Back'}
+                          {t('backBtn', '← Back')}
                         </button>
                         <button
                           type="button"
@@ -2756,7 +2756,7 @@ export default function RecipesPage() {
                           onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)')}
                           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary)')}
                         >
-                          {t('nextStepsBtn') || 'Next: Steps →'}
+                          {t('nextStepsBtn', 'Next: Steps →')}
                         </button>
                       </div>
                     </div>
@@ -2776,7 +2776,7 @@ export default function RecipesPage() {
                           className="text-sm font-bold uppercase tracking-wider"
                           style={{ color: 'var(--color-primary)' }}
                         >
-                          {t('stepByStepInstructions') || 'Step-by-Step Instructions'}
+                          {t('stepByStepInstructions', 'Step-by-Step Instructions')}
                         </h2>
                         <div className="flex gap-2">
                           <button
@@ -2793,7 +2793,7 @@ export default function RecipesPage() {
                               borderColor: 'var(--color-border)'
                             }}
                           >
-                            {isReorderingSteps ? (t('done') || 'Done') : (t('reorder') || 'Reorder')}
+                            {isReorderingSteps ? (t('done', 'Done')) : (t('reorder', 'Reorder'))}
                           </button>
                           <button
                             type="button"
@@ -2806,7 +2806,7 @@ export default function RecipesPage() {
                             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)')}
                             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary)')}
                           >
-                            <Plus className="h-3.5 w-3.5"/> {t('addStep') || 'Add Step'}
+                            <Plus className="h-3.5 w-3.5"/> {t('addStep', 'Add Step')}
                           </button>
                         </div>
                       </div>
@@ -2843,7 +2843,7 @@ export default function RecipesPage() {
                               autoComplete="off"
                               data-lpignore="true"
                               data-form-type="other"
-                              placeholder={(t('describeStepPlaceholder') || 'Describe step {n}...').replace('{n}', String(idx + 1))}
+                              placeholder={(t('describeStepPlaceholder', 'Describe step {n}...')).replace('{n}', String(idx + 1))}
                               value={step}
                               onChange={(e) => {
                                 const list = [...editForm.instructions];
@@ -2884,7 +2884,7 @@ export default function RecipesPage() {
                             color: 'var(--color-text)'
                           }}
                         >
-                          {t('backBtn') || '← Back'}
+                          {t('backBtn', '← Back')}
                         </button>
                         <button
                           type="submit"
@@ -2894,7 +2894,7 @@ export default function RecipesPage() {
                           onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)')}
                           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary)')}
                         >
-                          <Save className="h-4 w-4"/> {t('saveChanges') || 'Save Changes'}
+                          <Save className="h-4 w-4"/> {t('saveChanges', 'Save Changes')}
                         </button>
                       </div>
                     </div>
@@ -2937,10 +2937,10 @@ export default function RecipesPage() {
                 className="text-xl font-black tracking-tight"
                 style={{ color: 'var(--color-primary)' }}
               >
-                {t('addToCalendar') || 'Add to Calendar'}
+                {t('addToCalendar', 'Add to Calendar')}
               </h2>
               <p className="text-xs leading-snug" style={{ color: 'var(--color-text-secondary)' }}>
-                {(t('scheduleRecipeInMealPlan') || 'Schedule {title} in your meal plan').replace('{title}', selectedRecipe.title || selectedRecipe.name)}
+                {(t('scheduleRecipeInMealPlan', 'Schedule {title} in your meal plan')).replace('{title}', selectedRecipe.title || selectedRecipe.name)}
               </p>
             </div>
 
@@ -2950,7 +2950,7 @@ export default function RecipesPage() {
                   className="block text-xs font-bold mb-1.5"
                   style={{ color: 'var(--color-primary)' }}
                 >
-                  {t('date') || 'Date'}
+                  {t('date', 'Date')}
                 </label>
                 <div className="relative flex items-center">
                   <Calendar className="h-4 w-4 absolute left-3.5 pointer-events-none" style={{ color: 'var(--color-primary)' }}/>
@@ -2979,7 +2979,7 @@ export default function RecipesPage() {
                   className="block text-xs font-bold mb-1.5"
                   style={{ color: 'var(--color-primary)' }}
                 >
-                  {t('mealType') || 'Meal Type'}
+                  {t('mealType', 'Meal Type')}
                 </label>
                 <div className="relative flex items-center">
                   <select
@@ -2994,10 +2994,10 @@ export default function RecipesPage() {
                     onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
                     onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--color-border)')}
                   >
-                    <option value="Breakfast" style={{ backgroundColor: 'var(--color-card)', color: 'var(--color-text)' }}>{t('breakfast') || 'Breakfast'}</option>
-                    <option value="Lunch" style={{ backgroundColor: 'var(--color-card)', color: 'var(--color-text)' }}>{t('lunch') || 'Lunch'}</option>
-                    <option value="Dinner" style={{ backgroundColor: 'var(--color-card)', color: 'var(--color-text)' }}>{t('dinner') || 'Dinner'}</option>
-                    <option value="Snack" style={{ backgroundColor: 'var(--color-card)', color: 'var(--color-text)' }}>{t('snack') || 'Snack'}</option>
+                    <option value="Breakfast" style={{ backgroundColor: 'var(--color-card)', color: 'var(--color-text)' }}>{t('breakfast', 'Breakfast')}</option>
+                    <option value="Lunch" style={{ backgroundColor: 'var(--color-card)', color: 'var(--color-text)' }}>{t('lunch', 'Lunch')}</option>
+                    <option value="Dinner" style={{ backgroundColor: 'var(--color-card)', color: 'var(--color-text)' }}>{t('dinner', 'Dinner')}</option>
+                    <option value="Snack" style={{ backgroundColor: 'var(--color-card)', color: 'var(--color-text)' }}>{t('snack', 'Snack')}</option>
                   </select>
                   <ChevronDown className="h-4 w-4 absolute right-3 pointer-events-none" style={{ color: 'var(--color-text-secondary)' }}/>
                 </div>
@@ -3008,7 +3008,7 @@ export default function RecipesPage() {
                   className="block text-xs font-bold mb-1.5"
                   style={{ color: 'var(--color-primary)' }}
                 >
-                  {t('time') || 'Time'}
+                  {t('time', 'Time')}
                 </label>
                 <div className="relative flex items-center">
                   <Clock className="h-4 w-4 absolute left-3.5 pointer-events-none" style={{ color: 'var(--color-text-secondary)' }}/>
@@ -3037,7 +3037,7 @@ export default function RecipesPage() {
                   className="block text-xs font-bold mb-1.5"
                   style={{ color: 'var(--color-primary)' }}
                 >
-                  {t('notes') || 'Notes'}
+                  {t('notes', 'Notes')}
                 </label>
                 <textarea
                   value={planNotes}
@@ -3045,7 +3045,7 @@ export default function RecipesPage() {
                   data-lpignore="true"
                   data-form-type="other"
                   onChange={(e) => setPlanNotes(e.target.value)}
-                  placeholder={t('addNotesRemindersPlaceholder') || 'Add any notes or reminders...'}
+                  placeholder={t('addNotesRemindersPlaceholder', 'Add any notes or reminders...')}
                   rows={3}
                   className="w-full border rounded-xl p-3 text-xs outline-none resize-none"
                   style={{
@@ -3069,7 +3069,7 @@ export default function RecipesPage() {
                     backgroundColor: 'var(--color-inner-dark)'
                   }}
                 >
-                  {t('cancel') || 'Cancel'}
+                  {t('cancel', 'Cancel')}
                 </button>
                 <button
                   type="submit"
@@ -3078,7 +3078,7 @@ export default function RecipesPage() {
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)')}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary)')}
                 >
-                  {t('addToCalendarBtn') || 'Add to Calendar'}
+                  {t('addToCalendarBtn', 'Add to Calendar')}
                 </button>
               </div>
             </form>
@@ -3104,9 +3104,9 @@ export default function RecipesPage() {
             <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--color-border)' }}>
               <div>
                 <h3 className="text-lg font-bold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
-                  <ShoppingCart className="h-5 w-5" style={{ color: 'var(--color-primary)' }}/> {t('addToShoppingListTitle') || 'Add to Shopping List'}
+                  <ShoppingCart className="h-5 w-5" style={{ color: 'var(--color-primary)' }}/> {t('addToShoppingListTitle', 'Add to Shopping List')}
                 </h3>
-                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{t('selectOrEditItemsShopping') || 'Select or edit items to add directly to your list'}</p>
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{t('selectOrEditItemsShopping', 'Select or edit items to add directly to your list')}</p>
               </div>
               <button 
                 onClick={() => setIsShoppingModalOpen(false)} 
@@ -3163,7 +3163,7 @@ export default function RecipesPage() {
                       borderColor: 'var(--color-border)',
                       color: 'var(--color-text)'
                     }}
-                    placeholder={t('amt') || 'Amt'}
+                    placeholder={t('amt', 'Amt')}
                   />
                   <input
                     type="text"
@@ -3182,7 +3182,7 @@ export default function RecipesPage() {
                       borderColor: 'var(--color-border)',
                       color: 'var(--color-text-secondary)'
                     }}
-                    placeholder={t('unit') || 'Unit'}
+                    placeholder={t('unit', 'Unit')}
                   />
                   <input
                     type="text"
@@ -3197,7 +3197,7 @@ export default function RecipesPage() {
                     }}
                     className="flex-1 bg-transparent border-none outline-none px-2"
                     style={{ color: 'var(--color-text)' }}
-                    placeholder={t('ingredientNamePlaceholder') || 'Ingredient name...'}
+                    placeholder={t('ingredientNamePlaceholder', 'Ingredient name...')}
                   />
                   <select
                     value={ing.category}
@@ -3231,7 +3231,7 @@ export default function RecipesPage() {
                   color: 'var(--color-text-secondary)'
                 }}
               >
-                {t('cancel') || 'Cancel'}
+                {t('cancel', 'Cancel')}
               </button>
               <button
                 type="button"
@@ -3241,7 +3241,7 @@ export default function RecipesPage() {
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)')}
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary)')}
               >
-                <ShoppingCart className="h-3.5 w-3.5"/> {t('addSelectedToList') || 'Add Selected to List'}
+                <ShoppingCart className="h-3.5 w-3.5"/> {t('addSelectedToList', 'Add Selected to List')}
               </button>
             </div>
           </div>
@@ -3266,7 +3266,7 @@ export default function RecipesPage() {
             <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--color-border)' }}>
               <div className="flex items-center gap-2 font-bold text-xs" style={{ color: 'var(--color-primary)' }}>
                 <Timer className="h-4 w-4" />
-                <span>{t('kitchenTimerHeading') || 'Kitchen Timer'}</span>
+                <span>{t('kitchenTimerHeading', 'Kitchen Timer')}</span>
               </div>
               <button
                 onClick={() => setShowTimerModal(false)}

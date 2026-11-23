@@ -25,11 +25,27 @@ export function requireAdminSession(req: Request): NextResponse | null {
   );
 }
 
+// True when the request carries a valid admin session (or the script token). Used by shared routes that
+// serve a trimmed public view to everyone else. When auth is not enforced yet it keeps the legacy behaviour.
+export function isAdminRequest(req: Request): boolean {
+  if (!isAuthEnforced()) return true;
+  const session = readSessionFromRequest(req);
+  return !!((session && session.role === 'admin') || tokenOk(req));
+}
+
+// Any signed-in visitor (user or admin).
+export function requireSignedIn(req: Request): NextResponse | null {
+  if (!isAuthEnforced()) return null;
+  if (readSessionFromRequest(req) || tokenOk(req)) return null;
+  return NextResponse.json({ success: false, error: 'Please sign in.' }, { status: 401 });
+}
+
 // Routes that real visitors legitimately call (registration, profile, checkout record) or that carry their own guard.
 const WRITE_EXEMPT = ['/api/admin/database'];
 // Admin-only data that has no public consumer.
 const READ_GUARDED = [
   '/api/admin/users', '/api/admin/secrets', '/api/admin/keys', '/api/admin/ai-settings', '/api/admin/ai', '/api/admin/test-key', '/api/admin/models',
+  '/api/admin/database', '/api/admin/payment', '/api/admin/social-env', '/api/admin/social-login', '/api/admin/social-config',
   '/api/admin/notification-settings', '/api/admin/plugins', '/api/admin/scan', '/api/admin/crawl-index',
 ];
 

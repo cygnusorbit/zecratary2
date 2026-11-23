@@ -240,7 +240,7 @@ export default function DashboardPage() {
             setUpcomingMeal({
               mealType: (mealToDisplay.mealType || 'Dinner').toUpperCase(),
               title: mealTitle,
-              timeOrTags: mealToDisplay.time ? `${mealToDisplay.time} • ${t('scheduledLabel') || 'Scheduled'}` : `40 mins • ${t('scheduledLabel') || 'Scheduled'}`,
+              timeOrTags: mealToDisplay.time ? `${mealToDisplay.time} • ${t('scheduledLabel', 'Scheduled')}` : `40 mins • ${t('scheduledLabel', 'Scheduled')}`,
               notes: mealToDisplay.notes,
               imageUrl: mealToDisplay.imageUrl || mealToDisplay.image || matchingRecipe?.imageUrl || matchingRecipe?.image,
               date: mealToDisplay.date
@@ -257,7 +257,7 @@ export default function DashboardPage() {
         setUpcomingMeal({
           mealType: (first.category || first.recipeType || 'Dinner').toUpperCase(),
           title: first.title || first.name || 'Saved Dish',
-          timeOrTags: `${prep + cook} mins • ${first.tags?.[0] || t('favorite') || 'Favorite'}`,
+          timeOrTags: `${prep + cook} mins • ${first.tags?.[0] || t('favorite', 'Favorite')}`,
           imageUrl: first.imageUrl || first.image
         });
       }
@@ -337,7 +337,7 @@ export default function DashboardPage() {
 
   // Lifecycle Initialization & Event Synchronization
   useEffect(() => {
-    document.title = `${t('dashboard') || 'Dashboard'} - Zecratary`;
+    document.title = `${t('dashboard', 'Dashboard')} - Zecratary`;
     initAuthStorage();
     const user = getCurrentUser();
 
@@ -417,7 +417,7 @@ export default function DashboardPage() {
       className="w-full space-y-6 pb-16 px-4 sm:px-6 md:px-8 lg:px-10 transition-colors duration-200"
       style={{ color: cText }}
       role="region"
-      aria-label={t('dashboard') || 'Dashboard'}
+      aria-label={t('dashboard', 'Dashboard')}
       data-lpignore="true"
     >
       {/* Top Heading & Telemetry Action Strip */}
@@ -425,10 +425,10 @@ export default function DashboardPage() {
         <div className="space-y-1">
           <h1 className="text-2xl font-black tracking-tight flex items-center gap-2" style={{ color: cPrimary }}>
             <Flame className="h-6 w-6" style={{ color: cPrimary }} />
-            {t('dashboard') || 'Dashboard'}
+            {t('dashboard', 'Dashboard')}
           </h1>
           <p className="text-sm" style={{ color: cSubText }}>
-            {t('dashboardSubtitle') || 'Autonomous culinary planning, smart pantry tracking, and recipe intelligence.'}
+            {t('dashboardSubtitle', 'Autonomous culinary planning, smart pantry tracking, and recipe intelligence.')}
           </p>
         </div>
 
@@ -439,7 +439,7 @@ export default function DashboardPage() {
               className="text-xs font-bold flex items-center gap-1.5 animate-in fade-in transition duration-300"
               style={{ color: cEmerald }}
             >
-              <CheckCircle2 className="h-3.5 w-3.5" /> {t('refreshed') || 'Refreshed'}
+              <CheckCircle2 className="h-3.5 w-3.5" /> {t('refreshed', 'Refreshed')}
             </span>
           )}
 
@@ -455,13 +455,13 @@ export default function DashboardPage() {
               borderColor: cBorder,
               color: cText
             }}
-            title={t('reloadLiveTelemetry') || 'Reload live telemetry from database'}
+            title={t('reloadLiveTelemetry', 'Reload live telemetry from database')}
           >
             <RefreshCw 
               className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} 
               style={{ color: cEmerald }}
             />
-            <span>{loading ? (t('refreshing') || 'Refreshing...') : (t('refresh') || 'Refresh')}</span>
+            <span>{loading ? (t('refreshing', 'Refreshing...')) : (t('refresh', 'Refresh'))}</span>
           </button>
         </div>
       </div>
@@ -485,7 +485,7 @@ export default function DashboardPage() {
                 color: cPrimary
               }}
             >
-              {currentUser.role ? (t(currentUser.role.toLowerCase()) || currentUser.role).toUpperCase() : (t('member') || 'MEMBER')}
+              {currentUser.role ? (t(currentUser.role.toLowerCase()) || currentUser.role).toUpperCase() : (t('member', 'MEMBER'))}
             </span>
             {isHighestPlan && (
               <span 
@@ -496,23 +496,23 @@ export default function DashboardPage() {
                   color: 'var(--color-warning, #f59e0b)'
                 }}
               >
-                <Sparkles className="h-3 w-3" /> {t('highestTier') || 'VIP Highest Tier'}
+                <Sparkles className="h-3 w-3" /> {t('highestTier', 'VIP Highest Tier')}
               </span>
             )}
           </div>
 
           <h2 className="text-2xl sm:text-3xl font-black tracking-tight" style={{ color: cText }}>
-            {(t('dashboardWelcomePrefix') || 'Welcome back, {name}!').replace('{name}', currentUser.name || (currentUser.email ? currentUser.email.split('@')[0] : '') || 'Chef')}
+            {(t('dashboardWelcomePrefix', 'Welcome back, {name}!')).replace('{name}', currentUser.name || (currentUser.email ? currentUser.email.split('@')[0] : '') || 'Chef')}
           </h2>
           <p className="text-xs sm:text-sm leading-relaxed" style={{ color: cSubText }}>
-            {t('welcomePlanDescription') || 'Your kitchen headquarters for automated meal scheduling, inventory management, and personalized culinary creations.'}
+            {t('welcomePlanDescription', 'Your kitchen headquarters for automated meal scheduling, inventory management, and personalized culinary creations.')}
           </p>
         </div>
 
         {/* Dynamic Current User: Active Plan Card */}
         <div 
           role="region"
-          aria-label={t('currentUserActivePlan') || 'Current User: Active Plan'}
+          aria-label={t('currentUserActivePlan', 'Current User: Active Plan')}
           data-lpignore="true"
           className="w-full md:w-auto p-4 sm:p-5 rounded-2xl border shadow-sm flex items-center justify-between sm:justify-start gap-4 sm:gap-6 transition-all duration-200 shrink-0"
           style={{
@@ -526,7 +526,7 @@ export default function DashboardPage() {
                 className="text-[10px] uppercase font-bold tracking-wider block"
                 style={{ color: cSubText }}
               >
-                {t('currentUserActivePlan') || 'Current User: Active Plan'}
+                {t('currentUserActivePlan', 'Current User: Active Plan')}
               </span>
               {planInterval && (
                 <span 
@@ -555,13 +555,13 @@ export default function DashboardPage() {
                 }}
               >
                 {isHighestPlan && <Sparkles className="h-2.5 w-2.5" />}
-                {isHighestPlan ? (t('highestPlan') || 'Highest Tier') : (t('active') || 'Active')}
+                {isHighestPlan ? (t('highestPlan', 'Highest Tier')) : (t('active', 'Active'))}
               </span>
             </div>
 
             {planExpiryDate && (
               <span className="text-[10px] block opacity-75 font-medium" style={{ color: cSubText }}>
-                {(t('renewsOrExpires') || 'Renews: {date}').replace('{date}', new Date(planExpiryDate).toLocaleDateString())}
+                {(t('renewsOrExpires', 'Renews: {date}')).replace('{date}', new Date(planExpiryDate).toLocaleDateString())}
               </span>
             )}
           </div>
@@ -577,10 +577,10 @@ export default function DashboardPage() {
                 borderColor: cBorder,
                 color: cText
               }}
-              title={t('manageSubscription') || 'Change or manage active subscription plan'}
+              title={t('manageSubscription', 'Change or manage active subscription plan')}
             >
               <Sparkles className="h-3.5 w-3.5" style={{ color: 'var(--color-warning, #f59e0b)' }} />
-              <span>{t('changePlan') || 'Change'}</span>
+              <span>{t('changePlan', 'Change')}</span>
             </Link>
           ) : (
             <Link
@@ -590,10 +590,10 @@ export default function DashboardPage() {
               style={{
                 backgroundColor: cPrimary
               }}
-              title={t('upgradeToUnlocked') || 'Upgrade to unlocked premium plan'}
+              title={t('upgradeToUnlocked', 'Upgrade to unlocked premium plan')}
             >
               <Zap className="h-3.5 w-3.5" />
-              <span>{t('upgradePlan') || 'Upgrade'}</span>
+              <span>{t('upgradePlan', 'Upgrade')}</span>
             </Link>
           )}
         </div>
@@ -613,14 +613,14 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2.5">
             <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
             <span>
-              <strong>{expiringPantryCount} {t('pantryItems') || 'pantry item(s)'}</strong> {t('expiringWithin3Days') || 'are expiring within the next 3 days.'}
+              <strong>{expiringPantryCount} {t('pantryItems', 'pantry item(s)')}</strong> {t('expiringWithin3Days', 'are expiring within the next 3 days.')}
             </span>
           </div>
           <Link 
             href="/chef"
             className="font-bold underline flex items-center gap-1 shrink-0 text-amber-600 hover:text-amber-700 dark:text-amber-400"
           >
-            {t('askChefToUseThem') || 'Cook with Chef AI'} <ArrowRight className="h-3.5 w-3.5" />
+            {t('askChefToUseThem', 'Cook with Chef AI')} <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
       )}
@@ -641,7 +641,7 @@ export default function DashboardPage() {
               className="text-xs uppercase font-bold tracking-wider"
               style={{ color: cSubText }}
             >
-              {t('savedRecipes') || 'Saved Recipes'}
+              {t('savedRecipes', 'Saved Recipes')}
             </span>
             <BookOpen className="h-4 w-4 opacity-70 group-hover:scale-110 transition" style={{ color: cPrimary }} />
           </div>
@@ -667,7 +667,7 @@ export default function DashboardPage() {
               className="text-xs uppercase font-bold tracking-wider"
               style={{ color: cSubText }}
             >
-              {t('books') || 'Recipe Books'}
+              {t('books', 'Recipe Books')}
             </span>
             <Utensils className="h-4 w-4 opacity-70 group-hover:scale-110 transition" style={{ color: cEmerald }} />
           </div>
@@ -693,7 +693,7 @@ export default function DashboardPage() {
               className="text-xs uppercase font-bold tracking-wider"
               style={{ color: cSubText }}
             >
-              {t('pantryStock') || 'Pantry Stock'}
+              {t('pantryStock', 'Pantry Stock')}
             </span>
             <Package className="h-4 w-4 opacity-70 group-hover:scale-110 transition" style={{ color: cPrimary }} />
           </div>
@@ -706,7 +706,7 @@ export default function DashboardPage() {
             </span>
             {expiringPantryCount > 0 && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/30">
-                {expiringPantryCount} {t('expiringSoon') || 'expiring'}
+                {expiringPantryCount} {t('expiringSoon', 'expiring')}
               </span>
             )}
           </div>
@@ -726,7 +726,7 @@ export default function DashboardPage() {
               className="text-xs uppercase font-bold tracking-wider"
               style={{ color: cSubText }}
             >
-              {t('shoppingList') || 'Shopping List'}
+              {t('shoppingList', 'Shopping List')}
             </span>
             <ShoppingCart className="h-4 w-4 opacity-70 group-hover:scale-110 transition" style={{ color: cEmerald }} />
           </div>
@@ -746,11 +746,11 @@ export default function DashboardPage() {
                   color: cEmerald
                 }}
               >
-                {groceryItemsCount} {t('itemsNeeded') || 'items to buy'}
+                {groceryItemsCount} {t('itemsNeeded', 'items to buy')}
               </span>
             ) : (
               <span className="text-[10px] font-semibold opacity-60" style={{ color: cSubText }}>
-                {t('allPurchased') || 'All caught up'}
+                {t('allPurchased', 'All caught up')}
               </span>
             )}
           </div>
@@ -775,14 +775,14 @@ export default function DashboardPage() {
               className="text-base font-bold flex items-center gap-2"
               style={{ color: cText }}
             >
-              <Calendar className="h-5 w-5" style={{ color: cPrimary }} /> {t('upcomingMeal') || 'Upcoming Meal'}
+              <Calendar className="h-5 w-5" style={{ color: cPrimary }} /> {t('upcomingMeal', 'Upcoming Meal')}
             </h3>
             <Link 
               href="/planner" 
               className="text-xs font-bold hover:underline flex items-center gap-1"
               style={{ color: cPrimary }}
             >
-              {t('viewPlanner') || 'View Planner'} <ArrowRight className="h-3.5 w-3.5" />
+              {t('viewPlanner', 'View Planner')} <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
 
@@ -824,7 +824,7 @@ export default function DashboardPage() {
                       className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5"
                       style={{ color: cEmerald }}
                     >
-                      <Utensils className="h-3 w-3" /> {(t('todayMealPrefix') || 'Today • {mealType}').replace('{mealType}', upcomingMeal.mealType)}
+                      <Utensils className="h-3 w-3" /> {(t('todayMealPrefix', 'Today • {mealType}')).replace('{mealType}', upcomingMeal.mealType)}
                     </span>
                     {upcomingMeal.date && (
                       <span className="text-[10px] font-semibold opacity-70" style={{ color: cSubText }}>
@@ -865,10 +865,10 @@ export default function DashboardPage() {
               >
                 <div>
                   <span className="font-semibold block text-sm" style={{ color: cText }}>
-                    {t('noMealsScheduledToday') || 'No meals scheduled for today.'}
+                    {t('noMealsScheduledToday', 'No meals scheduled for today.')}
                   </span>
                   <span className="text-[11px] block mt-0.5">
-                    {t('keepKitchenOrganized') || 'Keep your kitchen on track with a planned meal.'}
+                    {t('keepKitchenOrganized', 'Keep your kitchen on track with a planned meal.')}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -877,14 +877,14 @@ export default function DashboardPage() {
                     className="px-3 py-1.5 rounded-lg border font-bold hover:underline transition"
                     style={{ backgroundColor: cCardBg, borderColor: cBorder, color: cPrimary }}
                   >
-                    {t('planMeal') || 'Plan Meal'}
+                    {t('planMeal', 'Plan Meal')}
                   </Link>
                   <Link 
                     href="/chef" 
                     className="px-3 py-1.5 rounded-lg border font-bold hover:underline transition"
                     style={{ backgroundColor: cCardBg, borderColor: cBorder, color: cEmerald }}
                   >
-                    {t('askChefAi') || 'Ask Chef AI'}
+                    {t('askChefAi', 'Ask Chef AI')}
                   </Link>
                 </div>
               </div>
@@ -908,10 +908,10 @@ export default function DashboardPage() {
               className="text-base font-bold flex items-center gap-2"
               style={{ color: cText }}
             >
-              <ChefHat className="h-5 w-5" style={{ color: cEmerald }} /> {t('quickActions') || 'Quick Actions'}
+              <ChefHat className="h-5 w-5" style={{ color: cEmerald }} /> {t('quickActions', 'Quick Actions')}
             </h3>
             <span className="text-[11px] font-semibold" style={{ color: cSubText }}>
-              {t('culinaryShortcuts') || 'Culinary Shortcuts'}
+              {t('culinaryShortcuts', 'Culinary Shortcuts')}
             </span>
           </div>
 
@@ -930,9 +930,9 @@ export default function DashboardPage() {
                 <ChefHat className="h-4 w-4 group-hover:scale-110 transition" style={{ color: cEmerald }} />
               </div>
               <div className="truncate text-left">
-                <span className="block font-bold">{t('askChefAi') || 'Ask Chef AI'}</span>
+                <span className="block font-bold">{t('askChefAi', 'Ask Chef AI')}</span>
                 <span className="text-[10px] block opacity-70 font-normal" style={{ color: cSubText }}>
-                  {t('smartRecipes') || 'Smart Recipes'}
+                  {t('smartRecipes', 'Smart Recipes')}
                 </span>
               </div>
             </Link>
@@ -951,9 +951,9 @@ export default function DashboardPage() {
                 <DownloadCloud className="h-4 w-4 group-hover:scale-110 transition" style={{ color: cPrimary }} />
               </div>
               <div className="truncate text-left">
-                <span className="block font-bold">{t('importRecipe') || 'Import Recipe'}</span>
+                <span className="block font-bold">{t('importRecipe', 'Import Recipe')}</span>
                 <span className="text-[10px] block opacity-70 font-normal" style={{ color: cSubText }}>
-                  {t('urlOrText') || 'URL or Photo'}
+                  {t('urlOrText', 'URL or Photo')}
                 </span>
               </div>
             </Link>
@@ -972,9 +972,9 @@ export default function DashboardPage() {
                 <Sparkles className="h-4 w-4 group-hover:scale-110 transition" style={{ color: cPrimary }} />
               </div>
               <div className="truncate text-left">
-                <span className="block font-bold">{t('createRecipe') || 'Create Recipe'}</span>
+                <span className="block font-bold">{t('createRecipe', 'Create Recipe')}</span>
                 <span className="text-[10px] block opacity-70 font-normal" style={{ color: cSubText }}>
-                  {t('manualEntry') || 'Manual Entry'}
+                  {t('manualEntry', 'Manual Entry')}
                 </span>
               </div>
             </Link>
@@ -993,9 +993,9 @@ export default function DashboardPage() {
                 <Calendar className="h-4 w-4 group-hover:scale-110 transition" style={{ color: cEmerald }} />
               </div>
               <div className="truncate text-left">
-                <span className="block font-bold">{t('mealPlanner') || 'Meal Planner'}</span>
+                <span className="block font-bold">{t('mealPlanner', 'Meal Planner')}</span>
                 <span className="text-[10px] block opacity-70 font-normal" style={{ color: cSubText }}>
-                  {t('weeklyCalendar') || 'Weekly Schedule'}
+                  {t('weeklyCalendar', 'Weekly Schedule')}
                 </span>
               </div>
             </Link>

@@ -233,6 +233,45 @@ export function loginUser(
   return null;
 }
 
+const LOCAL_SESSION_KEYS = [
+  'zecratary_current_user',
+  'zecratary_session',
+  'zecratary_auth_session',
+  'currentUser',
+  'user',
+  'zec_login_bounce_ts',
+  'zec_login_bounce_count'
+];
+
+// Forget the browser-side sign-in only (no network). Used when the server no longer knows the session.
+export function clearLocalSession(): void {
+  inMemoryUser = null;
+  if (typeof window === 'undefined') return;
+  LOCAL_SESSION_KEYS.forEach(k => {
+    try { localStorage.removeItem(k); } catch (_) {}
+    try { sessionStorage.removeItem(k); } catch (_) {}
+    document.cookie = `${k}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+  });
+  try { window.dispatchEvent(new Event('zecratary_auth_changed')); } catch (_) {}
+}
+
+let serverSessionCheck: { at: number; result: 'valid' | 'invalid' } | null = null;
+
+// Asks the server whether the HttpOnly session is still valid. A stale local sign-in is cleared on 'invalid'.
+// Network or server errors count as 'valid' so a hiccup never signs anyone out.
+export async function checkServerSession(force = false): Promise<'valid' | 'invalid'> {
+  if (typeof window === 'undefined') return 'valid';
+  if (!force && serverSessionCheck && Date.now() - serverSessionCheck.at < 30000) return serverSessionCheck.result;
+  let result: 'valid' | 'invalid' = 'valid';
+  try {
+    const res = await fetch('/api/auth/me', { cache: 'no-store' });
+    if (res.status === 401) result = 'invalid';
+  } catch (_) {}
+  serverSessionCheck = { at: Date.now(), result };
+  if (result === 'invalid') clearLocalSession();
+  return result;
+}
+
 export async function logoutUser(): Promise<void> {
   try {
     await fetch('/api/auth/logout', { method: 'POST', cache: 'no-store' });

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { getCurrentUser, initAuthStorage } from '@/lib/auth';
+import { getCurrentUser, initAuthStorage, checkServerSession } from '@/lib/auth';
 
 const PUBLIC_ROUTES = ['/login', '/register'];
 const ADMIN_RESTRICTED_PREFIXES = ['/admin', '/add-user'];
@@ -25,9 +25,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     // 2. Logged-in users visiting /login or /register -> Redirect to /dashboard
+    //    (only when the server still honours the session, otherwise they could never sign in again)
     if (user && isPublicRoute) {
-      router.replace('/dashboard');
-      return;
+      let cancelled = false;
+      checkServerSession().then((r) => {
+        if (cancelled) return;
+        if (r === 'valid') router.replace('/dashboard');
+      });
+      return () => { cancelled = true; };
     }
 
     // 3. Standard users attempting to access Admin pages -> Block and redirect to /dashboard
@@ -42,6 +47,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     setAuthorized(true);
+
+    // 4. The browser thinks it is signed in but the server session expired -> forget it and go to /login
+    if (user && !isPublicRoute) {
+      checkServerSession().then((r) => {
+        if (r === 'invalid') router.replace('/login');
+      });
+    }
   }, [pathname, router]);
 
   if (!authorized && !PUBLIC_ROUTES.includes(pathname)) {

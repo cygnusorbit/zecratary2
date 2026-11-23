@@ -82,18 +82,18 @@ export default function ForgotPasswordPage() {
 
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      setError(t('invalidEmailPrompt') || 'Please provide a valid email address.');
+      setError(t('invalidEmailPrompt', 'Please provide a valid email address.'));
       return;
     }
 
     // No email service is configured: the administrator sets a temporary password.
-    setSuccess(t('contactAdminForReset') || 'Password resets are handled by the administrator. Please contact them and ask for a temporary password, then sign in and change it in your profile.');
+    setSuccess(t('contactAdminForReset', 'Password resets are handled by the administrator. Please contact them and ask for a temporary password, then sign in and change it in your profile.'));
   };
 
   const handleResetPassword = async (e?: React.FormEvent | React.KeyboardEvent | React.MouseEvent) => {
     if (e && 'preventDefault' in e) e.preventDefault();
     setError('');
-    setSuccess(t('contactAdminForReset') || 'Password resets are handled by the administrator. Please contact them and ask for a temporary password, then sign in and change it in your profile.');
+    setSuccess(t('contactAdminForReset', 'Password resets are handled by the administrator. Please contact them and ask for a temporary password, then sign in and change it in your profile.'));
   };
 
   const cPageBg = isDayMode ? '#f8fafc' : 'var(--color-bg, #070b13)';
@@ -129,13 +129,13 @@ export default function ForgotPasswordPage() {
           </div>
           <h1 className="text-2xl font-black tracking-tight" style={{ color: cText }}>
             {step === 1 
-              ? (t('passwordRecoveryTitle') || 'Password Recovery') 
-              : (t('createNewPasswordTitle') || 'Create New Password')}
+              ? (t('passwordRecoveryTitle', 'Password Recovery')) 
+              : (t('createNewPasswordTitle', 'Create New Password'))}
           </h1>
           <p className="text-xs" style={{ color: cSubText }}>
             {step === 1 
-              ? (t('enterEmailTokenPrompt') || 'Enter your registered email to generate a secure reset token.') 
-              : (t('enterCodeNewPasswordPrompt') || 'Enter the code and create a new password for {email}').replace('{email}', email)}
+              ? (t('enterEmailTokenPrompt', 'Enter your registered email to generate a secure reset token.')) 
+              : (t('enterCodeNewPasswordPrompt', 'Enter the code and create a new password for {email}')).replace('{email}', email)}
           </p>
         </div>
 
@@ -166,7 +166,7 @@ export default function ForgotPasswordPage() {
           <div className="space-y-4 text-xs">
             <div>
               <label className="block font-bold mb-1.5" style={{ color: cLabel }}>
-                {t('emailAddressLabel') || 'Email Address'} *
+                {t('emailAddressLabel', 'Email Address')} *
               </label>
               <div className="relative">
                 <Mail className="h-4 w-4 absolute left-3.5 top-3 text-slate-500" />
@@ -200,7 +200,7 @@ export default function ForgotPasswordPage() {
               style={{ backgroundColor: 'var(--color-primary, #E05638)' }}
             >
               {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-              {t('sendResetCodeBtn') || 'Send Reset Code'}
+              {t('sendResetCodeBtn', 'Send Reset Code')}
             </button>
           </div>
         ) : (
@@ -208,7 +208,7 @@ export default function ForgotPasswordPage() {
           <div className="space-y-3.5 text-xs">
             <div>
               <label className="block font-bold mb-1" style={{ color: cLabel }}>
-                {t('securityCodeLabel') || '6-Digit Security Code'} *
+                {t('securityCodeLabel', '6-Digit Security Code')} *
               </label>
               <input
                 type="text"
@@ -234,7 +234,7 @@ export default function ForgotPasswordPage() {
 
             <div>
               <label className="block font-bold mb-1" style={{ color: cLabel }}>
-                {t('newPasswordLabel') || 'New Password'} *
+                {t('newPasswordLabel', 'New Password')} *
               </label>
               <div className="relative">
                 <Lock className="h-4 w-4 absolute left-3.5 top-3 text-slate-500" />
@@ -249,7 +249,7 @@ export default function ForgotPasswordPage() {
                       handleResetPassword();
                     }
                   }}
-                  placeholder={t('passwordMinLengthPlaceholder') || 'At least 6 characters'}
+                  placeholder={t('passwordMinLengthPlaceholder', 'At least 6 characters')}
                   className="w-full border rounded-xl pl-10 pr-10 py-2.5 outline-none transition shadow-inner"
                   style={{
                     backgroundColor: cInputBg,
@@ -269,7 +269,7 @@ export default function ForgotPasswordPage() {
 
             <div>
               <label className="block font-bold mb-1" style={{ color: cLabel }}>
-                {t('confirmNewPasswordLabel') || 'Confirm New Password'} *
+                {t('confirmNewPasswordLabel', 'Confirm New Password')} *
               </label>
               <div className="relative">
                 <Lock className="h-4 w-4 absolute left-3.5 top-3 text-slate-500" />
@@ -284,7 +284,7 @@ export default function ForgotPasswordPage() {
                       handleResetPassword();
                     }
                   }}
-                  placeholder={t('repeatNewPasswordPlaceholder') || 'Repeat new password'}
+                  placeholder={t('repeatNewPasswordPlaceholder', 'Repeat new password')}
                   className="w-full border rounded-xl pl-10 pr-3.5 py-2.5 outline-none transition shadow-inner"
                   style={{
                     backgroundColor: cInputBg,
@@ -303,7 +303,7 @@ export default function ForgotPasswordPage() {
               style={{ backgroundColor: 'var(--color-primary, #E05638)' }}
             >
               {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              {t('setNewPasswordBtn') || 'Set New Password'}
+              {t('setNewPasswordBtn', 'Set New Password')}
             </button>
 
             <button
@@ -311,7 +311,7 @@ export default function ForgotPasswordPage() {
               onClick={() => setStep(1)}
               className="w-full py-2 text-slate-400 hover:text-slate-600 text-center font-bold text-[11px] cursor-pointer"
             >
-              {t('resendDifferentEmail') || 'Re-send to a different email'}
+              {t('resendDifferentEmail', 'Re-send to a different email')}
             </button>
           </div>
         )}
@@ -322,7 +322,7 @@ export default function ForgotPasswordPage() {
             className="font-bold inline-flex items-center gap-1.5 hover:underline"
             style={{ color: 'var(--color-primary, #E05638)' }}
           >
-            <ArrowLeft className="h-3.5 w-3.5" /> {t('backToSignIn') || 'Back to Sign In'}
+            <ArrowLeft className="h-3.5 w-3.5" /> {t('backToSignIn', 'Back to Sign In')}
           </Link>
         </div>
       </div>

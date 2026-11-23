@@ -137,6 +137,7 @@ export default function AdminSettingsPage() {
   const [metaDescription, setMetaDescription] = useState('Autonomous culinary intelligence, precision meal planning, and pantry inventory tracking.');
   const [metaKeywords, setMetaKeywords] = useState('culinary ai, recipe generator, meal planner, pantry management');
   const [metaAuthor, setMetaAuthor] = useState('Zecratary Culinary Intelligence Inc.');
+  const [supportEmail, setSupportEmail] = useState('');
 
   // Theme Elements Colors State
   const [themeColors, setThemeColors] = useState({
@@ -208,6 +209,7 @@ export default function AdminSettingsPage() {
         if (data.metaDescription) setMetaDescription(data.metaDescription);
         if (data.metaKeywords) setMetaKeywords(data.metaKeywords);
         if (data.metaAuthor) setMetaAuthor(data.metaAuthor);
+        if (data.supportEmail) setSupportEmail(data.supportEmail);
       }
 
       // 2. Fetch authoritative server settings
@@ -226,6 +228,7 @@ export default function AdminSettingsPage() {
           if (s.metaDescription || s.meta_description) setMetaDescription(s.metaDescription || s.meta_description);
           if (s.metaKeywords || s.meta_keywords) setMetaKeywords(s.metaKeywords || s.meta_keywords);
           if (s.metaAuthor || s.meta_author) setMetaAuthor(s.metaAuthor || s.meta_author);
+          if (s.supportEmail) setSupportEmail(s.supportEmail);
 
           const colors = s.themeColors || s.theme_colors;
           if (colors) {
@@ -379,7 +382,8 @@ export default function AdminSettingsPage() {
       metaKeywords: metaKeywords.trim(),
       meta_keywords: metaKeywords.trim(),
       metaAuthor: metaAuthor.trim(),
-      meta_author: metaAuthor.trim()
+      meta_author: metaAuthor.trim(),
+      supportEmail: supportEmail.trim()
     };
 
     try {
@@ -1139,6 +1143,30 @@ export default function AdminSettingsPage() {
                 value={metaAuthor}
                 onChange={(e) => setMetaAuthor(e.target.value)}
                 placeholder={t('adminMetaAuthorPlaceholder', 'Zecratary Culinary Intelligence Inc.')}
+                className="w-full border rounded-xl px-4 py-3 text-xs outline-none font-medium transition"
+                style={{
+                  backgroundColor: 'var(--color-inner-dark)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)'
+                }}
+                onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+                onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--color-border)')}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold mb-1.5" style={{ color: 'var(--color-text)' }}>
+                {t('adminSupportEmailLabel', 'Support Email (shown on the Contact page)')}
+              </label>
+              <input
+                type="email"
+                autoComplete="off"
+                data-lpignore="true"
+                data-form-type="other"
+                spellCheck="false"
+                value={supportEmail}
+                onChange={(e) => setSupportEmail(e.target.value)}
+                placeholder={t('adminSupportEmailPlaceholder', 'support@yourdomain.com')}
                 className="w-full border rounded-xl px-4 py-3 text-xs outline-none font-medium transition"
                 style={{
                   backgroundColor: 'var(--color-inner-dark)',

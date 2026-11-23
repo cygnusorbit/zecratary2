@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { 
   initAuthStorage, getCurrentUser, setCurrentUser, 
-  syncSessionCookie, isSessionCookieValid, DEFAULT_USERS, User 
+  syncSessionCookie, isSessionCookieValid, checkServerSession, DEFAULT_USERS, User 
 } from '@/lib/auth';
 import { useTranslation } from '@/components/LanguageProvider';
 
@@ -66,7 +66,9 @@ export default function RegisterPage() {
       const active = getCurrentUser();
       const validCookie = isSessionCookieValid();
       if (active && validCookie) {
-        window.location.replace(active.role === 'admin' ? '/admin' : '/profile');
+        checkServerSession().then((r) => {
+          if (r === 'valid') window.location.replace(active.role === 'admin' ? '/admin' : '/profile');
+        });
         return;
       }
     }
@@ -93,22 +95,22 @@ export default function RegisterPage() {
     const cleanPass = password.trim();
 
     if (!cleanName || !cleanEmail || !cleanPass) {
-      setError(t('fillAllFields') || 'Please fill in all required fields.');
+      setError(t('fillAllFields', 'Please fill in all required fields.'));
       return;
     }
 
     if (cleanPass.length < 8) {
-      setError(t('passwordMinLength') || 'Password must be at least 8 characters.');
+      setError(t('passwordMinLength', 'Password must be at least 8 characters.'));
       return;
     }
 
     if (cleanPass !== confirmPassword.trim()) {
-      setError(t('passwordsDoNotMatch') || 'Passwords do not match.');
+      setError(t('passwordsDoNotMatch', 'Passwords do not match.'));
       return;
     }
 
     if (!agreeTerms) {
-      setError(t('agreeTermsPrompt') || 'Please agree to the Terms of Service and Privacy Policy.');
+      setError(t('agreeTermsPrompt', 'Please agree to the Terms of Service and Privacy Policy.'));
       return;
     }
 
@@ -122,7 +124,7 @@ export default function RegisterPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
-        setError(data.error || t('registrationFailed') || 'Registration failed. Please try again.');
+        setError(data.error || t('registrationFailed', 'Registration failed. Please try again.'));
         setLoading(false);
         return;
       }
@@ -176,10 +178,10 @@ export default function RegisterPage() {
             <UserPlus className="h-6 w-6" />
           </div>
           <h1 className="text-2xl font-black tracking-tight" style={{ color: cText }}>
-            {t('createYourAccount') || 'Create Your Account'}
+            {t('createYourAccount', 'Create Your Account')}
           </h1>
           <p className="text-xs" style={{ color: cSubText }}>
-            {t('registerSubtitle') || 'Join Zecratary to start planning, saving, and organizing recipes.'}
+            {t('registerSubtitle', 'Join Zecratary to start planning, saving, and organizing recipes.')}
           </p>
         </div>
 
@@ -198,7 +200,7 @@ export default function RegisterPage() {
         <div className="space-y-4 text-xs">
           <div>
             <label className="block font-bold mb-1.5" style={{ color: cLabel }}>
-              {t('fullNameLabel') || 'Full Name'}
+              {t('fullNameLabel', 'Full Name')}
             </label>
             <div className="relative">
               <UserIcon className="h-4 w-4 absolute left-3.5 top-3 text-slate-500" />
@@ -226,7 +228,7 @@ export default function RegisterPage() {
 
           <div>
             <label className="block font-bold mb-1.5" style={{ color: cLabel }}>
-              {t('emailAddressLabel') || 'Email Address'}
+              {t('emailAddressLabel', 'Email Address')}
             </label>
             <div className="relative">
               <Mail className="h-4 w-4 absolute left-3.5 top-3 text-slate-500" />
@@ -254,7 +256,7 @@ export default function RegisterPage() {
 
           <div>
             <label className="block font-bold mb-1.5" style={{ color: cLabel }}>
-              {t('passwordLabel') || 'Password'}
+              {t('passwordLabel', 'Password')}
             </label>
             <div className="relative">
               <Lock className="h-4 w-4 absolute left-3.5 top-3 text-slate-500" />
@@ -289,7 +291,7 @@ export default function RegisterPage() {
 
           <div>
             <label className="block font-bold mb-1.5" style={{ color: cLabel }}>
-              {t('confirmPasswordLabel') || 'Confirm Password'}
+              {t('confirmPasswordLabel', 'Confirm Password')}
             </label>
             <div className="relative">
               <Lock className="h-4 w-4 absolute left-3.5 top-3 text-slate-500" />
@@ -330,10 +332,10 @@ export default function RegisterPage() {
               className="w-4 h-4 rounded accent-[var(--color-primary,#E05638)] cursor-pointer"
             />
             <label htmlFor="terms" className="text-[11px] cursor-pointer" style={{ color: cSubText }}>
-              {t('agreeTermsPrefix') || 'I agree to the'}{' '}
-              <span className="underline hover:opacity-80">{t('termsOfService') || 'Terms of Service'}</span>{' '}
-              {t('and') || 'and'}{' '}
-              <span className="underline hover:opacity-80">{t('privacyPolicy') || 'Privacy Policy'}</span>
+              {t('agreeTermsPrefix', 'I agree to the')}{' '}
+              <span className="underline hover:opacity-80">{t('termsOfService', 'Terms of Service')}</span>{' '}
+              {t('and', 'and')}{' '}
+              <span className="underline hover:opacity-80">{t('privacyPolicy', 'Privacy Policy')}</span>
             </label>
           </div>
 
@@ -345,14 +347,14 @@ export default function RegisterPage() {
             style={{ backgroundColor: 'var(--color-primary, #E05638)' }}
           >
             {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-            {t('createFreeAccount') || 'Create Free Account'}
+            {t('createFreeAccount', 'Create Free Account')}
           </button>
         </div>
 
         <div className="text-center pt-2 border-t text-xs" style={{ borderColor: isDayMode ? '#e2e8f0' : '#1e293b' }}>
-          <span style={{ color: cSubText }}>{t('alreadyHaveAccount') || 'Already have an account?'} </span>
+          <span style={{ color: cSubText }}>{t('alreadyHaveAccount', 'Already have an account?')} </span>
           <Link href="/login" className="font-bold hover:underline" style={{ color: 'var(--color-primary, #E05638)' }}>
-            {t('signIn') || 'Sign in'}
+            {t('signIn', 'Sign in')}
           </Link>
         </div>
       </div>

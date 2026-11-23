@@ -3,13 +3,14 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, 
   Sparkles, Copy, Share2, ShoppingCart, Edit2, Trash2, Clock, 
   Utensils, CheckCircle2, AlertCircle, ShieldCheck, Lock, 
   ArrowRight, X, Flame
 } from 'lucide-react';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, initAuthStorage } from '@/lib/auth';
 import { useTranslation } from '@/components/LanguageProvider';
 
 interface PlannedMeal {
@@ -66,6 +67,7 @@ function getWeekDates(baseDate: Date): Date[] {
 
 export default function PlannerPage() {
   const { t } = useTranslation();
+  const router = useRouter();
 
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
     const d = new Date();
@@ -198,6 +200,11 @@ export default function PlannerPage() {
 
   useEffect(() => {
     document.title = `${t('mealPlannerTitle', 'Weekly Meal Planner')} - Zecratary`;
+    initAuthStorage();
+    if (!getCurrentUser()) {
+      router.replace('/login');
+      return;
+    }
     loadMeals();
     loadSavedRecipes();
     fetchSubscriptionAndPlans();

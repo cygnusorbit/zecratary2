@@ -139,7 +139,7 @@ function SocialLoginSettingContent() {
       if (res.ok) {
         setStatusMsg({
           type: 'success',
-          text: t('socialSettingsSavedSuccess') || 'Social login settings saved successfully!'
+          text: t('socialSettingsSavedSuccess', 'Social login settings saved successfully!')
         });
         window.dispatchEvent(new Event('zecratary_social_login_updated'));
         window.dispatchEvent(new Event('zecratary_admin_settings_updated'));
@@ -149,7 +149,7 @@ function SocialLoginSettingContent() {
     } catch (err: any) {
       setStatusMsg({
         type: 'error',
-        text: t('socialSettingsSaveError') || 'Failed to save social login settings.'
+        text: t('socialSettingsSaveError', 'Failed to save social login settings.')
       });
     } finally {
       setSaving(false);
@@ -176,7 +176,7 @@ function SocialLoginSettingContent() {
       if (!settings.googleClientId.trim()) {
         setStatusMsg({
           type: 'error',
-          text: t('testMissingCredentials') || 'Please provide both Client ID and Client Secret before testing.'
+          text: t('testMissingCredentials', 'Please provide both Client ID and Client Secret before testing.')
         });
       } else if (!settings.googleClientId.includes('.apps.googleusercontent.com')) {
         setStatusMsg({
@@ -186,7 +186,7 @@ function SocialLoginSettingContent() {
       } else {
         setStatusMsg({
           type: 'success',
-          text: t('testSuccessToast') || 'OAuth configuration validated successfully!'
+          text: t('testSuccessToast', 'OAuth configuration validated successfully!')
         });
       }
       setTimeout(() => setStatusMsg(null), 5000);
@@ -208,19 +208,19 @@ function SocialLoginSettingContent() {
             style={{ color: 'var(--color-primary, #E05638)' }}
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            <span>{t('backToAdmin') || 'Back to Admin Settings'}</span>
+            <span>{t('backToAdmin', 'Back to Admin Settings')}</span>
           </Link>
           <h1 
             className="text-2xl sm:text-3xl font-black tracking-tight"
             style={{ color: isDayMode ? '#0f172a' : 'var(--color-text, #ffffff)' }}
           >
-            {t('socialLoginTitle') || 'Social Login Settings'}
+            {t('socialLoginTitle', 'Social Login Settings')}
           </h1>
           <p 
             className="text-xs sm:text-sm mt-1"
             style={{ color: isDayMode ? '#64748b' : 'var(--color-text-secondary, #94a3b8)' }}
           >
-            {t('socialLoginSubtitle') || 'Configure OAuth 2.0 authentication providers, client credentials, and callback endpoints.'}
+            {t('socialLoginSubtitle', 'Configure OAuth 2.0 authentication providers, client credentials, and callback endpoints.')}
           </p>
         </div>
 
@@ -236,7 +236,7 @@ function SocialLoginSettingContent() {
           ) : (
             <ShieldCheck className="h-4 w-4" />
           )}
-          <span>{saving ? (t('savingSocialSettings') || 'Saving Settings...') : (t('saveSocialSettingsBtn') || 'Save Social Login Settings')}</span>
+          <span>{saving ? (t('savingSocialSettings', 'Saving Settings...')) : (t('saveSocialSettingsBtn', 'Save Social Login Settings'))}</span>
         </button>
       </div>
 
@@ -277,10 +277,10 @@ function SocialLoginSettingContent() {
             </div>
             <div>
               <h2 className="text-sm font-bold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>
-                {t('googleProviderTitle') || 'Google Identity Services'}
+                {t('googleProviderTitle', 'Google Identity Services')}
               </h2>
               <p className="text-[11px]" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>
-                {t('googleProviderDesc') || 'Allow users to sign in with their Google accounts using OAuth 2.0.'}
+                {t('googleProviderDesc', 'Allow users to sign in with their Google accounts using OAuth 2.0.')}
               </p>
             </div>
           </div>
@@ -301,7 +301,7 @@ function SocialLoginSettingContent() {
           {/* Client ID */}
           <div>
             <label className="block text-xs font-bold mb-1" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-              {t('clientIdLabel') || 'Client ID'}
+              {t('clientIdLabel', 'Client ID')}
             </label>
             <input 
               type="text"
@@ -310,7 +310,7 @@ function SocialLoginSettingContent() {
               data-form-type="other"
               value={settings.googleClientId}
               onChange={(e) => setSettings({ ...settings, googleClientId: e.target.value })}
-              placeholder={t('clientIdPlaceholder') || 'Enter OAuth Client ID (e.g. ...apps.googleusercontent.com)'}
+              placeholder={t('clientIdPlaceholder', 'Enter OAuth Client ID (e.g. ...apps.googleusercontent.com)')}
               className="w-full text-xs font-mono border rounded-xl px-3 py-2.5 outline-none transition"
               style={{
                 backgroundColor: isDayMode ? '#f8fafc' : 'var(--color-inner-dark, #070b13)',
@@ -323,7 +323,7 @@ function SocialLoginSettingContent() {
           {/* Client Secret */}
           <div>
             <label className="block text-xs font-bold mb-1" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-              {t('clientSecretLabel') || 'Client Secret'}
+              {t('clientSecretLabel', 'Client Secret')}
             </label>
             <div className="relative">
               <input 
@@ -333,7 +333,7 @@ function SocialLoginSettingContent() {
                 data-form-type="other"
                 value={settings.googleClientSecret}
                 onChange={(e) => setSettings({ ...settings, googleClientSecret: e.target.value })}
-                placeholder={t('clientSecretPlaceholder') || 'Enter OAuth Client Secret (e.g. GOCSPX-...)'}
+                placeholder={t('clientSecretPlaceholder', 'Enter OAuth Client Secret (e.g. GOCSPX-...)')}
                 className="w-full text-xs font-mono border rounded-xl pl-3 pr-10 py-2.5 outline-none transition"
                 style={{
                   backgroundColor: isDayMode ? '#f8fafc' : 'var(--color-inner-dark, #070b13)',
@@ -355,7 +355,7 @@ function SocialLoginSettingContent() {
           {/* Authorized Callback URL Display */}
           <div>
             <label className="block text-xs font-bold mb-1" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-              {t('callbackUrlLabel') || 'Authorized Redirect URI (Callback URL)'}
+              {t('callbackUrlLabel', 'Authorized Redirect URI (Callback URL)')}
             </label>
             <div className="flex items-center gap-2">
               <input 
@@ -380,7 +380,7 @@ function SocialLoginSettingContent() {
                 }}
               >
                 {copiedKey === 'google_cb' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                <span>{copiedKey === 'google_cb' ? 'Copied' : (t('copyCallbackUrlBtn') || 'Copy URL')}</span>
+                <span>{copiedKey === 'google_cb' ? 'Copied' : (t('copyCallbackUrlBtn', 'Copy URL'))}</span>
               </button>
             </div>
           </div>
@@ -398,7 +398,7 @@ function SocialLoginSettingContent() {
               }}
             >
               <RefreshCw className={`h-3 w-3 ${testing ? 'animate-spin' : ''}`} />
-              <span>{testing ? (t('testingConnection') || 'Testing...') : (t('testConnectionBtn') || 'Test Connection')}</span>
+              <span>{testing ? (t('testingConnection', 'Testing...')) : (t('testConnectionBtn', 'Test Connection'))}</span>
             </button>
 
             <span 
@@ -413,8 +413,8 @@ function SocialLoginSettingContent() {
               }}
             >
               {settings.googleEnabled && settings.googleClientId 
-                ? (t('statusConfigured') || 'Configured & Active') 
-                : (settings.googleEnabled ? (t('statusIncomplete') || 'Credentials Incomplete') : (t('statusDisabled') || 'Disabled'))}
+                ? (t('statusConfigured', 'Configured & Active')) 
+                : (settings.googleEnabled ? (t('statusIncomplete', 'Credentials Incomplete')) : (t('statusDisabled', 'Disabled')))}
             </span>
           </div>
         </div>
@@ -437,10 +437,10 @@ function SocialLoginSettingContent() {
             </div>
             <div>
               <h2 className="text-sm font-bold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>
-                {t('facebookProviderTitle') || 'Facebook Login (Meta Graph)'}
+                {t('facebookProviderTitle', 'Facebook Login (Meta Graph)')}
               </h2>
               <p className="text-[11px]" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>
-                {t('facebookProviderDesc') || 'Allow users to sign in with their Facebook profiles via Meta Graph API.'}
+                {t('facebookProviderDesc', 'Allow users to sign in with their Facebook profiles via Meta Graph API.')}
               </p>
             </div>
           </div>
@@ -459,7 +459,7 @@ function SocialLoginSettingContent() {
         <div className="grid gap-3.5 pt-2">
           <div>
             <label className="block text-xs font-bold mb-1" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-              {t('facebookAppIdLabel') || 'Facebook App ID'}
+              {t('facebookAppIdLabel', 'Facebook App ID')}
             </label>
             <input 
               type="text"
@@ -467,7 +467,7 @@ function SocialLoginSettingContent() {
               data-lpignore="true"
               value={settings.facebookAppId}
               onChange={(e) => setSettings({ ...settings, facebookAppId: e.target.value })}
-              placeholder={t('facebookAppIdPlaceholder') || 'Enter Facebook App ID...'}
+              placeholder={t('facebookAppIdPlaceholder', 'Enter Facebook App ID...')}
               className="w-full text-xs font-mono border rounded-xl px-3 py-2 outline-none"
               style={{
                 backgroundColor: isDayMode ? '#f8fafc' : 'var(--color-inner-dark, #070b13)',
@@ -479,7 +479,7 @@ function SocialLoginSettingContent() {
 
           <div>
             <label className="block text-xs font-bold mb-1" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-              {t('facebookAppSecretLabel') || 'Facebook App Secret'}
+              {t('facebookAppSecretLabel', 'Facebook App Secret')}
             </label>
             <div className="relative">
               <input 
@@ -488,7 +488,7 @@ function SocialLoginSettingContent() {
                 data-lpignore="true"
                 value={settings.facebookAppSecret}
                 onChange={(e) => setSettings({ ...settings, facebookAppSecret: e.target.value })}
-                placeholder={t('facebookAppSecretPlaceholder') || 'Enter Facebook App Secret...'}
+                placeholder={t('facebookAppSecretPlaceholder', 'Enter Facebook App Secret...')}
                 className="w-full text-xs font-mono border rounded-xl pl-3 pr-10 py-2 outline-none"
                 style={{
                   backgroundColor: isDayMode ? '#f8fafc' : 'var(--color-inner-dark, #070b13)',
@@ -509,7 +509,7 @@ function SocialLoginSettingContent() {
 
           <div>
             <label className="block text-xs font-bold mb-1" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-              {t('callbackUrlLabel') || 'Authorized Redirect URI (Callback URL)'}
+              {t('callbackUrlLabel', 'Authorized Redirect URI (Callback URL)')}
             </label>
             <div className="flex items-center gap-2">
               <input 
@@ -534,7 +534,7 @@ function SocialLoginSettingContent() {
                 }}
               >
                 {copiedKey === 'fb_cb' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                <span>{copiedKey === 'fb_cb' ? 'Copied' : (t('copyCallbackUrlBtn') || 'Copy URL')}</span>
+                <span>{copiedKey === 'fb_cb' ? 'Copied' : (t('copyCallbackUrlBtn', 'Copy URL'))}</span>
               </button>
             </div>
           </div>
@@ -558,10 +558,10 @@ function SocialLoginSettingContent() {
             </div>
             <div>
               <h2 className="text-sm font-bold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>
-                {t('appleProviderTitle') || 'Sign in with Apple'}
+                {t('appleProviderTitle', 'Sign in with Apple')}
               </h2>
               <p className="text-[11px]" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>
-                {t('appleProviderDesc') || 'Enable Apple ID authentication with private email relay support.'}
+                {t('appleProviderDesc', 'Enable Apple ID authentication with private email relay support.')}
               </p>
             </div>
           </div>
@@ -581,7 +581,7 @@ function SocialLoginSettingContent() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold mb-1" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-                {t('appleTeamIdLabel') || 'Apple Team ID'}
+                {t('appleTeamIdLabel', 'Apple Team ID')}
               </label>
               <input 
                 type="text"
@@ -589,7 +589,7 @@ function SocialLoginSettingContent() {
                 data-lpignore="true"
                 value={settings.appleTeamId}
                 onChange={(e) => setSettings({ ...settings, appleTeamId: e.target.value })}
-                placeholder={t('appleTeamIdPlaceholder') || '10-character Team ID'}
+                placeholder={t('appleTeamIdPlaceholder', '10-character Team ID')}
                 className="w-full text-xs font-mono border rounded-xl px-3 py-2 outline-none"
                 style={{
                   backgroundColor: isDayMode ? '#f8fafc' : 'var(--color-inner-dark, #070b13)',
@@ -601,7 +601,7 @@ function SocialLoginSettingContent() {
 
             <div>
               <label className="block text-xs font-bold mb-1" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-                {t('appleKeyIdLabel') || 'Apple Key ID'}
+                {t('appleKeyIdLabel', 'Apple Key ID')}
               </label>
               <input 
                 type="text"
@@ -609,7 +609,7 @@ function SocialLoginSettingContent() {
                 data-lpignore="true"
                 value={settings.appleKeyId}
                 onChange={(e) => setSettings({ ...settings, appleKeyId: e.target.value })}
-                placeholder={t('appleKeyIdPlaceholder') || '10-character Key ID'}
+                placeholder={t('appleKeyIdPlaceholder', '10-character Key ID')}
                 className="w-full text-xs font-mono border rounded-xl px-3 py-2 outline-none"
                 style={{
                   backgroundColor: isDayMode ? '#f8fafc' : 'var(--color-inner-dark, #070b13)',
@@ -622,7 +622,7 @@ function SocialLoginSettingContent() {
 
           <div>
             <label className="block text-xs font-bold mb-1" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-              {t('applePrivateKeyLabel') || 'Apple Private Key (.p8)'}
+              {t('applePrivateKeyLabel', 'Apple Private Key (.p8)')}
             </label>
             <textarea 
               rows={3}
@@ -630,7 +630,7 @@ function SocialLoginSettingContent() {
               data-lpignore="true"
               value={settings.applePrivateKey}
               onChange={(e) => setSettings({ ...settings, applePrivateKey: e.target.value })}
-              placeholder={t('applePrivateKeyPlaceholder') || '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'}
+              placeholder={t('applePrivateKeyPlaceholder', '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----')}
               className="w-full text-xs font-mono border rounded-xl px-3 py-2 outline-none resize-none"
               style={{
                 backgroundColor: isDayMode ? '#f8fafc' : 'var(--color-inner-dark, #070b13)',
@@ -642,7 +642,7 @@ function SocialLoginSettingContent() {
 
           <div>
             <label className="block text-xs font-bold mb-1" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-              {t('callbackUrlLabel') || 'Authorized Redirect URI (Callback URL)'}
+              {t('callbackUrlLabel', 'Authorized Redirect URI (Callback URL)')}
             </label>
             <div className="flex items-center gap-2">
               <input 
@@ -667,7 +667,7 @@ function SocialLoginSettingContent() {
                 }}
               >
                 {copiedKey === 'apple_cb' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                <span>{copiedKey === 'apple_cb' ? 'Copied' : (t('copyCallbackUrlBtn') || 'Copy URL')}</span>
+                <span>{copiedKey === 'apple_cb' ? 'Copied' : (t('copyCallbackUrlBtn', 'Copy URL'))}</span>
               </button>
             </div>
           </div>

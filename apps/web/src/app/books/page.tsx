@@ -288,7 +288,7 @@ export default function BooksPage() {
   }, []);
 
   useEffect(() => {
-    document.title = `${t('recipeBooksTitle') || 'Recipe Books'} - FoodiePrep`;
+    document.title = `${t('recipeBooksTitle', 'Recipe Books')} - FoodiePrep`;
     initAuthStorage();
     const user = getCurrentUser();
 
@@ -445,7 +445,7 @@ export default function BooksPage() {
       createdBy: currentUser.email,
       creatorName: currentUser.name,
       title: newTitle.trim(),
-      description: newDesc.trim() || (t('customRecipeCollection') || 'Custom recipe collection'),
+      description: newDesc.trim() || (t('customRecipeCollection', 'Custom recipe collection')),
       recipeCount: 0,
       coverColor: newCoverColor,
       createdAt: new Date().toISOString()
@@ -504,7 +504,7 @@ export default function BooksPage() {
 
   const handleDeleteBook = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (!confirm(t('confirmDeleteBook') || 'Are you sure you want to delete this recipe book?')) return;
+    if (!confirm(t('confirmDeleteBook', 'Are you sure you want to delete this recipe book?'))) return;
     
     try {
       await fetch(`/api/books?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
@@ -558,12 +558,12 @@ export default function BooksPage() {
     const targetBookTitle = books.find(b => b.id === bookId)?.title || 'Cookbook';
     const recName = viewingRecipe.title || viewingRecipe.name;
     if (isRemoving) {
-      const msg = (t('removedFromBookAlert') || 'Removed "{title}" from "{book}"')
+      const msg = (t('removedFromBookAlert', 'Removed "{title}" from "{book}"'))
         .replace('{title}', String(recName ?? ''))
         .replace('{book}', String(targetBookTitle ?? ''));
       alert(msg);
     } else {
-      const msg = (t('assignedToBookAlert') || 'Assigned "{title}" to "{book}"!')
+      const msg = (t('assignedToBookAlert', 'Assigned "{title}" to "{book}"!'))
         .replace('{title}', String(recName ?? ''))
         .replace('{book}', String(targetBookTitle ?? ''));
       alert(msg);
@@ -571,7 +571,7 @@ export default function BooksPage() {
   };
 
   const handleDeleteRecipe = async (id: string) => {
-    if (!confirm(t('confirmDeleteRecipe') || 'Are you sure you want to delete this recipe?')) return;
+    if (!confirm(t('confirmDeleteRecipe', 'Are you sure you want to delete this recipe?'))) return;
     try {
       await fetch(`/api/recipes/saved?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       const updated = recipes.filter(r => r.id !== id);
@@ -628,7 +628,7 @@ export default function BooksPage() {
 
   const handleSaveRecipeEdit = async () => {
     if (!editRecipeForm.title.trim() || !currentUser) {
-      alert(t('enterRecipeTitleAlert') || 'Please enter a recipe title.');
+      alert(t('enterRecipeTitleAlert', 'Please enter a recipe title.'));
       setEditRecipeTab('info');
       return;
     }
@@ -698,7 +698,7 @@ export default function BooksPage() {
     if (!currentUser) return;
     const selectedItems = shoppingModalIngredients.filter(i => i.selected);
     if (selectedItems.length === 0) {
-      alert(t('noIngredientsSelectedAlert') || 'No ingredients selected.');
+      alert(t('noIngredientsSelectedAlert', 'No ingredients selected.'));
       return;
     }
     const local = localStorage.getItem('zecratary_shopping') || localStorage.getItem('zecratary_shopping_list');
@@ -719,7 +719,7 @@ export default function BooksPage() {
     localStorage.setItem('zecratary_shopping', JSON.stringify(updated));
     localStorage.setItem('zecratary_shopping_list', JSON.stringify(updated));
     setIsShoppingModalOpen(false);
-    const alertMsg = (t('addedIngredientsToShoppingAlert') || 'Added {count} ingredients to your Shopping List!')
+    const alertMsg = (t('addedIngredientsToShoppingAlert', 'Added {count} ingredients to your Shopping List!'))
       .replace('{count}', String(selectedItems.length));
     alert(alertMsg);
   };
@@ -747,7 +747,7 @@ export default function BooksPage() {
     localStorage.setItem('zecratary_meal_plan', JSON.stringify(updatedPlan));
     window.dispatchEvent(new Event('zecratary_planner_updated'));
     setIsPlanModalOpen(false);
-    const alertMsg = (t('addedToMealPlanAlert') || 'Added "{title}" to meal plan on {date}!')
+    const alertMsg = (t('addedToMealPlanAlert', 'Added "{title}" to meal plan on {date}!'))
       .replace('{title}', String((viewingRecipe.title || viewingRecipe.name) || ''))
       .replace('{date}', String(planDate ?? ''));
     alert(alertMsg);
@@ -801,14 +801,14 @@ export default function BooksPage() {
       <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-[var(--color-primary)]">
-            {t('recipeBooksTitle') || 'Recipe Books'}
+            {t('recipeBooksTitle', 'Recipe Books')}
           </h1>
           <p className="text-xs" style={{ color: isDayMode ? '#64748b' : 'var(--color-text-secondary, #94a3b8)' }}>
             {currentUser 
-              ? (t('recipeBooksSubtitleUser') || "{name}'s curated cookbooks ({count})")
+              ? (t('recipeBooksSubtitleUser', "{name}'s curated cookbooks ({count})"))
                   .replace('{name}', String(currentUser.name ?? ''))
                   .replace('{count}', String(books.length))
-              : (t('recipeBooksSubtitleDefault') || 'Organize your saved recipes into curated digital cookbooks')}
+              : (t('recipeBooksSubtitleDefault', 'Organize your saved recipes into curated digital cookbooks'))}
           </p>
         </div>
 
@@ -860,7 +860,7 @@ export default function BooksPage() {
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover, #c94529)')}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary, #E05638)')}
           >
-            <Plus className="h-4 w-4" /> {t('createRecipeBookBtn') || 'Create Recipe Book'}
+            <Plus className="h-4 w-4" /> {t('createRecipeBookBtn', 'Create Recipe Book')}
           </button>
         </div>
       </div>
@@ -874,7 +874,7 @@ export default function BooksPage() {
           data-lpignore="true"
           data-1p-ignore="true"
           data-form-type="other"
-          placeholder={t('searchCookbooksPlaceholder') || 'Search cookbooks by title or description...'}
+          placeholder={t('searchCookbooksPlaceholder', 'Search cookbooks by title or description...')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full border rounded-xl pl-10 pr-4 py-2.5 text-xs outline-none transition"
@@ -908,11 +908,11 @@ export default function BooksPage() {
           }}
         >
           <Book className="h-8 w-8 mx-auto" style={{ color: isDayMode ? '#94a3b8' : '#475569' }} />
-          <h4 className="text-sm font-bold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('noCookbooksFound') || 'No cookbooks found'}</h4>
+          <h4 className="text-sm font-bold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('noCookbooksFound', 'No cookbooks found')}</h4>
           <p className="text-xs" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>
             {search 
-              ? (t('tryClearingSearch') || 'Try clearing your search query.') 
-              : (t('createFirstCookbook') || 'Create your first cookbook collection using the button above.')}
+              ? (t('tryClearingSearch', 'Try clearing your search query.')) 
+              : (t('createFirstCookbook', 'Create your first cookbook collection using the button above.'))}
           </p>
         </div>
       ) : (
@@ -936,7 +936,7 @@ export default function BooksPage() {
                 >
                   <div className="flex items-center justify-between z-10">
                     <span className="text-[10px] font-black uppercase tracking-widest text-white/90 bg-black/25 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/10">
-                      {t('cookbookBadge') || 'COOKBOOK'}
+                      {t('cookbookBadge', 'COOKBOOK')}
                     </span>
                     <div className="w-7 h-7 rounded-lg bg-black/25 backdrop-blur-md flex items-center justify-center text-white border border-white/10">
                       <Book className="h-3.5 w-3.5" />
@@ -950,7 +950,7 @@ export default function BooksPage() {
 
                 <div className="p-4 sm:p-5 space-y-3 flex-1 flex flex-col justify-between">
                   <p className="text-xs leading-relaxed line-clamp-2 min-h-[32px]" style={{ color: isDayMode ? '#475569' : '#cbd5e1' }}>
-                    {book.description || (t('customRecipeCollection') || 'Custom recipe collection')}
+                    {book.description || (t('customRecipeCollection', 'Custom recipe collection'))}
                   </p>
 
                   <div 
@@ -959,7 +959,7 @@ export default function BooksPage() {
                   >
                     <span className="font-bold flex items-center gap-1.5 truncate pr-1" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>
                       <Utensils className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--color-primary, #E05638)' }} /> 
-                      {(t('recipesCountSuffix') || '{count} recipes').replace('{count}', String(count))}
+                      {(t('recipesCountSuffix', '{count} recipes')).replace('{count}', String(count))}
                     </span>
 
                     <div className="flex items-center gap-1 shrink-0">
@@ -968,7 +968,7 @@ export default function BooksPage() {
                         onClick={(e) => openEditModal(e, book)}
                         className="p-1.5 rounded-xl transition cursor-pointer"
                         style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}
-                        title={t('editCookbookTooltip') || 'Edit Cookbook'}
+                        title={t('editCookbookTooltip', 'Edit Cookbook')}
                       >
                         <Edit3 className="h-3.5 w-3.5" />
                       </button>
@@ -977,7 +977,7 @@ export default function BooksPage() {
                         onClick={(e) => handleDeleteBook(e, book.id)}
                         className="p-1.5 rounded-xl transition cursor-pointer hover:text-red-500"
                         style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}
-                        title={t('deleteCookbookTooltip') || 'Delete Cookbook'}
+                        title={t('deleteCookbookTooltip', 'Delete Cookbook')}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -997,7 +997,7 @@ export default function BooksPage() {
           style={{ borderColor: isDayMode ? '#e2e8f0' : 'var(--color-border, #1e293b)' }}
         >
           <span style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>
-            {t('showing') || 'Showing'} <strong className="font-bold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>{startIndex + 1}</strong> - <strong className="font-bold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>{Math.min(startIndex + itemsPerPage, filteredBooks.length)}</strong> {t('of') || 'of'} <strong className="font-bold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>{filteredBooks.length}</strong> {t('cookbooksSuffix') || 'cookbooks'}
+            {t('showing', 'Showing')} <strong className="font-bold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>{startIndex + 1}</strong> - <strong className="font-bold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>{Math.min(startIndex + itemsPerPage, filteredBooks.length)}</strong> {t('of', 'of')} <strong className="font-bold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>{filteredBooks.length}</strong> {t('cookbooksSuffix', 'cookbooks')}
           </span>
 
           <div className="flex items-center gap-1.5">
@@ -1011,7 +1011,7 @@ export default function BooksPage() {
                 borderColor: isDayMode ? '#cbd5e1' : 'var(--color-border, #1e293b)',
                 color: isDayMode ? '#0f172a' : '#cbd5e1'
               }}
-              title={t('previousPageTooltip') || 'Previous Page'}
+              title={t('previousPageTooltip', 'Previous Page')}
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -1056,7 +1056,7 @@ export default function BooksPage() {
                 borderColor: isDayMode ? '#cbd5e1' : 'var(--color-border, #1e293b)',
                 color: isDayMode ? '#0f172a' : '#cbd5e1'
               }}
-              title={t('nextPageTooltip') || 'Next Page'}
+              title={t('nextPageTooltip', 'Next Page')}
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -1095,17 +1095,17 @@ export default function BooksPage() {
 
             <div className="space-y-1 pr-6">
               <h2 className="text-lg font-black flex items-center gap-2" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>
-                <Edit3 className="h-5 w-5" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('editRecipeBookTitle') || 'Edit Recipe Book'}
+                <Edit3 className="h-5 w-5" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('editRecipeBookTitle', 'Edit Recipe Book')}
               </h2>
               <p className="text-xs" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>
-                {t('editRecipeBookSub') || 'Update your cookbook title, description, and cover color.'}
+                {t('editRecipeBookSub', 'Update your cookbook title, description, and cover color.')}
               </p>
             </div>
 
             <div role="form" aria-label="Edit Cookbook Form" className="space-y-4">
               <div>
                 <label className="block font-bold mb-1.5 text-xs" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-                  {t('bookTitleLabel') || 'Book Title *'}
+                  {t('bookTitleLabel', 'Book Title *')}
                 </label>
                 <input
                   type="text"
@@ -1114,7 +1114,7 @@ export default function BooksPage() {
                   data-lpignore="true"
                   data-1p-ignore="true"
                   data-form-type="other"
-                  placeholder={t('bookTitlePlaceholderEdit') || 'e.g. Baking & Desserts'}
+                  placeholder={t('bookTitlePlaceholderEdit', 'e.g. Baking & Desserts')}
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit(e); }}
@@ -1131,7 +1131,7 @@ export default function BooksPage() {
 
               <div>
                 <label className="block font-bold mb-1.5 text-xs" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-                  {t('templateDescriptionLabel') || 'Description'}
+                  {t('templateDescriptionLabel', 'Description')}
                 </label>
                 <textarea
                   rows={3}
@@ -1139,7 +1139,7 @@ export default function BooksPage() {
                   data-lpignore="true"
                   data-1p-ignore="true"
                   data-form-type="other"
-                  placeholder={t('bookDescPlaceholder') || 'Short summary of this cookbook collection...'}
+                  placeholder={t('bookDescPlaceholder', 'Short summary of this cookbook collection...')}
                   value={editDesc}
                   onChange={(e) => setEditDesc(e.target.value)}
                   className="w-full border rounded-xl p-3 text-xs outline-none resize-none leading-relaxed"
@@ -1155,7 +1155,7 @@ export default function BooksPage() {
 
               <div>
                 <label className="block font-bold mb-2 text-xs flex items-center gap-1.5" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-                  <Palette className="h-4 w-4" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('backgroundColorLabel') || 'Background Color'}
+                  <Palette className="h-4 w-4" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('backgroundColorLabel', 'Background Color')}
                 </label>
                 <div className="grid grid-cols-3 gap-2.5">
                   {COVER_GRADIENTS.map((g) => {
@@ -1206,8 +1206,8 @@ export default function BooksPage() {
                     </div>
 
                     <div>
-                      <span className="text-xs font-bold block" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('customColorLabel') || 'Custom Color'}</span>
-                      <span className="text-[11px]" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>{t('customColorHint') || 'Click to pick color wheel or type hex'}</span>
+                      <span className="text-xs font-bold block" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('customColorLabel', 'Custom Color')}</span>
+                      <span className="text-[11px]" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>{t('customColorHint', 'Click to pick color wheel or type hex')}</span>
                     </div>
                   </div>
 
@@ -1247,7 +1247,7 @@ export default function BooksPage() {
                     color: isDayMode ? '#475569' : '#cbd5e1'
                   }}
                 >
-                  {t('cancel') || 'Cancel'}
+                  {t('cancel', 'Cancel')}
                 </button>
                 <button
                   type="button"
@@ -1257,7 +1257,7 @@ export default function BooksPage() {
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover, #c94529)')}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary, #E05638)')}
                 >
-                  <Save className="h-4 w-4" /> {t('saveChanges') || 'Save Changes'}
+                  <Save className="h-4 w-4" /> {t('saveChanges', 'Save Changes')}
                 </button>
               </div>
             </div>
@@ -1296,17 +1296,17 @@ export default function BooksPage() {
 
             <div className="space-y-1 pr-6">
               <h2 className="text-lg font-black flex items-center gap-2" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>
-                <Book className="h-5 w-5" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('createRecipeBookTitle') || 'Create Recipe Book'}
+                <Book className="h-5 w-5" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('createRecipeBookTitle', 'Create Recipe Book')}
               </h2>
               <p className="text-xs" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>
-                {t('createRecipeBookSub') || 'Create a new curated recipe collection.'}
+                {t('createRecipeBookSub', 'Create a new curated recipe collection.')}
               </p>
             </div>
 
             <div role="form" aria-label="Create Cookbook Form" className="space-y-4">
               <div>
                 <label className="block font-bold mb-1.5 text-xs" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-                  {t('bookTitleLabel') || 'Book Title *'}
+                  {t('bookTitleLabel', 'Book Title *')}
                 </label>
                 <input
                   type="text"
@@ -1315,7 +1315,7 @@ export default function BooksPage() {
                   data-lpignore="true"
                   data-1p-ignore="true"
                   data-form-type="other"
-                  placeholder={t('bookTitlePlaceholder') || 'e.g. Weekend Baking & Desserts'}
+                  placeholder={t('bookTitlePlaceholder', 'e.g. Weekend Baking & Desserts')}
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleCreateBook(e); }}
@@ -1332,7 +1332,7 @@ export default function BooksPage() {
 
               <div>
                 <label className="block font-bold mb-1.5 text-xs" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-                  {t('templateDescriptionLabel') || 'Description'}
+                  {t('templateDescriptionLabel', 'Description')}
                 </label>
                 <textarea
                   rows={3}
@@ -1340,7 +1340,7 @@ export default function BooksPage() {
                   data-lpignore="true"
                   data-1p-ignore="true"
                   data-form-type="other"
-                  placeholder={t('bookDescPlaceholder') || 'Short summary of this cookbook collection...'}
+                  placeholder={t('bookDescPlaceholder', 'Short summary of this cookbook collection...')}
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
                   className="w-full border rounded-xl p-3 text-xs outline-none resize-none leading-relaxed"
@@ -1356,7 +1356,7 @@ export default function BooksPage() {
 
               <div>
                 <label className="block font-bold mb-2 text-xs flex items-center gap-1.5" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-                  <Palette className="h-4 w-4" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('backgroundColorLabel') || 'Background Color'}
+                  <Palette className="h-4 w-4" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('backgroundColorLabel', 'Background Color')}
                 </label>
                 
                 <div className="grid grid-cols-3 gap-2.5">
@@ -1408,8 +1408,8 @@ export default function BooksPage() {
                     </div>
 
                     <div>
-                      <span className="text-xs font-bold block" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('customColorLabel') || 'Custom Color'}</span>
-                      <span className="text-[11px]" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>{t('customColorHint') || 'Pick color wheel or enter hex'}</span>
+                      <span className="text-xs font-bold block" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('customColorLabel', 'Custom Color')}</span>
+                      <span className="text-[11px]" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>{t('customColorHint', 'Pick color wheel or enter hex')}</span>
                     </div>
                   </div>
 
@@ -1449,7 +1449,7 @@ export default function BooksPage() {
                     color: isDayMode ? '#475569' : '#cbd5e1'
                   }}
                 >
-                  {t('cancel') || 'Cancel'}
+                  {t('cancel', 'Cancel')}
                 </button>
                 <button
                   type="button"
@@ -1459,7 +1459,7 @@ export default function BooksPage() {
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover, #c94529)')}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary, #E05638)')}
                 >
-                  {t('createRecipeBookBtn') || 'Create Book'}
+                  {t('createRecipeBookBtn', 'Create Book')}
                 </button>
               </div>
             </div>
@@ -1502,14 +1502,14 @@ export default function BooksPage() {
             >
               <div className="flex justify-between items-start pr-8">
                 <span className="text-[10px] font-black uppercase tracking-widest bg-black/30 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
-                  {t('cookbookDetailsBadge') || 'Cookbook Details'}
+                  {t('cookbookDetailsBadge', 'Cookbook Details')}
                 </span>
                 <button
                   type="button"
                   onClick={(e) => openEditModal(e, selectedBook)}
                   className="bg-black/40 hover:bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border border-white/10 cursor-pointer"
                 >
-                  <Edit3 className="h-3.5 w-3.5" /> {t('editBookBtn') || 'Edit Book'}
+                  <Edit3 className="h-3.5 w-3.5" /> {t('editBookBtn', 'Edit Book')}
                 </button>
               </div>
               <div>
@@ -1525,7 +1525,7 @@ export default function BooksPage() {
                   className="text-sm font-bold uppercase tracking-wider"
                   style={{ color: 'var(--color-primary, #E05638)' }}
                 >
-                  {(t('recipesInThisBook') || 'Recipes in this Book ({count})')
+                  {(t('recipesInThisBook', 'Recipes in this Book ({count})'))
                     .replace('{count}', String(recipes.filter((r: any) => isRecipeInBook(r, selectedBook.id)).length))}
                 </h3>
 
@@ -1546,11 +1546,11 @@ export default function BooksPage() {
                   >
                     {showAddRecipePicker ? (
                       <>
-                        <X className="h-3.5 w-3.5" /> {t('hideRecipePickerBtn') || 'Close Picker'}
+                        <X className="h-3.5 w-3.5" /> {t('hideRecipePickerBtn', 'Close Picker')}
                       </>
                     ) : (
                       <>
-                        <Plus className="h-3.5 w-3.5" /> {t('addRecipesFromRecipesBtn') || 'Add Recipe'}
+                        <Plus className="h-3.5 w-3.5" /> {t('addRecipesFromRecipesBtn', 'Add Recipe')}
                       </>
                     )}
                   </button>
@@ -1560,7 +1560,7 @@ export default function BooksPage() {
                     className="text-xs font-bold hover:underline flex items-center gap-1"
                     style={{ color: 'var(--color-accent, #10b981)' }}
                   >
-                    {t('browseRecipes') || 'Browse Recipes'} <ArrowRight className="h-3.5 w-3.5" />
+                    {t('browseRecipes', 'Browse Recipes')} <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
                 </div>
               </div>
@@ -1578,16 +1578,16 @@ export default function BooksPage() {
                     <div className="flex items-center gap-2">
                       <BookmarkPlus className="h-4 w-4" style={{ color: 'var(--color-primary, #E05638)' }} />
                       <span className="text-xs font-extrabold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>
-                        {t('selectRecipesToAddTitle') || 'Add Recipes from /recipes'}
+                        {t('selectRecipesToAddTitle', 'Add Recipes from /recipes')}
                       </span>
                     </div>
 
                     {/* Filter Tabs */}
                     <div className="flex items-center gap-1">
                       {([
-                        { id: 'all', label: t('filterAllRecipes') || 'All' },
-                        { id: 'available', label: t('filterAvailableRecipes') || 'Available' },
-                        { id: 'added', label: t('filterAssignedRecipes') || 'Added' }
+                        { id: 'all', label: t('filterAllRecipes', 'All') },
+                        { id: 'available', label: t('filterAvailableRecipes', 'Available') },
+                        { id: 'added', label: t('filterAssignedRecipes', 'Added') }
                       ] as const).map((tab) => (
                         <button
                           key={tab.id}
@@ -1617,7 +1617,7 @@ export default function BooksPage() {
                       data-lpignore="true"
                       data-1p-ignore="true"
                       data-form-type="other"
-                      placeholder={t('searchRecipesToAddPlaceholder') || 'Search recipes from /recipes by name or category...'}
+                      placeholder={t('searchRecipesToAddPlaceholder', 'Search recipes from /recipes by name or category...')}
                       value={pickerSearch}
                       onChange={(e) => setPickerSearch(e.target.value)}
                       className="w-full border rounded-xl pl-9 pr-8 py-2 text-xs outline-none transition"
@@ -1642,13 +1642,13 @@ export default function BooksPage() {
                   {/* Recipe List from /recipes */}
                   {pickerFilteredRecipes.length === 0 ? (
                     <div className="py-6 text-center space-y-2 text-xs" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>
-                      <p>{t('noAvailableRecipesToAdd') || 'No matching recipes found in /recipes.'}</p>
+                      <p>{t('noAvailableRecipesToAdd', 'No matching recipes found in /recipes.')}</p>
                       <Link
                         href="/recipes"
                         className="inline-flex items-center gap-1 font-bold hover:underline"
                         style={{ color: 'var(--color-accent, #10b981)' }}
                       >
-                        {t('browseRecipes') || 'Go to /recipes'} <ArrowRight className="h-3.5 w-3.5" />
+                        {t('browseRecipes', 'Go to /recipes')} <ArrowRight className="h-3.5 w-3.5" />
                       </Link>
                     </div>
                   ) : (
@@ -1698,7 +1698,7 @@ export default function BooksPage() {
                                   {rec.title || rec.name}
                                 </h4>
                                 <span className="text-[10px] block truncate" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>
-                                  {rec.recipeType || rec.tags?.[0] || 'Main Dish'} • {(t('servingsSuffix') || '{count} servings').replace('{count}', String(rec.servings || 4))}
+                                  {rec.recipeType || rec.tags?.[0] || 'Main Dish'} • {(t('servingsSuffix', '{count} servings')).replace('{count}', String(rec.servings || 4))}
                                 </span>
                               </div>
                             </div>
@@ -1718,11 +1718,11 @@ export default function BooksPage() {
                             >
                               {alreadyInBook ? (
                                 <>
-                                  <Check className="h-3.5 w-3.5" /> {t('addedToBookBadge') || 'In Book'}
+                                  <Check className="h-3.5 w-3.5" /> {t('addedToBookBadge', 'In Book')}
                                 </>
                               ) : (
                                 <>
-                                  <Plus className="h-3.5 w-3.5" /> {t('addToThisBookBtn') || 'Add'}
+                                  <Plus className="h-3.5 w-3.5" /> {t('addToThisBookBtn', 'Add')}
                                 </>
                               )}
                             </button>
@@ -1748,7 +1748,7 @@ export default function BooksPage() {
                         style={{ backgroundColor: 'var(--color-primary, #E05638)' }}
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
-                        {(t('addSelectedRecipesBtn') || 'Add Selected ({count})').replace('{count}', String(selectedPickerIds.length))}
+                        {(t('addSelectedRecipesBtn', 'Add Selected ({count})')).replace('{count}', String(selectedPickerIds.length))}
                       </button>
                     </div>
                   )}
@@ -1766,10 +1766,10 @@ export default function BooksPage() {
                 >
                   <Utensils className="h-8 w-8 mx-auto" style={{ color: isDayMode ? '#94a3b8' : '#475569' }} />
                   <h4 className="text-sm font-bold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>
-                    {t('noRecipesInBook') || 'No recipes in this book yet'}
+                    {t('noRecipesInBook', 'No recipes in this book yet')}
                   </h4>
                   <p className="text-xs" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>
-                    {t('assignRecipeHint') || 'Click "Add Recipe" above to pick recipes from /recipes, or browse all recipes.'}
+                    {t('assignRecipeHint', 'Click "Add Recipe" above to pick recipes from /recipes, or browse all recipes.')}
                   </p>
                   {!showAddRecipePicker && (
                     <div className="pt-1 flex items-center justify-center gap-3">
@@ -1779,7 +1779,7 @@ export default function BooksPage() {
                         className="text-white font-bold text-xs px-4 py-2 rounded-xl inline-flex items-center gap-1.5 shadow-md cursor-pointer transition"
                         style={{ backgroundColor: 'var(--color-primary, #E05638)' }}
                       >
-                        <Plus className="h-3.5 w-3.5" /> {t('addRecipesFromRecipesBtn') || 'Add Recipe from /recipes'}
+                        <Plus className="h-3.5 w-3.5" /> {t('addRecipesFromRecipesBtn', 'Add Recipe from /recipes')}
                       </button>
                       <Link
                         href="/recipes"
@@ -1789,7 +1789,7 @@ export default function BooksPage() {
                           color: 'var(--color-accent, #10b981)'
                         }}
                       >
-                        {t('browseRecipes') || 'Browse /recipes'} <ArrowRight className="h-3.5 w-3.5" />
+                        {t('browseRecipes', 'Browse /recipes')} <ArrowRight className="h-3.5 w-3.5" />
                       </Link>
                     </div>
                   )}
@@ -1818,7 +1818,7 @@ export default function BooksPage() {
                               {rec.title || rec.name}
                             </h4>
                             <span className="text-[10px] block truncate" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>
-                              {rec.recipeType || rec.tags?.[0] || 'Main Dish'} • {(t('servingsSuffix') || '{count} servings').replace('{count}', String(rec.servings || 4))}
+                              {rec.recipeType || rec.tags?.[0] || 'Main Dish'} • {(t('servingsSuffix', '{count} servings')).replace('{count}', String(rec.servings || 4))}
                             </span>
                           </div>
                         </div>
@@ -1834,7 +1834,7 @@ export default function BooksPage() {
                               color: isDayMode ? '#0f172a' : '#ffffff'
                             }}
                           >
-                            {t('viewBtn') || 'View'}
+                            {t('viewBtn', 'View')}
                           </button>
                           <button
                             type="button"
@@ -1845,7 +1845,7 @@ export default function BooksPage() {
                               borderColor: isDayMode ? '#cbd5e1' : 'var(--color-border, #1e293b)',
                               color: isDayMode ? '#64748b' : '#94a3b8'
                             }}
-                            title={t('removeFromBookTooltip') || 'Remove from this book'}
+                            title={t('removeFromBookTooltip', 'Remove from this book')}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -1910,11 +1910,11 @@ export default function BooksPage() {
                       <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
                         <span className="border text-white px-3 py-1.5 rounded-full flex items-center gap-1.5 bg-black/60 border-white/20">
                           <Clock className="h-3.5 w-3.5" /> 
-                          {(t('cookTimePrefix') || 'Cook: {time} minutes').replace('{time}', String(viewingRecipe.cookTimeMinutes || 10))}
+                          {(t('cookTimePrefix', 'Cook: {time} minutes')).replace('{time}', String(viewingRecipe.cookTimeMinutes || 10))}
                         </span>
                         <span className="border text-white px-3 py-1.5 rounded-full flex items-center gap-1.5 bg-black/60 border-white/20">
                           <Clock className="h-3.5 w-3.5" /> 
-                          {(t('prepTimePrefix') || 'Prep: {time} minutes').replace('{time}', String(viewingRecipe.prepTimeMinutes || 30))}
+                          {(t('prepTimePrefix', 'Prep: {time} minutes')).replace('{time}', String(viewingRecipe.prepTimeMinutes || 30))}
                         </span>
                         <span className="border text-white px-3 py-1.5 rounded-full flex items-center gap-1.5 bg-black/60 border-white/20">
                           <Utensils className="h-3.5 w-3.5" /> {viewingRecipe.tags?.[0] || viewingRecipe.recipeType || 'Main Dish'}
@@ -1951,7 +1951,7 @@ export default function BooksPage() {
                       >
                         <BookmarkPlus className="h-4 w-4 shrink-0" style={{ color: 'var(--color-primary, #E05638)' }} />
                         <span className="truncate">
-                          {assignedBook ? assignedBook.title : (t('addToBook') || 'Add to Book')}
+                          {assignedBook ? assignedBook.title : (t('addToBook', 'Add to Book'))}
                         </span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-70 ml-0.5" />
                       </button>
@@ -1967,20 +1967,20 @@ export default function BooksPage() {
                             }}
                           >
                             <div className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 flex items-center justify-between" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>
-                              <span>{t('selectCookbook') || 'Select Cookbook'}</span>
+                              <span>{t('selectCookbook', 'Select Cookbook')}</span>
                               <button 
                                 type="button"
                                 onClick={() => { setSelectedBook(null); setIsBookDropdownOpen(false); }} 
                                 className="hover:underline cursor-pointer"
                                 style={{ color: 'var(--color-accent, #10b981)' }}
                               >
-                                {t('books') || 'Books'}
+                                {t('books', 'Books')}
                               </button>
                             </div>
 
                             <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
                               {books.length === 0 ? (
-                                <div className="text-xs px-2.5 py-2" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>{t('noCookbooksAvailable') || 'No cookbooks available'}</div>
+                                <div className="text-xs px-2.5 py-2" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>{t('noCookbooksAvailable', 'No cookbooks available')}</div>
                               ) : (
                                 books.map((b) => {
                                   const isAssigned = isRecipeInBook(viewingRecipe, b.id);
@@ -2023,7 +2023,7 @@ export default function BooksPage() {
                         color: 'var(--color-primary, #E05638)'
                       }}
                     >
-                      <CalendarPlus className="h-4 w-4" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('addToPlan') || 'Add to Plan'}
+                      <CalendarPlus className="h-4 w-4" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('addToPlan', 'Add to Plan')}
                     </button>
 
                     {/* Shopping List Trigger */}
@@ -2036,7 +2036,7 @@ export default function BooksPage() {
                         color: 'var(--color-primary, #E05638)'
                       }}
                     >
-                      <ShoppingCart className="h-4 w-4" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('shoppingList') || 'Shopping List'}
+                      <ShoppingCart className="h-4 w-4" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('shoppingList', 'Shopping List')}
                     </button>
                   </div>
 
@@ -2049,7 +2049,7 @@ export default function BooksPage() {
                         className="text-xs font-bold flex items-center gap-1.5"
                         style={{ color: 'var(--color-primary, #E05638)' }}
                       >
-                        <Users className="h-4 w-4" /> {t('servingsLabel') || 'Servings'}
+                        <Users className="h-4 w-4" /> {t('servingsLabel', 'Servings')}
                       </span>
                       <div 
                         className="flex items-center border rounded-lg overflow-hidden"
@@ -2083,14 +2083,14 @@ export default function BooksPage() {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => alert(t('timerSetAlert') || 'Kitchen Timer set for 15 minutes!')}
+                        onClick={() => alert(t('timerSetAlert', 'Kitchen Timer set for 15 minutes!'))}
                         className="border font-bold text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm"
                         style={{
                           borderColor: 'var(--color-primary, #E05638)',
                           color: 'var(--color-primary, #E05638)'
                         }}
                       >
-                        <Timer className="h-3.5 w-3.5" /> {t('timerBtn') || 'Timer'}
+                        <Timer className="h-3.5 w-3.5" /> {t('timerBtn', 'Timer')}
                       </button>
                       <button
                         type="button"
@@ -2101,13 +2101,13 @@ export default function BooksPage() {
                           color: 'var(--color-primary, #E05638)'
                         }}
                       >
-                        <Edit3 className="h-3.5 w-3.5" /> {t('editBtn') || 'Edit'}
+                        <Edit3 className="h-3.5 w-3.5" /> {t('editBtn', 'Edit')}
                       </button>
                       <button
                         type="button"
                         onClick={() => {
                           navigator.clipboard.writeText(window.location.href);
-                          alert(t('recipeLinkCopiedAlert') || 'Recipe link copied!');
+                          alert(t('recipeLinkCopiedAlert', 'Recipe link copied!'));
                         }}
                         className="border font-bold text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm"
                         style={{
@@ -2115,14 +2115,14 @@ export default function BooksPage() {
                           color: 'var(--color-primary, #E05638)'
                         }}
                       >
-                        <Share2 className="h-3.5 w-3.5" /> {t('shareRecipeBtn') || 'Share Recipe'}
+                        <Share2 className="h-3.5 w-3.5" /> {t('shareRecipeBtn', 'Share Recipe')}
                       </button>
                     </div>
                   </div>
 
                   {/* Description */}
                   <div className="px-5 text-xs leading-relaxed" style={{ color: isDayMode ? '#475569' : '#cbd5e1' }}>
-                    {viewingRecipe.description || (t('defaultRecipeDesc') || 'Authentic traditional recipe cooked to perfection.')}
+                    {viewingRecipe.description || (t('defaultRecipeDesc', 'Authentic traditional recipe cooked to perfection.'))}
                   </div>
 
                   <div className="border-t mx-5" style={{ borderColor: isDayMode ? '#e2e8f0' : 'var(--color-border, #1e293b)' }} />
@@ -2130,7 +2130,7 @@ export default function BooksPage() {
                   {/* Ingredients & Steps Viewer */}
                   <div className="px-5 space-y-6">
                     <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: isDayMode ? '#e2e8f0' : 'var(--color-border, #1e293b)' }}>
-                      <h3 className="text-base font-extrabold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('ingredientsHeading') || 'Ingredients'}</h3>
+                      <h3 className="text-base font-extrabold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('ingredientsHeading', 'Ingredients')}</h3>
                       <div 
                         className="flex items-center border rounded-lg text-xs"
                         style={{
@@ -2180,7 +2180,7 @@ export default function BooksPage() {
                     </div>
 
                     <div className="space-y-3 pt-2">
-                      <h3 className="text-base font-extrabold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('instructionsHeading') || 'Instructions'}</h3>
+                      <h3 className="text-base font-extrabold" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('instructionsHeading', 'Instructions')}</h3>
                       <div className="space-y-2.5" style={{ fontSize: `${fontSizeScale}%` }}>
                         {Array.isArray(viewingRecipe.instructions) && viewingRecipe.instructions.map((step: string, idx: number) => {
                           const isDone = completedSteps.includes(idx);
@@ -2221,7 +2221,7 @@ export default function BooksPage() {
                         className="flex items-center gap-2 text-sm font-bold cursor-pointer"
                         style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}
                       >
-                        {t('markAsCooked') || 'Mark as Cooked'}
+                        {t('markAsCooked', 'Mark as Cooked')}
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
                           viewingRecipe.isCooked ? 'bg-emerald-500 text-white' : (isDayMode ? 'border border-slate-300' : 'border border-slate-600')
                         }`}>
@@ -2251,7 +2251,7 @@ export default function BooksPage() {
                         className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition"
                         style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}
                       >
-                        <Edit3 className="h-3.5 w-3.5" /> {t('addANote') || 'Add a note'}
+                        <Edit3 className="h-3.5 w-3.5" /> {t('addANote', 'Add a note')}
                       </button>
 
                       {isNoteOpen && (
@@ -2262,7 +2262,7 @@ export default function BooksPage() {
                             data-lpignore="true"
                             data-1p-ignore="true"
                             data-form-type="other"
-                            placeholder={t('addNotesPlaceholder') || 'Add notes...'}
+                            placeholder={t('addNotesPlaceholder', 'Add notes...')}
                             value={noteText}
                             onChange={(e) => setNoteText(e.target.value)}
                             className="flex-1 border rounded-xl px-3 py-2 text-xs outline-none"
@@ -2283,7 +2283,7 @@ export default function BooksPage() {
                             className="text-white font-bold text-xs px-3 py-2 rounded-xl cursor-pointer shadow-sm"
                             style={{ backgroundColor: 'var(--color-primary, #E05638)' }}
                           >
-                            {t('save') || 'Save'}
+                            {t('save', 'Save')}
                           </button>
                         </div>
                       )}
@@ -2301,7 +2301,7 @@ export default function BooksPage() {
                   <div className="px-5 flex items-center justify-between text-xs">
                     <div>
                       <span className="block uppercase font-bold text-[10px]" style={{ color: isDayMode ? '#94a3b8' : '#64748b' }}>
-                        {t('sourceLabel') || 'Source'}
+                        {t('sourceLabel', 'Source')}
                       </span>
                       {viewingRecipe.sourceUrl ? (
                         <a
@@ -2311,11 +2311,11 @@ export default function BooksPage() {
                           className="font-bold hover:underline flex items-center gap-1 mt-0.5"
                           style={{ color: 'var(--color-accent, #10b981)' }}
                         >
-                          {(t('visitSource') || 'Visit {domain}').replace('{domain}',getSafeHostname(String(new URL(viewingRecipe.sourceUrl ?? ''))).replace('www.', ''))} <ExternalLink className="h-3 w-3" />
+                          {(t('visitSource', 'Visit {domain}')).replace('{domain}',getSafeHostname(String(new URL(viewingRecipe.sourceUrl ?? ''))).replace('www.', ''))} <ExternalLink className="h-3 w-3" />
                         </a>
                       ) : (
                         <span style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>
-                          {t('manualCustomRecipe') || 'Manual / Custom Recipe'}
+                          {t('manualCustomRecipe', 'Manual / Custom Recipe')}
                         </span>
                       )}
                     </div>
@@ -2334,7 +2334,7 @@ export default function BooksPage() {
                         color: '#f87171'
                       }}
                     >
-                      <Trash2 className="h-3.5 w-3.5" /> {t('deleteRecipeBtn') || 'Delete Recipe'}
+                      <Trash2 className="h-3.5 w-3.5" /> {t('deleteRecipeBtn', 'Delete Recipe')}
                     </button>
                   </div>
                 </div>
@@ -2343,7 +2343,7 @@ export default function BooksPage() {
                 <div role="form" aria-label="Edit Recipe Form" className="p-6 space-y-6">
                   <div className="flex justify-between items-center border-b pb-3" style={{ borderColor: isDayMode ? '#e2e8f0' : 'var(--color-border, #1e293b)' }}>
                     <h3 className="text-xl font-bold flex items-center gap-2" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>
-                      <Edit3 className="h-5 w-5" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('editRecipeTitle') || 'Edit Recipe'}
+                      <Edit3 className="h-5 w-5" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('editRecipeTitle', 'Edit Recipe')}
                     </h3>
                     <button
                       type="button"
@@ -2363,9 +2363,9 @@ export default function BooksPage() {
                     }}
                   >
                     {[
-                      { id: 'info', label: t('basicInfoTab') || 'Basic Info' },
-                      { id: 'ingredients', label: t('ingredientsTab') || 'Ingredients' },
-                      { id: 'steps', label: t('stepsTab') || 'Steps' }
+                      { id: 'info', label: t('basicInfoTab', 'Basic Info') },
+                      { id: 'ingredients', label: t('ingredientsTab', 'Ingredients') },
+                      { id: 'steps', label: t('stepsTab', 'Steps') }
                     ].map((tab) => (
                       <button
                         key={tab.id}
@@ -2394,7 +2394,7 @@ export default function BooksPage() {
                           className="block font-bold uppercase tracking-wider text-[11px]"
                           style={{ color: 'var(--color-primary, #E05638)' }}
                         >
-                          {t('photoLabel') || 'Photo'}
+                          {t('photoLabel', 'Photo')}
                         </label>
                         <label 
                           className="border-2 border-dashed rounded-2xl h-44 flex flex-col items-center justify-center cursor-pointer transition relative overflow-hidden group"
@@ -2418,7 +2418,7 @@ export default function BooksPage() {
                                     borderColor: 'var(--color-border, #1e293b)'
                                   }}
                                 >
-                                  <ImagePlus className="h-4 w-4" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('changePhoto') || 'Change Photo'}
+                                  <ImagePlus className="h-4 w-4" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('changePhoto', 'Change Photo')}
                                 </span>
                                 <button
                                   type="button"
@@ -2429,7 +2429,7 @@ export default function BooksPage() {
                                   }}
                                   className="bg-red-950/90 border border-red-500/50 text-red-400 text-xs font-bold px-3 py-1.5 rounded-xl hover:bg-red-900 cursor-pointer"
                                 >
-                                  {t('removePhoto') || 'Remove'}
+                                  {t('removePhoto', 'Remove')}
                                 </button>
                               </div>
                             </>
@@ -2437,7 +2437,7 @@ export default function BooksPage() {
                             <div className="text-center space-y-2">
                               <ImagePlus className="h-8 w-8 mx-auto transition" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }} />
                               <span className="text-xs font-bold block" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-                                {t('addAPhoto') || 'Add a photo'}
+                                {t('addAPhoto', 'Add a photo')}
                               </span>
                             </div>
                           )}
@@ -2450,7 +2450,7 @@ export default function BooksPage() {
                           className="block font-bold uppercase tracking-wider text-[11px] mb-1.5"
                           style={{ color: 'var(--color-primary, #E05638)' }}
                         >
-                          {t('recipeTitle') || 'Recipe Title'}
+                          {t('recipeTitle', 'Recipe Title')}
                         </label>
                         <input
                           type="text"
@@ -2477,7 +2477,7 @@ export default function BooksPage() {
                           className="block font-bold uppercase tracking-wider text-[11px] mb-1.5"
                           style={{ color: 'var(--color-primary, #E05638)' }}
                         >
-                          {t('templateDescriptionLabel') || 'Description'}
+                          {t('templateDescriptionLabel', 'Description')}
                         </label>
                         <textarea
                           rows={3}
@@ -2504,7 +2504,7 @@ export default function BooksPage() {
                             className="block font-bold uppercase tracking-wider text-[11px] mb-1.5"
                             style={{ color: 'var(--color-primary, #E05638)' }}
                           >
-                            {t('recipeType') || 'Recipe Type'}
+                            {t('recipeType', 'Recipe Type')}
                           </label>
                           <select
                             value={editRecipeForm.recipeType}
@@ -2516,7 +2516,7 @@ export default function BooksPage() {
                               color: isDayMode ? '#0f172a' : '#ffffff'
                             }}
                           >
-                            <option value="Main Dish" style={{ backgroundColor: isDayMode ? '#ffffff' : '#070b13', color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('mainDish') || 'Main Dish'}</option>
+                            <option value="Main Dish" style={{ backgroundColor: isDayMode ? '#ffffff' : '#070b13', color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('mainDish', 'Main Dish')}</option>
                             <option value="Appetizer" style={{ backgroundColor: isDayMode ? '#ffffff' : '#070b13', color: isDayMode ? '#0f172a' : '#ffffff' }}>Appetizer</option>
                             <option value="Dessert" style={{ backgroundColor: isDayMode ? '#ffffff' : '#070b13', color: isDayMode ? '#0f172a' : '#ffffff' }}>Dessert</option>
                             <option value="Side Dish" style={{ backgroundColor: isDayMode ? '#ffffff' : '#070b13', color: isDayMode ? '#0f172a' : '#ffffff' }}>Side Dish</option>
@@ -2529,7 +2529,7 @@ export default function BooksPage() {
                             className="block font-bold uppercase tracking-wider text-[11px] mb-1.5"
                             style={{ color: 'var(--color-primary, #E05638)' }}
                           >
-                            {t('servingsLabel') || 'Servings'}
+                            {t('servingsLabel', 'Servings')}
                           </label>
                           <input
                             type="number"
@@ -2553,7 +2553,7 @@ export default function BooksPage() {
                             className="block font-bold uppercase tracking-wider text-[11px] mb-1.5"
                             style={{ color: 'var(--color-primary, #E05638)' }}
                           >
-                            {t('prepTimeMinsLabel') || 'Preparation Time (mins)'}
+                            {t('prepTimeMinsLabel', 'Preparation Time (mins)')}
                           </label>
                           <input
                             type="number"
@@ -2575,7 +2575,7 @@ export default function BooksPage() {
                             className="block font-bold uppercase tracking-wider text-[11px] mb-1.5"
                             style={{ color: 'var(--color-primary, #E05638)' }}
                           >
-                            {t('cookTimeMinsLabel') || 'Cooking Time (mins)'}
+                            {t('cookTimeMinsLabel', 'Cooking Time (mins)')}
                           </label>
                           <input
                             type="number"
@@ -2603,7 +2603,7 @@ export default function BooksPage() {
                             color: isDayMode ? '#475569' : '#cbd5e1'
                           }}
                         >
-                          {t('cancel') || 'Cancel'}
+                          {t('cancel', 'Cancel')}
                         </button>
                         <button
                           type="button"
@@ -2613,7 +2613,7 @@ export default function BooksPage() {
                           onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover, #c94529)')}
                           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary, #E05638)')}
                         >
-                          <Save className="h-4 w-4" /> {t('saveChanges') || 'Save Changes'}
+                          <Save className="h-4 w-4" /> {t('saveChanges', 'Save Changes')}
                         </button>
                       </div>
                     </div>
@@ -2633,7 +2633,7 @@ export default function BooksPage() {
                           className="text-sm font-bold uppercase tracking-wider"
                           style={{ color: 'var(--color-primary, #E05638)' }}
                         >
-                          {t('ingredientsHeading') || 'Ingredients'}
+                          {t('ingredientsHeading', 'Ingredients')}
                         </h2>
                         <div className="flex gap-2">
                           <button
@@ -2650,7 +2650,7 @@ export default function BooksPage() {
                               color: isDayMode ? '#0f172a' : '#cbd5e1'
                             }}
                           >
-                            {isReorderingIngredients ? (t('done') || 'Done') : (t('reorderBtn') || 'Reorder')}
+                            {isReorderingIngredients ? (t('done', 'Done')) : (t('reorderBtn', 'Reorder'))}
                           </button>
                           <button
                             type="button"
@@ -2663,7 +2663,7 @@ export default function BooksPage() {
                             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover, #c94529)')}
                             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary, #E05638)')}
                           >
-                            <Plus className="h-3.5 w-3.5" /> {t('addIngredientModalBtn') || 'Add Ingredient'}
+                            <Plus className="h-3.5 w-3.5" /> {t('addIngredientModalBtn', 'Add Ingredient')}
                           </button>
                         </div>
                       </div>
@@ -2777,7 +2777,7 @@ export default function BooksPage() {
                             color: isDayMode ? '#0f172a' : '#cbd5e1'
                           }}
                         >
-                          {t('backBtn') || '← Back'}
+                          {t('backBtn', '← Back')}
                         </button>
                         <button
                           type="button"
@@ -2787,7 +2787,7 @@ export default function BooksPage() {
                           onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover, #c94529)')}
                           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary, #E05638)')}
                         >
-                          {t('nextStepsBtn') || 'Next: Steps →'}
+                          {t('nextStepsBtn', 'Next: Steps →')}
                         </button>
                       </div>
                     </div>
@@ -2807,7 +2807,7 @@ export default function BooksPage() {
                           className="text-sm font-bold uppercase tracking-wider"
                           style={{ color: 'var(--color-primary, #E05638)' }}
                         >
-                          {t('stepInstructionsHeading') || 'Step-by-Step Instructions'}
+                          {t('stepInstructionsHeading', 'Step-by-Step Instructions')}
                         </h2>
                         <div className="flex gap-2">
                           <button
@@ -2824,7 +2824,7 @@ export default function BooksPage() {
                               color: isDayMode ? '#0f172a' : '#cbd5e1'
                             }}
                           >
-                            {isReorderingSteps ? (t('done') || 'Done') : (t('reorderBtn') || 'Reorder')}
+                            {isReorderingSteps ? (t('done', 'Done')) : (t('reorderBtn', 'Reorder'))}
                           </button>
                           <button
                             type="button"
@@ -2837,7 +2837,7 @@ export default function BooksPage() {
                             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover, #c94529)')}
                             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary, #E05638)')}
                           >
-                            <Plus className="h-3.5 w-3.5" /> {t('addStepBtn') || 'Add Step'}
+                            <Plus className="h-3.5 w-3.5" /> {t('addStepBtn', 'Add Step')}
                           </button>
                         </div>
                       </div>
@@ -2869,7 +2869,7 @@ export default function BooksPage() {
                             </span>
                             <textarea
                               rows={2}
-                              placeholder={(t('describeStepPlaceholder') || 'Describe step {n}...').replace('{n}', String(idx + 1))}
+                              placeholder={(t('describeStepPlaceholder', 'Describe step {n}...')).replace('{n}', String(idx + 1))}
                               value={step}
                               onChange={(e) => {
                                 const list = [...editRecipeForm.instructions];
@@ -2910,7 +2910,7 @@ export default function BooksPage() {
                             color: isDayMode ? '#0f172a' : '#cbd5e1'
                           }}
                         >
-                          {t('backBtn') || '← Back'}
+                          {t('backBtn', '← Back')}
                         </button>
                         <button
                           type="button"
@@ -2920,7 +2920,7 @@ export default function BooksPage() {
                           onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover, #c94529)')}
                           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary, #E05638)')}
                         >
-                          <Save className="h-4 w-4" /> {t('saveChanges') || 'Save Changes'}
+                          <Save className="h-4 w-4" /> {t('saveChanges', 'Save Changes')}
                         </button>
                       </div>
                     </div>
@@ -2952,10 +2952,10 @@ export default function BooksPage() {
             <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: isDayMode ? '#e2e8f0' : 'var(--color-border, #1e293b)' }}>
               <div>
                 <h3 className="text-lg font-bold flex items-center gap-2" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>
-                  <ShoppingCart className="h-5 w-5" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('addToShoppingListTitle') || 'Add to Shopping List'}
+                  <ShoppingCart className="h-5 w-5" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('addToShoppingListTitle', 'Add to Shopping List')}
                 </h3>
                 <p className="text-xs" style={{ color: isDayMode ? '#64748b' : '#94a3b8' }}>
-                  {t('addToShoppingListSub') || 'Select or edit items to add directly to your list'}
+                  {t('addToShoppingListSub', 'Select or edit items to add directly to your list')}
                 </p>
               </div>
               <button 
@@ -3073,7 +3073,7 @@ export default function BooksPage() {
                   color: isDayMode ? '#475569' : '#cbd5e1'
                 }}
               >
-                {t('cancel') || 'Cancel'}
+                {t('cancel', 'Cancel')}
               </button>
               <button
                 type="button"
@@ -3083,7 +3083,7 @@ export default function BooksPage() {
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover, #c94529)')}
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary, #E05638)')}
               >
-                <ShoppingCart className="h-3.5 w-3.5" /> {t('addSelectedToListBtn') || 'Add Selected to List'}
+                <ShoppingCart className="h-3.5 w-3.5" /> {t('addSelectedToListBtn', 'Add Selected to List')}
               </button>
             </div>
           </div>
@@ -3109,7 +3109,7 @@ export default function BooksPage() {
           >
             <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: isDayMode ? '#e2e8f0' : 'var(--color-border, #1e293b)' }}>
               <h3 className="text-base font-black flex items-center gap-2" style={{ color: isDayMode ? '#0f172a' : '#ffffff' }}>
-                <CalendarPlus className="h-4 w-4" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('addToMealPlanTitle') || 'Add to Meal Plan'}
+                <CalendarPlus className="h-4 w-4" style={{ color: 'var(--color-primary, #E05638)' }} /> {t('addToMealPlanTitle', 'Add to Meal Plan')}
               </h3>
               <button 
                 type="button"
@@ -3124,7 +3124,7 @@ export default function BooksPage() {
             <div className="space-y-3">
               <div>
                 <label className="block font-bold mb-1" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-                  {t('dateLabel') || 'Date'}
+                  {t('dateLabel', 'Date')}
                 </label>
                 <input
                   type="date"
@@ -3143,7 +3143,7 @@ export default function BooksPage() {
 
               <div>
                 <label className="block font-bold mb-1" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-                  {t('mealTypeLabel') || 'Meal Type'}
+                  {t('mealTypeLabel', 'Meal Type')}
                 </label>
                 <select
                   value={planMealType}
@@ -3155,16 +3155,16 @@ export default function BooksPage() {
                     color: isDayMode ? '#0f172a' : '#ffffff'
                   }}
                 >
-                  <option value="Breakfast" style={{ backgroundColor: isDayMode ? '#ffffff' : '#070b13', color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('breakfast') || 'Breakfast'}</option>
-                  <option value="Lunch" style={{ backgroundColor: isDayMode ? '#ffffff' : '#070b13', color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('lunch') || 'Lunch'}</option>
-                  <option value="Dinner" style={{ backgroundColor: isDayMode ? '#ffffff' : '#070b13', color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('dinner') || 'Dinner'}</option>
-                  <option value="Snack" style={{ backgroundColor: isDayMode ? '#ffffff' : '#070b13', color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('snack') || 'Snack'}</option>
+                  <option value="Breakfast" style={{ backgroundColor: isDayMode ? '#ffffff' : '#070b13', color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('breakfast', 'Breakfast')}</option>
+                  <option value="Lunch" style={{ backgroundColor: isDayMode ? '#ffffff' : '#070b13', color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('lunch', 'Lunch')}</option>
+                  <option value="Dinner" style={{ backgroundColor: isDayMode ? '#ffffff' : '#070b13', color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('dinner', 'Dinner')}</option>
+                  <option value="Snack" style={{ backgroundColor: isDayMode ? '#ffffff' : '#070b13', color: isDayMode ? '#0f172a' : '#ffffff' }}>{t('snack', 'Snack')}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block font-bold mb-1" style={{ color: isDayMode ? '#334155' : '#cbd5e1' }}>
-                  {t('timeLabel') || 'Time'}
+                  {t('timeLabel', 'Time')}
                 </label>
                 <input
                   type="time"
@@ -3192,7 +3192,7 @@ export default function BooksPage() {
                   color: isDayMode ? '#475569' : '#cbd5e1'
                 }}
               >
-                {t('cancel') || 'Cancel'}
+                {t('cancel', 'Cancel')}
               </button>
               <button
                 type="button"
@@ -3202,7 +3202,7 @@ export default function BooksPage() {
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary-hover, #c94529)')}
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-primary, #E05638)')}
               >
-                {t('scheduleMealBtn') || 'Schedule Meal'}
+                {t('scheduleMealBtn', 'Schedule Meal')}
               </button>
             </div>
           </div>

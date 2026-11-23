@@ -159,20 +159,9 @@ function keywordFoodImage(title?: string, mealType?: string, meatFree?: boolean)
   return '';
 }
 
-async function lookupDishImage(query: string, meatFree: boolean): Promise<string> {
-  const q = (query || '').trim();
-  if (q.length < 3) return '';
-  const key = `${q.toLowerCase()}|${meatFree ? 1 : 0}`;
-  if (DISH_IMG_CACHE.has(key)) return DISH_IMG_CACHE.get(key) || '';
-  try {
-    const res = await fetch(`/api/images/search?q=${encodeURIComponent(q)}${meatFree ? '&meatFree=1' : ''}`, { cache: 'no-store' });
-    const data = await res.json();
-    const url = data && data.success && typeof data.url === 'string' ? data.url : '';
-    DISH_IMG_CACHE.set(key, url);
-    return url;
-  } catch (_) {
-    return '';
-  }
+// Photo search was removed (no Pexels/Unsplash lookup); a dish without its own photo falls back to the keyword picture or placeholder.
+async function lookupDishImage(_query: string, _meatFree: boolean): Promise<string> {
+  return '';
 }
 
 function dishImageSync(query: string, meatFree: boolean): string {
