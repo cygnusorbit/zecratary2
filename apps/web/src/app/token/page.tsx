@@ -306,7 +306,7 @@ export default function TokenPortalPage() {
       const newBal = Number(data.balance ?? (tokenBalance + totalTokensToCredit));
       setTokenBalance(newBal);
 
-      const newWalletBal = Math.max(0, walletBalance - priceToPay);
+      const newWalletBal = typeof data.walletBalance === 'number' ? data.walletBalance : Math.max(0, walletBalance - priceToPay);
       setWalletBalance(newWalletBal);
 
       // Local user cache sync

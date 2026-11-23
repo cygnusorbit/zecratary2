@@ -401,6 +401,18 @@ export async function getUserTokenAccount(userId?: string | null, userEmail?: st
   return { exists: false, balance: 0 };
 }
 
+// Token balance and wallet balance of the signed-in user, read from the one account row that chat charges and purchases both use.
+export async function getUserWalletAccount(userId?: string | null, userEmail?: string | null): Promise<{ exists: boolean; tokens: number; wallet: number }> {
+  await initTokenTables();
+  try {
+    let list: any[] = [];
+    if (userId) list = parseDbRows(await query('SELECT token_balance, wallet_balance FROM users WHERE id = $1 LIMIT 1', [userId]));
+    if (list.length === 0 && userEmail) list = parseDbRows(await query('SELECT token_balance, wallet_balance FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) LIMIT 1', [userEmail.trim()]));
+    if (list.length > 0) return { exists: true, tokens: Number(list[0].token_balance ?? 0), wallet: Number(list[0].wallet_balance ?? 0) };
+  } catch (_) {}
+  return { exists: false, tokens: 0, wallet: 0 };
+}
+
 // ----------------------------------------------------------------------------------
 // deductUserTokens with Polymorphic Overloads & Explicit Scoped Variable Normalization
 // ----------------------------------------------------------------------------------
@@ -647,14 +659,10 @@ export async function purchaseTokenPackage(
     return { success: false, tokensAdded: 0, newBalance: 0, error: 'User identifier is required.' };
   }
 
-  const userRows = await query(`
-    SELECT id, email, token_balance, wallet_balance 
-    FROM users 
-    WHERE (id::text = $1 AND $1 != '') OR (email IS NOT NULL AND LOWER(TRIM(email)) = LOWER(TRIM($2)) AND $2 != '')
-    LIMIT 1
-  `, [userIdentifier, userIdentifier]);
-
-  const uList = parseDbRows(userRows);
+  let uList: any[] = parseDbRows(await query('SELECT id, email, token_balance, wallet_balance FROM users WHERE id = $1 LIMIT 1', [userIdentifier]));
+  if (uList.length === 0 && userIdentifier.includes('@')) {
+    uList = parseDbRows(await query('SELECT id, email, token_balance, wallet_balance FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) LIMIT 1', [userIdentifier]));
+  }
   if (uList.length === 0) {
     return { success: false, tokensAdded: 0, newBalance: 0, error: 'User account not found.' };
   }
@@ -705,7 +713,7 @@ export async function purchaseTokenPackage(
     const wtxId = `wtx_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     await query(`
       INSERT INTO wallet_transactions (id, user_id, user_email, type, amount, balance_after, gateway, status, description, metadata, created_at)
-      VALUES ($1, $2, $3, 'token_purchase', $4, $5, 'wallet', 'succeeded', $6, $7::jsonb, NOW())
+      VALUES ($1, $2, $3, 'token_purchase', $4, $5, 'wallet', 'succeeded', $6, $7, NOW())
     `, [
       wtxId,
       user.id,

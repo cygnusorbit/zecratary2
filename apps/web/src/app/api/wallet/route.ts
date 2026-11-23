@@ -13,6 +13,8 @@ import {
   recordAuthoritativeTransaction, 
   autoHarmonizeTransactionSchema 
 } from '@/lib/transactionService';
+import { getUserWalletAccount } from '@/lib/tokenService';
+import { query as appQuery } from '@/lib/db';
 import { harmonizeDatabaseSchema } from '@/lib/dbSchemaHarmonizer';
 
 export const dynamic = 'force-dynamic';
@@ -80,7 +82,9 @@ export async function GET(req: NextRequest) {
     const typeFilter = searchParams.get('type') || 'all';
 
     // 1. Authoritative User Balance Calculation
-    const userBalance = await calculateAuthoritativeUserBalance(userId, email, 150.00);
+    // The account row is the one balance that token purchases also charge; the transaction ledger is only the fallback for logins without a row.
+    const acctRow = await getUserWalletAccount(userId, email);
+    const userBalance = acctRow.exists ? acctRow.wallet : await calculateAuthoritativeUserBalance(userId, email, 0);
 
     // 2. Authoritative Settings
     const diskSettings = readDiskWalletSettings();
@@ -184,7 +188,8 @@ export async function POST(req: NextRequest) {
     const email = scoped.email;
 
     if (action === 'reconcile_wallet') {
-      const liveBal = await calculateAuthoritativeUserBalance(userId, email, 150.00);
+      const acctRec = await getUserWalletAccount(userId, email);
+      const liveBal = acctRec.exists ? acctRec.wallet : await calculateAuthoritativeUserBalance(userId, email, 0);
       const allTxs = await getAllAuthoritativeTransactions();
       const userTxs = allTxs.filter((t: any) => 
         (t.email && t.email.toLowerCase() === email.toLowerCase()) || 
@@ -209,7 +214,8 @@ export async function POST(req: NextRequest) {
       const gateway = body.gateway || 'stripe';
       const transferRef = body.transferReference || `ref_${Date.now()}`;
 
-      const currentBal = await calculateAuthoritativeUserBalance(userId, email, 150.00);
+      const acctTop = await getUserWalletAccount(userId, email);
+      const currentBal = acctTop.exists ? acctTop.wallet : await calculateAuthoritativeUserBalance(userId, email, 0);
       const newBal = currentBal + totalCredited;
 
       // Update PostgreSQL (Supabase)
@@ -238,6 +244,11 @@ export async function POST(req: NextRequest) {
           );
         }
       } catch (_) {}
+
+      // Write the new balance to the account row on whichever database is active.
+      if (acctTop.exists) {
+        try { await appQuery('UPDATE users SET wallet_balance = $1, updated_at = NOW() WHERE id = $2 OR LOWER(email) = LOWER($3)', [newBal, userId, email]); } catch (_) {}
+      }
 
       const newTx = {
         id: `tx_wlt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,

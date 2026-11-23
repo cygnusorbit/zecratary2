@@ -3,6 +3,8 @@ import { isAuthEnforced as isAuthEnforcedNow } from '@/lib/session';
 import { NextRequest, NextResponse } from 'next/server';
 import { getActiveDatabase } from '@/lib/dbConfig';
 import { query as dbQuery } from '@/lib/db';
+import { getTokenSettings, getUserWalletAccount, purchaseTokenPackage } from '@/lib/tokenService';
+import { calculateAuthoritativeUserBalance } from '@/lib/transactionService';
 import fs from 'fs';
 import path from 'path';
 
@@ -116,11 +118,11 @@ export async function GET(req: NextRequest) {
       }
     };
 
-    if (getActiveDatabase() === 'mysql') {
-      try {
-        mergeRemoteTxs(await dbQuery('SELECT * FROM token_transactions ORDER BY created_at DESC LIMIT 250'));
-      } catch (_) {}
-    } else if (supabaseUrl && supabaseKey) {
+    try {
+      const dbRows: any = await dbQuery('SELECT * FROM token_transactions ORDER BY created_at DESC LIMIT 250');
+      mergeRemoteTxs(Array.isArray(dbRows) ? dbRows : dbRows?.rows);
+    } catch (_) {}
+    if (getActiveDatabase() !== 'mysql' && supabaseUrl && supabaseKey) {
       try {
         const { createClient } = await import('@supabase/supabase-js');
         const supabase = createClient(supabaseUrl, supabaseKey);
@@ -187,16 +189,26 @@ export async function GET(req: NextRequest) {
       } catch (_) {}
     }
 
+    // One source of truth: the account row that chat charges and purchases update. The ledger-based numbers above are only a fallback for logins without an account row.
+    const live: any = await getTokenSettings().catch(() => null);
+    const acct = await getUserWalletAccount(userId, email);
+    if (acct.exists) tokenBalance = acct.tokens;
+    const walletBalance = acct.exists ? acct.wallet : await calculateAuthoritativeUserBalance(userId, email, 0).catch(() => 0);
+
     return NextResponse.json({
       success: true,
       balance: tokenBalance,
-      walletBalance: 120.00,
-      tokenName: settings.tokenName || 'Foodie Token',
-      tokenSymbol: settings.tokenSymbol || '🪙',
-      tokenIcon: settings.tokenIcon || '',
-      isEnabled: settings.isEnabled ?? true,
-      costs: settings.costs || DEFAULT_COSTS,
-      packages: settings.packages || DEFAULT_PACKAGES,
+      walletBalance,
+      tokenName: live?.tokenName || settings.tokenName || 'Foodie Token',
+      tokenSymbol: live?.tokenSymbol || settings.tokenSymbol || '🪙',
+      tokenIcon: live?.tokenIcon || settings.tokenIcon || '',
+      isEnabled: live?.isEnabled ?? settings.isEnabled ?? true,
+      // Prices shown to users are the prices really charged.
+      costs: live ? {
+        chef: live.chefCost, import_url: live.importUrlCost, import_text: live.importTextCost, import_photo: live.importPhotoCost,
+        meal_planner: live.mealPlannerCost ?? live.chefCost, macro_analysis: live.macroAnalysisCost ?? 3
+      } : (settings.costs || DEFAULT_COSTS),
+      packages: (live?.packages && live.packages.length ? live.packages : settings.packages) || DEFAULT_PACKAGES,
       transactions: paginatedTxs,
       total,
       page,
@@ -230,9 +242,41 @@ export async function POST(req: NextRequest) {
 
     if (action === 'purchase') {
       if (isAuthEnforcedNow() && !scoped.isAdmin) return NextResponse.json({ success: false, error: 'Payments are not enabled yet. Please contact the administrator.' }, { status: 403 });
-      const tokens = Number(body.tokens || body.tokenAmount || 0);
-      const price = Number(body.price || body.priceDollars || 0);
-      const pkgName = body.packageName || 'Token Bundle';
+      let tokens = Number(body.tokens || body.tokenAmount || 0);
+      let price = Number(body.price || body.priceDollars || 0);
+      let pkgName = body.packageName || 'Token Bundle';
+
+      // Tokens and price come from the saved package, never from the browser.
+      const live: any = await getTokenSettings().catch(() => null);
+      const pkg = (live?.packages || readTokenSettings().packages || DEFAULT_PACKAGES).find((p: any) => p.id === body.packageId);
+      if (pkg) {
+        tokens = Number(pkg.tokens ?? pkg.tokenAmount ?? 0) + Number(pkg.bonusTokens || 0);
+        price = Number(pkg.price ?? pkg.priceDollars ?? 0);
+        pkgName = pkg.name || pkgName;
+      }
+
+      // Real purchase: the wallet is charged, the token balance (the one chat spends from) is credited, and both are written to the ledgers.
+      const real: any = await purchaseTokenPackage({ userId, userEmail, tokens, price, packageName: pkgName, paymentMethod: 'wallet' });
+      if (real.success) {
+        return NextResponse.json({
+          success: true,
+          message: real.message || 'Tokens purchased successfully',
+          balance: real.newBalance,
+          newBalance: real.newBalance,
+          walletBalance: real.newWalletBalance,
+          wallet_balance: real.newWalletBalance,
+          tokensAdded: real.tokensAdded,
+          priceDeducted: price,
+          transactionId: real.transactionId
+        });
+      }
+      if (real.requiresWalletTopUp) {
+        return NextResponse.json({ success: false, error: real.error, requiresWalletTopUp: true, shortfall: real.shortfall, walletBalance: real.wallet_balance }, { status: 402 });
+      }
+      if (real.error && !/not found/i.test(real.error)) {
+        return NextResponse.json({ success: false, error: real.error }, { status: 400 });
+      }
+      // No account row (e.g. an admin login): fall back to the ledger-only record below.
 
       // Find user current balance
       const userPrevTx = allTxs.find((t: any) => (t.customer_email || t.user_email || '').toLowerCase().trim() === userEmail);
